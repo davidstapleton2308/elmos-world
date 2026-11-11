@@ -43,6 +43,27 @@ jobs:
           & .\dist\ElmosWorld\ElmosWorld.exe --self-test
           if ($LASTEXITCODE -ne 0) { throw 'Standalone executable smoke test failed.' }
 
+      - name: Preserve standalone smoke-test diagnostics
+        if: failure()
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:LOCALAPPDATA 'ElmosWorld/logs/launcher.log'
+          New-Item -ItemType Directory -Path diagnostics -Force | Out-Null
+          if (Test-Path $log) {
+            Copy-Item $log diagnostics/launcher.log -Force
+          } else {
+            Set-Content diagnostics/launcher.log 'The standalone self-test failed without creating its expected diagnostic log.'
+          }
+
+      - name: Upload smoke-test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ElmosWorld-SmokeTest-Diagnostics
+          path: diagnostics/launcher.log
+          if-no-files-found: warn
+          retention-days: 7
+
       - name: Install Inno Setup compiler
         shell: pwsh
         run: |
