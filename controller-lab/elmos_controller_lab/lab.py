@@ -134,7 +134,10 @@ def command_matrix(args):
         browser_server = BrowserProbeServer() if args.browser else None
         if browser_server:
             print("Browser Gamepad API probe:", browser_server.start(open_browser=True), flush=True)
-            print("If prompted, press a controller button once in the browser page before the matrix begins.", flush=True)
+            print("Press a controller button once in the browser page to activate it; waiting up to 10 seconds.", flush=True)
+            browser_deadline = time.monotonic() + 10.0
+            while not browser_server.snapshot().get("devices") and time.monotonic() < browser_deadline:
+                time.sleep(0.25)
         device_guid = "synthetic"
         physical_instance = None
         if not args.demo:
