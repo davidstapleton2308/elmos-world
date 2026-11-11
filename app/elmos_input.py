@@ -22,6 +22,22 @@ BUTTONS = {
     "up": "XUSB_GAMEPAD_DPAD_UP", "down": "XUSB_GAMEPAD_DPAD_DOWN",
     "left": "XUSB_GAMEPAD_DPAD_LEFT", "right": "XUSB_GAMEPAD_DPAD_RIGHT",
 }
+FACE_BUTTONS = ("a", "b", "x", "y")
+
+
+def apply_bindings(buttons, bindings):
+    """Map physical gamepad buttons to virtual outputs, with OR for duplicates."""
+    source = buttons or {}
+    layout = bindings or {}
+    result = {k: False for k in BUTTONS}
+    for physical in BUTTONS:
+        destination = layout.get(physical, physical)
+        if destination not in BUTTONS:
+            destination = physical
+        result[destination] |= bool(source.get(physical, False))
+    return result
+
+
 DEFAULT_PATH = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "ElmosWorld" / "input_profiles.json"
 
 
@@ -108,6 +124,7 @@ class InputManager:
         self.factory = factory
         self.lock = threading.RLock()
         self.modes = self._load()
+        self.bindings = self._load_bindings()
         self.game_id = None
         self.pid = None
         self.sink = None
@@ -130,34 +147,64 @@ class InputManager:
         except (OSError, ValueError, TypeError):
             return {}
 
+    def _load_bindings(self):
+        try:
+            data = json.loads(self.path.read_text(encoding="utf-8"))
+            records = data.get("buttonBindings", {}) if isinstance(data, dict) else {}
+            if not isinstance(records, dict):
+                return {}
+            return {game: {k: v for k, v in profile.items() if k in BUTTONS and v in BUTTONS}
+                    for game, profile in records.items()
+                    if isinstance(game, str) and isinstance(profile, dict)}
+        except (OSError, ValueError, TypeError):
+            return {}
+
     def get_mode(self, game_id):
         with self.lock:
             return self.modes.get(game_id, "native")
 
     def set_mode(self, game_id, mode):
+        return self.set_profile(game_id, mode, None)
+
+    def set_profile(self, game_id, mode, bindings=None):
         if not isinstance(game_id, str) or not game_id or len(game_id) > 512:
             raise ValueError("Select a valid library game.")
         if mode not in MODES:
             raise ValueError("Unknown input mode.")
+        if bindings is not None:
+            if not isinstance(bindings, dict) or any(k not in BUTTONS or v not in BUTTONS
+                                                        for k, v in bindings.items()):
+                raise ValueError("Invalid gamepad button layout.")
         with self.lock:
             if self.game_id is not None:
                 raise RuntimeError("Finish the active game before changing controller output.")
-            updated = dict(self.modes)
+            new_modes = dict(self.modes)
+            new_bindings = dict(self.bindings)
             if mode == "native":
-                updated.pop(game_id, None)
+                new_modes.pop(game_id, None)
             else:
-                updated[game_id] = mode
+                new_modes[game_id] = mode
+            if bindings is not None:
+                custom = {key: value for key, value in bindings.items() if key != value}
+                if custom:
+                    new_bindings[game_id] = custom
+                else:
+                    new_bindings.pop(game_id, None)
             self.path.parent.mkdir(parents=True, exist_ok=True)
-            temp = self.path.with_suffix(".tmp")
-            temp.write_text(json.dumps({"schema": 1, "games": updated}, indent=2), encoding="utf-8")
-            os.replace(temp, self.path)
-            self.modes = updated
-            return {"ok": True, "id": game_id, "mode": mode}
+            temporary = self.path.with_suffix(".tmp")
+            temporary.write_text(json.dumps({"schema": 2, "games": new_modes,
+                                              "buttonBindings": new_bindings}, indent=2), encoding="utf-8")
+            os.replace(temporary, self.path)
+            self.modes = new_modes
+            self.bindings = new_bindings
+            return {"ok": True, "id": game_id, "mode": mode,
+                    "bindings": dict(new_bindings.get(game_id, {}))}
 
     def status(self, game_id=""):
         with self.lock:
             return {
                 "mode": self.modes.get(game_id, "native"),
+                "bindings": dict(self.bindings.get(game_id, {})),
                 "modes": list(MODES),
                 "running": self.game_id is not None,
                 "activeGameId": self.game_id,
@@ -248,7 +295,7 @@ class InputManager:
                 self.error = "Only a virtual Xbox was detected. Connect the physical controller."
                 return
             try:
-                self.sink.send(buttons, axes, triggers)
+                self.sink.send(apply_bindings(buttons, self.bindings.get(self.game_id, {})), axes, triggers)
                 self.last_neutral = False
             except Exception as exc:
                 self.error = "Virtual Xbox input failed: " + str(exc)[:200]
