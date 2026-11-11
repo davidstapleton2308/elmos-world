@@ -2,6 +2,7 @@
 from pathlib import Path
 import os
 import tempfile
+import time
 import unittest
 import sys
 
@@ -120,6 +121,11 @@ class DiscoveryFixtureTests(unittest.TestCase):
 
     def test_conflicting_destination_prevents_move(self):
         folder=self.unity('Hades','Hades')
+        # Model a download that finished several minutes ago, not a file
+        # created in the same clock tick as the race-checking move.
+        old_time=time.time()-300
+        for path in [folder,*folder.iterdir()]:
+            os.utime(path,(old_time,old_time))
         self.games.mkdir(parents=True)
         (self.games/'Hades').mkdir()
         with self.assertRaises(FileExistsError):
