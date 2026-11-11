@@ -38,7 +38,8 @@ def command_profiles(args):
         term = args.search.casefold()
         profiles = [p for p in profiles if term in " ".join(str(p.get(k, "")) for k in ("id", "name", "vendor", "type")).casefold()]
     if not args.include_non_gamepads:
-        profiles = [p for p in profiles if p.get("type") in ("gamepad", "joystick", "arcade", "wheel")]
+        profiles = [p for p in profiles if "keyboard" not in str(p.get("type", "")).casefold()
+                    and "mouse" not in str(p.get("type", "")).casefold()]
     print_json({"driverInstalled": result.get("driverInstalled"), "count": len(profiles), "profiles": profiles})
 
 
@@ -86,6 +87,8 @@ def command_emulate(args):
         status = bridge.request("status")
         if not status.get("driverInstalled"):
             raise BridgeError("Virtual controller driver is not installed. Run the explicit install-driver command first.")
+        if not status.get("driverPrepared"):
+            raise BridgeError("The pinned virtual driver has not been explicitly prepared. Run Install-ControllerLab-Driver.ps1 first.")
         if not status.get("elevated"):
             raise BridgeError("Virtual device creation requires an elevated session. Run Install-ControllerLab-Driver.ps1 and approve UAC.")
         created = bridge.request("create", slot=args.slot, profile_id=args.profile)
