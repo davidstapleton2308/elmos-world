@@ -56,6 +56,13 @@ jobs:
         run: |
           & .\dist\ElmosWorld\ElmosWorld.exe --self-test
           if ($LASTEXITCODE -ne 0) { throw 'Portable executable failed its smoke test.' }
+      - name: Show executable smoke-test log on failure
+        if: failure()
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:LOCALAPPDATA 'ElmosWorld/logs/launcher.log'
+          if (Test-Path $log) { Get-Content $log -Tail 100 }
+          else { Write-Host 'No launcher log generated.' }
       - name: Upload preview build for manual PS4 testing
         uses: actions/upload-artifact@v4
         with:
