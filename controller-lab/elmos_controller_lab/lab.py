@@ -345,7 +345,9 @@ def command_emulate(args):
                 if selected is None:
                     raise BridgeError(f"No SDL device at index {args.device}.")
                 device_guid = selected["guid"] or selected["name"]
-                sensor_ready = source.attach_sensor_reader(selected["instance_id"])
+                # SDL enumeration indices may change after hotplug; pin the physical instance.
+                physical_instance = selected["instance_id"]
+                sensor_ready = source.attach_sensor_reader(physical_instance)
                 if sensor_ready:
                     print("Sony motion/touchpad sensor reader: attached", flush=True)
 
@@ -387,7 +389,7 @@ def command_emulate(args):
             start = time.monotonic()
             while True:
                 now = time.monotonic()
-                physical = _demo_state(now - start) if args.demo else source.read(args.device)
+                physical = _demo_state(now - start) if args.demo else source.read_instance(physical_instance)
                 output = mapper.map_actions(physical)
                 bridge.send_state(args.slot, output.gamepad.to_wire())
                 if need_keyboard:
