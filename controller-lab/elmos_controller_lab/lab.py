@@ -365,8 +365,11 @@ def command_emulate(args):
             mouse_slot = args.slot + "-mouse"
             need_keyboard = bool(mapping.keyboard_map or mapping.trigger_keyboard_map or mapping.left_stick_as_wasd or
                                  (mapping.layer and (mapping.layer.keyboard_map or mapping.layer.left_stick_as_wasd)))
-            need_mouse = bool(mapping.mouse_map or mapping.right_stick_mouse or
-                              (mapping.layer and (mapping.layer.mouse_map or mapping.layer.right_stick_mouse)))
+            need_mouse = bool(mapping.mouse_map or mapping.right_stick_mouse or mapping.touchpad_mode == "mouse" or
+                              mapping.gyro_mode == "mouse" or
+                              (mapping.layer and (mapping.layer.mouse_map or mapping.layer.right_stick_mouse or
+                                                  mapping.layer.touchpad_mode == "mouse" or
+                                                  mapping.layer.gyro_mode == "mouse")))
             if need_keyboard:
                 result = bridge.request("create", slot=keyboard_slot, profile_id="microsoft-wired-keyboard-600")
                 created_slots.append(keyboard_slot)
