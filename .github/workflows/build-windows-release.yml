@@ -67,6 +67,7 @@ jobs:
       - name: Install Windows build dependencies
         shell: pwsh
         run: |
+          $env:VGAMEPAD_SKIP_VIGEMBUS_INSTALL = 'true'
           python -m pip install --disable-pip-version-check -r build/requirements-windows.txt
           if ($LASTEXITCODE -ne 0) { throw 'Dependencies installation failed.' }
 
