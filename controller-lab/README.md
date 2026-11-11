@@ -149,15 +149,22 @@ synthetic source first:
 ~~~powershell
 .\scripts\Run-ControllerLab-Elevated.ps1 matrix --device 0 --targets xbox-360-wired,xbox-series-xs-bt,dualsense,dualshock-4-v2,switch-pro,steam-controller
 .\scripts\Run-ControllerLab-Elevated.ps1 matrix --demo --duration 1
+.\scripts\Run-ControllerLab-Elevated.ps1 matrix --device 0 --browser --duration 2
+
+# Standalone browser Gamepad API probe
+.\scripts\Run-ControllerLab.ps1 browser-probe
 ~~~
 
-For each target the matrix snapshots XInput, SDL and optional HIDAPI visibility,
-creates the virtual device, streams a test state, compares newly visible device
-instances, removes the virtual device, and checks for leaked devices. It saves
-a JSON report under LocalAppData/ElmosControllerLab/reports. XInput profiles
-must appear in a new XInput slot; HID profiles must appear through SDL or
-HIDAPI. This is an early Windows API compatibility check, not yet a complete
-WGI/GameInput/Steam/browser conformance suite.
+For each target the matrix snapshots XInput, SDL, optional HIDAPI and
+Windows Gaming Input visibility, creates the virtual device, streams a test
+state, compares newly visible device instances, removes the virtual device,
+and checks for leaked devices. It saves a JSON report under
+LocalAppData/ElmosControllerLab/reports. XInput profiles must appear in a new
+XInput slot; HID profiles must appear through SDL, HIDAPI or Windows Gaming
+Input. With `--browser`, the matrix also opens a localhost Gamepad API page
+and records browser-visible devices. The standalone `browser-probe` command
+can be used without administrator access. Native GameInput and Steam-specific
+conformance checks remain future work.
 
 
 The bridge creates each deployable profile that does not require the separate
