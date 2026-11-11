@@ -137,6 +137,11 @@ class Mapper:
             touchpads=source.touchpads,
             battery=source.battery,
             charging=source.charging,
+            battery_full=source.battery_full,
+            mic_muted=source.mic_muted,
+            headphones_connected=source.headphones_connected,
+            touchpad_packet_counter=source.touchpad_packet_counter,
+            sensor_timestamp=source.sensor_timestamp,
             timestamp=source.timestamp,
             extra=source.extra,
         ).normalized()
