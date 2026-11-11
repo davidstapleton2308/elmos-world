@@ -48,7 +48,8 @@ GitHub repository later without depending on Elmo's launcher code.
 - A catalog browser command that reads the SDK's embedded profile catalogue.
 - Explicit virtual driver installation, create, state streaming and disposal commands.
 - A synthetic demo source so output profiles can be exercised without a physical pad.
-- Offline Python regression tests for the mapping layer.
+- Offline Python regression tests for the mapping layer and persistent per-device/per-game profiles.
+- A read-only API visibility probe for XInput, SDL and optional HIDAPI.
 
 ## Why this backend
 
@@ -96,6 +97,8 @@ catalog smoke test.
 .\scripts\Run-ControllerLab.ps1 profiles --search xbox
 .\scripts\Run-ControllerLab.ps1 profiles --search dualsense
 .\scripts\Run-ControllerLab.ps1 status
+.\scripts\Run-ControllerLab.ps1 probe
+.\scripts\Run-ControllerLab.ps1 probe --profile dualsense
 ~~~
 
 ## Run the virtual profile regression sweep
@@ -151,7 +154,9 @@ fallback layout; that fallback is not a claim of correct button identity.
 
 - The first physical-input adapter is SDL. Vendor-specific HID reports, gyro,
   touchpad and battery capture are represented in the canonical model but are
-  not yet populated by the generic SDL reader.
+  not yet populated by the generic SDL reader. The read-only probe currently
+  checks SDL visibility, XInput slots and optional HIDAPI; WGI, GameInput and
+  browser Gamepad probes remain future work.
 - The bridge can submit standard buttons, axes, triggers, d-pad, motion and
   touch contacts to profiles. Exact raw Sony motion calibration and vendor
   feature reports still need dedicated physical-device adapters.
@@ -191,6 +196,11 @@ fallback layout; that fallback is not a claim of correct button identity.
 - HIDMaestro release v2.1.0: https://github.com/hifihedgehog/HIDMaestro/releases/tag/v2.1.0
 - SDL GameController: https://wiki.libsdl.org/SDL2/CategoryGameController
 - Microsoft Virtual HID Framework: https://learn.microsoft.com/windows-hardware/drivers/hid/virtual-hid-framework--vhf-
+
+Mapping profiles are saved independently by physical SDL GUID, game identity
+and virtual target profile under LocalAppData/ElmosControllerLab/mappings.json.
+The CLI loads the matching profile automatically during emulate. A future
+visual editor will write to this same store.
 
 The project is our own mapping and test system. HIDMaestro is an external,
 replaceable Windows virtual-device backend and remains subject to its MIT
