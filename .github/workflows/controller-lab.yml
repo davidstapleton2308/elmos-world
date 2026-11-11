@@ -78,10 +78,23 @@ jobs:
         run: |
           & 'controller-lab/bridge/publish/Elmos.ControllerLab.Bridge.exe' --catalog-check
           if ($LASTEXITCODE -ne 0) { throw 'Embedded profile catalogue failed.' }
-      - name: Upload Windows bridge preview
+      - name: Package standalone Controller Lab preview
+        shell: pwsh
+        run: |
+          $stage = Join-Path $env:RUNNER_TEMP 'ElmosControllerLab'
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item 'controller-lab/README.md' $stage -Force
+          Copy-Item 'controller-lab/pyproject.toml' $stage -Force
+          Copy-Item 'controller-lab/requirements.txt' $stage -Force
+          Copy-Item 'controller-lab/elmos_controller_lab' $stage -Recurse -Force
+          Copy-Item 'controller-lab/scripts' $stage -Recurse -Force
+          Copy-Item 'controller-lab/bridge' $stage -Recurse -Force
+          $archive = 'controller-lab/ElmosControllerLab-Windows.zip'
+          Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $archive -Force
+      - name: Upload Windows Controller Lab preview
         uses: actions/upload-artifact@v4
         with:
           name: Elmos-Controller-Lab-Windows-Preview
-          path: controller-lab/bridge/publish/
+          path: controller-lab/ElmosControllerLab-Windows.zip
           retention-days: 14
           if-no-files-found: error
