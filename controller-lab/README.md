@@ -52,12 +52,16 @@ count, not a claim that every profile has passed real-hardware or game testing.
 - SDL physical-controller discovery with mapped SDL input preferred over raw joystick indices.
 - Per-profile button remapping, radial stick deadzones, outer/anti-deadzones,
   response curves, sensitivity, trigger shaping, and hold/toggle action layers.
+- Virtual keyboard and mouse outputs, including button-to-key actions, trigger
+  modifiers, left-stick WASD and right-stick mouse movement.
 - A Windows JSON-lines bridge using HIDMaestro's profile-based virtual device engine.
 - A catalog browser command that reads the SDK's embedded profile catalogue.
 - Explicit virtual driver installation, create, state streaming and disposal commands.
 - A synthetic demo source so output profiles can be exercised without a physical pad.
 - Offline Python regression tests for the mapping layer and persistent per-device/per-game profiles.
 - A read-only API visibility probe for XInput, SDL and optional HIDAPI.
+- An automated cross-controller matrix that compares API visibility before and
+  after virtual-device creation and checks for device leaks after teardown.
 
 ## Why this backend
 
@@ -205,8 +209,8 @@ fallback layout; that fallback is not a claim of correct button identity.
 2. **Profile editor:** edit and persist physical source maps and virtual target
    profiles per game and per device GUID.
 3. **Advanced Steam Input mappings:** action sets, mode shifts, chorded
-   bindings, tap/hold/double-tap, turbo, macros, radial menus, mouse and keyboard
-   actions, and per-game layers.
+   bindings, tap/hold/double-tap, turbo, macros, radial menus, touchpad
+   gestures, per-game layers and profile editor UI.
 4. **Analog controls:** independent trigger thresholds, stick response curves,
    anti-deadzone, outer deadzone, smoothing, calibration, gyro aiming and
    trackpad-as-mouse/stick.
