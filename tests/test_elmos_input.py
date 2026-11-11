@@ -5,9 +5,11 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
+from types import SimpleNamespace
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "app"))
-from elmos_input import InputManager, clamp, normalize, stick_axis
+from elmos_input import InputManager, Xbox360Sink, clamp, normalize, stick_axis
 
 
 class FakeSink:
@@ -129,6 +131,68 @@ class InputEngineTests(unittest.TestCase):
         self.assertNotIn("guide", b)
         self.assertEqual(triggers, [0.2, 1.0])
         self.assertEqual(len(axes), 4)
+
+
+    def test_foreground_gate_neutralizes_without_sending(self):
+        self.manager.set_mode("game", "xbox360")
+        self.manager.prepare("game")
+        self.manager.activate(500)
+        self.manager.feed({"a": True}, [0, 0, 0, 0], [0, 0], True, True, "Wireless Controller")
+        self.assertEqual(len(self.created[0].frames), 1)
+        self.manager._game_is_foreground = lambda: False
+        self.manager.feed({"a": True}, [0, 0, 0, 0], [0, 0], True, True, "Wireless Controller")
+        self.assertEqual(len(self.created[0].frames), 1)
+        self.assertGreaterEqual(self.created[0].neutrals, 1)
+
+    def test_xbox_output_contract_without_driver(self):
+        class FakeVirtualPad:
+            def __init__(self):
+                self.buttons = []
+                self.left = None
+                self.right = None
+                self.triggers = {}
+                self.updates = 0
+
+            def reset(self):
+                self.buttons.clear()
+
+            def press_button(self, button):
+                self.buttons.append(button)
+
+            def left_joystick_float(self, x_value_float, y_value_float):
+                self.left = (x_value_float, y_value_float)
+
+            def right_joystick_float(self, x_value_float, y_value_float):
+                self.right = (x_value_float, y_value_float)
+
+            def left_trigger_float(self, value):
+                self.triggers["left"] = value
+
+            def right_trigger_float(self, value):
+                self.triggers["right"] = value
+
+            def update(self):
+                self.updates += 1
+
+        source = FakeVirtualPad()
+        buttons = SimpleNamespace(**{v: v for v in (
+            "XUSB_GAMEPAD_A", "XUSB_GAMEPAD_B", "XUSB_GAMEPAD_X", "XUSB_GAMEPAD_Y",
+            "XUSB_GAMEPAD_LEFT_SHOULDER", "XUSB_GAMEPAD_RIGHT_SHOULDER",
+            "XUSB_GAMEPAD_BACK", "XUSB_GAMEPAD_START", "XUSB_GAMEPAD_LEFT_THUMB",
+            "XUSB_GAMEPAD_RIGHT_THUMB", "XUSB_GAMEPAD_DPAD_UP",
+            "XUSB_GAMEPAD_DPAD_DOWN", "XUSB_GAMEPAD_DPAD_LEFT", "XUSB_GAMEPAD_DPAD_RIGHT")})
+        vg = SimpleNamespace(VX360Gamepad=lambda: source, XUSB_BUTTON=buttons)
+        with mock.patch.dict(sys.modules, {"vgamepad": vg}):
+            sink = Xbox360Sink()
+            sink.send({"a": True, "up": True, "guide": True},
+                      [1.0, -1.0, -0.5, 0.5], [0.25, 1.0])
+        self.assertEqual(source.left, (1.0, 1.0))
+        self.assertIn("XUSB_GAMEPAD_A", source.buttons)
+        self.assertIn("XUSB_GAMEPAD_DPAD_UP", source.buttons)
+        self.assertEqual(len(source.buttons), 2)
+        self.assertEqual(source.triggers, {"left": 0.25, "right": 1.0})
+        sink.close()
+        self.assertIsNone(sink.pad)
 
 
 if __name__ == "__main__":
