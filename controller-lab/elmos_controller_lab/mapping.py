@@ -43,6 +43,9 @@ class ActionLayer:
     touchpad_sensitivity: float | None = None
     action_bindings: dict[str, dict[str, Any]] = field(default_factory=dict)
     chord_map: dict[str, dict[str, Any]] = field(default_factory=dict)
+    gyro_mode: str | None = None
+    gyro_sensitivity: float | None = None
+    gyro_deadzone: float | None = None
 
 
 @dataclass
@@ -66,6 +69,9 @@ class MappingProfile:
     touchpad_sensitivity: float = 1.0
     action_bindings: dict[str, dict[str, Any]] = field(default_factory=dict)
     chord_map: dict[str, dict[str, Any]] = field(default_factory=dict)
+    gyro_mode: str = "off"  # off | mouse | right_stick
+    gyro_sensitivity: float = 10.0
+    gyro_deadzone: float = 0.8
     layer: ActionLayer | None = None
 
 
@@ -115,6 +121,7 @@ class Mapper:
         self._last_activator = False
         self._current_layer_active = False
         self._last_touchpad: tuple[int, float, float] | None = None
+        self._last_timestamp: float | None = None
         self.action_engine = TemporalActionEngine()
         self._active_action_bindings: dict[str, dict[str, Any]] = {}
         self._active_chord_map: dict[str, dict[str, Any]] = {}
@@ -247,6 +254,36 @@ class Mapper:
                 self._last_touchpad = current
         else:
             self._last_touchpad = None
+
+        gyro_mode = p.gyro_mode
+        gyro_sensitivity = p.gyro_sensitivity
+        gyro_deadzone = p.gyro_deadzone
+        if layer and layer_active:
+            if layer.gyro_mode is not None:
+                gyro_mode = layer.gyro_mode
+            if layer.gyro_sensitivity is not None:
+                gyro_sensitivity = layer.gyro_sensitivity
+            if layer.gyro_deadzone is not None:
+                gyro_deadzone = layer.gyro_deadzone
+        dt = (1.0 / 120.0 if self._last_timestamp is None else
+              clamp(normalized.timestamp - self._last_timestamp, 0.001, 0.05, 1.0 / 120.0))
+        self._last_timestamp = normalized.timestamp
+        gyro_sensitivity = clamp(gyro_sensitivity, 0.01, 100.0, 10.0)
+        gyro_deadzone = clamp(gyro_deadzone, 0.0, 50.0, 0.8)
+        gyro_pitch = normalized.motion.gyro_x
+        gyro_yaw = normalized.motion.gyro_y
+        if abs(gyro_pitch) < gyro_deadzone:
+            gyro_pitch = 0.0
+        if abs(gyro_yaw) < gyro_deadzone:
+            gyro_yaw = 0.0
+        if gyro_mode == "mouse":
+            mouse_dx += int(round(gyro_yaw * dt * gyro_sensitivity))
+            mouse_dy += int(round(-gyro_pitch * dt * gyro_sensitivity))
+        elif gyro_mode == "right_stick":
+            gain = gyro_sensitivity / 10.0
+            gx = clamp(gyro_yaw / 200.0 * gain, -1.0, 1.0)
+            gy = clamp(-gyro_pitch / 200.0 * gain, -1.0, 1.0)
+            gamepad.axes["right_x"], gamepad.axes["right_y"] = shape_stick(gx, gy, p.right_stick)
 
         temporal = self.action_engine.process(
             normalized.buttons, self._active_action_bindings,
