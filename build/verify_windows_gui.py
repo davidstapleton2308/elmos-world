@@ -11,7 +11,7 @@ def subsystem(path: Path) -> int:
         stream.seek(0x3C)
         pe_offset, = struct.unpack("<I", stream.read(4))
         stream.seek(pe_offset)
-        if stream.read(4) != b"PE\\0\\0".replace(b"\\0", b"\\x00"):
+        if stream.read(4) != bytes((80, 69, 0, 0)):
             raise RuntimeError(f"Invalid PE signature: {path}")
         # PE signature (4) + COFF (20) + optional-header Subsystem field (68)
         stream.seek(pe_offset + 4 + 20 + 68)
