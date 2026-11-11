@@ -54,14 +54,14 @@ def command_profiles(args):
 
 
 def command_probe(args):
-    target = None
-    if args.profile:
-        with BridgeClient(args.bridge) as bridge:
+    with BridgeClient(args.bridge) as bridge:
+        target = None
+        if args.profile:
             profiles = bridge.request("profiles").get("profiles", [])
-        target = next((p for p in profiles if p.get("id") == args.profile), None)
-        if target is None:
-            raise BridgeError(f"Unknown virtual profile: {args.profile}")
-    print_json(run_probe(target))
+            target = next((p for p in profiles if p.get("id") == args.profile), None)
+            if target is None:
+                raise BridgeError(f"Unknown virtual profile: {args.profile}")
+        print_json(run_probe(target, bridge=bridge))
 
 
 def command_sweep(args):
@@ -77,16 +77,18 @@ def command_sweep(args):
 def _target_matches(device, profile):
     vendor = int(profile.get("vendorId") or 0)
     product = int(profile.get("productId") or 0)
-    if vendor and product and device.get("vendor_id") and device.get("product_id"):
-        return int(device["vendor_id"]) == vendor and int(device["product_id"]) == product
+    device_vendor = int(device.get("vendor_id") or device.get("vendorId") or 0)
+    device_product = int(device.get("product_id") or device.get("productId") or 0)
+    if vendor and product and device_vendor and device_product:
+        return device_vendor == vendor and device_product == product
     expected = str(profile.get("displayName") or profile.get("name") or profile.get("id") or "").casefold()
     actual = str(device.get("name") or device.get("product") or "").casefold()
     return bool(expected and (expected in actual or actual in expected))
 
 
-def _snapshot(profile, source=None):
+def _snapshot(profile, source=None, bridge=None):
     sdl_devices = source.refresh() if source else None
-    report = run_probe(profile, sdl_devices=sdl_devices)
+    report = run_probe(profile, sdl_devices=sdl_devices, bridge=bridge)
     return report
 
 
@@ -134,11 +136,13 @@ def command_matrix(args):
                     continue
 
                 slot = f"matrix-{index}"
-                baseline = _snapshot(profile, source)
+                baseline = _snapshot(profile, source, bridge)
                 baseline_sdl = baseline["apis"]["sdl_gamecontroller"]["devices"]
                 baseline_sdl_ids = {d.get("instance_id") for d in baseline_sdl}
                 baseline_xinput = {d.get("slot") for d in baseline["apis"]["xinput"]["devices"]}
                 baseline_hid_count = len(baseline["apis"]["hidapi"]["devices"])
+                baseline_wgi = baseline["apis"]["windows_gaming_input"].get("devices", [])
+                baseline_wgi_keys = {(d.get("vendorId"), d.get("productId"), d.get("name")) for d in baseline_wgi}
                 created = False
                 target_result = {"profile": target_id, "name": profile.get("name"), "type": profile.get("type")}
                 try:
@@ -159,7 +163,7 @@ def command_matrix(args):
                         frames += 1
                         time.sleep(1.0 / max(30, min(250, args.rate)))
 
-                    after = _snapshot(profile, source)
+                    after = _snapshot(profile, source, bridge)
                     after_sdl = after["apis"]["sdl_gamecontroller"]["devices"]
                     new_sdl = [d for d in after_sdl if d.get("instance_id") not in baseline_sdl_ids]
                     sdl_match = [d for d in new_sdl if _target_matches(d, profile)]
@@ -168,8 +172,11 @@ def command_matrix(args):
                     after_hid_count = len(after["apis"]["hidapi"]["devices"])
                     hid_expected = bool(profile.get("vendorId") and profile.get("productId"))
                     hid_visible = hid_expected and after_hid_count > baseline_hid_count
+                    after_wgi = after["apis"]["windows_gaming_input"].get("devices", [])
+                    new_wgi = [d for d in after_wgi if (d.get("vendorId"), d.get("productId"), d.get("name")) not in baseline_wgi_keys]
+                    wgi_match = [d for d in new_wgi if _target_matches(d, profile)]
                     xinput_expected = bool(profile.get("xinput"))
-                    api_visible = bool(new_xinput) if xinput_expected else bool(sdl_match or hid_visible)
+                    api_visible = bool(new_xinput) if xinput_expected else bool(sdl_match or hid_visible or wgi_match)
 
                     bridge.send_state(slot, neutral_state().to_wire())
                     time.sleep(0.03)
@@ -179,27 +186,33 @@ def command_matrix(args):
                     cleanup_deadline = time.monotonic() + 2.0
                     clean_snapshot = after
                     while time.monotonic() < cleanup_deadline:
-                        clean_snapshot = _snapshot(profile, source)
+                        clean_snapshot = _snapshot(profile, source, bridge)
                         clean_sdl = clean_snapshot["apis"]["sdl_gamecontroller"]["devices"]
                         leaked_sdl = [d for d in clean_sdl if d.get("instance_id") not in baseline_sdl_ids and _target_matches(d, profile)]
                         clean_xinput = {d.get("slot") for d in clean_snapshot["apis"]["xinput"]["devices"]}
                         leaked_xinput = clean_xinput - baseline_xinput
                         clean_hid_count = len(clean_snapshot["apis"]["hidapi"]["devices"])
-                        if not leaked_sdl and not leaked_xinput and clean_hid_count <= baseline_hid_count:
+                        clean_wgi = clean_snapshot["apis"]["windows_gaming_input"].get("devices", [])
+                        leaked_wgi = [d for d in clean_wgi
+                                      if (d.get("vendorId"), d.get("productId"), d.get("name")) not in baseline_wgi_keys
+                                      and _target_matches(d, profile)]
+                        if not leaked_sdl and not leaked_xinput and not leaked_wgi and clean_hid_count <= baseline_hid_count:
                             break
                         time.sleep(0.15)
-                    cleanup_ok = not leaked_sdl and not leaked_xinput and clean_hid_count <= baseline_hid_count
+                    cleanup_ok = not leaked_sdl and not leaked_xinput and not leaked_wgi and clean_hid_count <= baseline_hid_count
                     target_result.update({
                         "status": "pass" if api_visible and cleanup_ok else "fail",
                         "frames_sent": frames,
                         "xinput_expected": xinput_expected,
                         "new_xinput_slots": new_xinput,
                         "new_sdl_devices": sdl_match,
+                        "new_wgi_devices": wgi_match,
                         "hidapi_count_before": baseline_hid_count,
                         "hidapi_count_after": after_hid_count,
                         "api_visible": api_visible,
                         "cleanup_ok": cleanup_ok,
                         "leaked_sdl_devices": leaked_sdl,
+                        "leaked_wgi_devices": leaked_wgi,
                         "leaked_xinput_slots": sorted(x for x in leaked_xinput if x is not None),
                     })
                 except Exception as exc:
