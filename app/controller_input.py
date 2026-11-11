@@ -20,6 +20,7 @@ class ControllerMonitor:
         self.thread=None
         self.return_handler=None
         self.menu_input_handler=None  # foreground-independent native game-menu navigation
+        self.game_input_handler=None  # optional per-game translation; native stays read-only
         self.navigation_map={'a':0,'b':1}
         self.guide_file=Path(os.environ.get('LOCALAPPDATA', str(Path.home()))) / 'ElmosWorld' / 'controller.json'
         self.guide_index=10
@@ -70,7 +71,7 @@ class ControllerMonitor:
         except Exception as exc:
             self._publish(error='SDL initialization failed: '+str(exc));return
         current=None;device_id=None;gamepad=None;ps_press=RisingPress()
-        names={'a':'CONTROLLER_BUTTON_A','b':'CONTROLLER_BUTTON_B','x':'CONTROLLER_BUTTON_X','y':'CONTROLLER_BUTTON_Y','up':'CONTROLLER_BUTTON_DPAD_UP','down':'CONTROLLER_BUTTON_DPAD_DOWN','left':'CONTROLLER_BUTTON_DPAD_LEFT','right':'CONTROLLER_BUTTON_DPAD_RIGHT','lb':'CONTROLLER_BUTTON_LEFTSHOULDER','rb':'CONTROLLER_BUTTON_RIGHTSHOULDER','start':'CONTROLLER_BUTTON_START','back':'CONTROLLER_BUTTON_BACK','guide':'CONTROLLER_BUTTON_GUIDE'}
+        names={'a':'CONTROLLER_BUTTON_A','b':'CONTROLLER_BUTTON_B','x':'CONTROLLER_BUTTON_X','y':'CONTROLLER_BUTTON_Y','up':'CONTROLLER_BUTTON_DPAD_UP','down':'CONTROLLER_BUTTON_DPAD_DOWN','left':'CONTROLLER_BUTTON_DPAD_LEFT','right':'CONTROLLER_BUTTON_DPAD_RIGHT','lb':'CONTROLLER_BUTTON_LEFTSHOULDER','rb':'CONTROLLER_BUTTON_RIGHTSHOULDER','ls':'CONTROLLER_BUTTON_LEFTSTICK','rs':'CONTROLLER_BUTTON_RIGHTSTICK','start':'CONTROLLER_BUTTON_START','back':'CONTROLLER_BUTTON_BACK','guide':'CONTROLLER_BUTTON_GUIDE'}
         codes={n:getattr(pygame,c,getattr(controller,c,None)) for n,c in names.items()}
         try:
             while True:
@@ -83,6 +84,9 @@ class ControllerMonitor:
                 if not count:
                     current=None;device_id=None;gamepad=None;ps_press.update(False)
                     self._publish(available=True,connected=False,mode='none',name='',buttons={},rawButtons=[],rawAxes=[],hats=[],axes=[0,0,0,0],devices=[],error='No joystick detected by SDL. Check Windows joy.cpl or try USB.')
+                    if self.game_input_handler:
+                        try:self.game_input_handler({},[0,0,0,0],[0,0],False,False,'')
+                        except Exception:pass
                     time.sleep(.14);continue
                 # Prefer the physical PlayStation controller over virtual Xbox devices.
                 preferred=next((i for i in range(count) if any(x in pygame.joystick.Joystick(i).get_name().lower() for x in ('wireless controller','dualshock','sony','dualsense'))),None)
@@ -100,7 +104,7 @@ class ControllerMonitor:
                 raw_axes=[round(float(current.get_axis(i)),3) for i in range(min(current.get_numaxes(),12))]
                 hats=[list(current.get_hat(i)) for i in range(min(current.get_numhats(),4))]
                 mapped=bool(controller.is_controller(chosen) and gamepad)
-                buttons={};axes=[raw_axes[0] if len(raw_axes)>0 else 0, raw_axes[1] if len(raw_axes)>1 else 0, 0, 0]
+                buttons={};triggers=[0.0,0.0];axes=[raw_axes[0] if len(raw_axes)>0 else 0, raw_axes[1] if len(raw_axes)>1 else 0, 0, 0]
                 if mapped:
                     try:
                         ctl=gamepad
@@ -108,9 +112,12 @@ class ControllerMonitor:
                         # SDL-mapped controller axes: LX, LY, RX, RY. Right-stick input
                         # is exposed read-only to the launcher for page scrolling.
                         # It is NOT remapped or injected into running games.
-                        axes=[max(-1,min(1,ctl.get_axis(getattr(pygame,label,index))/32767.0))
+                        axis_code=lambda label,index:getattr(pygame,label,getattr(controller,label,index))
+                        axes=[max(-1,min(1,ctl.get_axis(axis_code(label,index))/32767.0))
                               for label,index in (('CONTROLLER_AXIS_LEFTX',0),('CONTROLLER_AXIS_LEFTY',1),
                                                   ('CONTROLLER_AXIS_RIGHTX',2),('CONTROLLER_AXIS_RIGHTY',3))]
+                        triggers=[max(0,min(1,float(ctl.get_axis(axis_code(label,index)))/32767.0))
+                                  for label,index in (('CONTROLLER_AXIS_TRIGGERLEFT',4),('CONTROLLER_AXIS_TRIGGERRIGHT',5))]
                     except Exception:
                         mapped=False
                 if mapped:
@@ -119,7 +126,7 @@ class ControllerMonitor:
                 if not mapped:
                     b=lambda n:raw_buttons[n] if n<len(raw_buttons) else False
                     hat=hats[0] if hats else [0,0]
-                    buttons={'a':b(self.navigation_map['a']),'b':b(self.navigation_map['b']),'x':b(2),'y':b(3),'lb':b(4),'rb':b(5),'back':b(8),'start':b(9),'guide':b(self.guide_index),'up':hat[1]>0,'down':hat[1]<0,'left':hat[0]<0,'right':hat[0]>0}
+                    buttons={'a':b(self.navigation_map['a']),'b':b(self.navigation_map['b']),'x':b(2),'y':b(3),'lb':b(4),'rb':b(5),'ls':b(10),'rs':b(11),'back':b(8),'start':b(9),'guide':b(self.guide_index),'up':hat[1]>0,'down':hat[1]<0,'left':hat[0]<0,'right':hat[0]>0}
                 # PS/Guide by itself opens the Elmos menu; no Options chord.
                 # Edge-triggered so holding it does not reopen or repeat.
                 if ps_press.update(buttons.get('guide',False)) and self.return_handler:
@@ -128,9 +135,16 @@ class ControllerMonitor:
                 if self.menu_input_handler:
                     try:self.menu_input_handler(buttons,axes)
                     except Exception:pass
+                if self.game_input_handler:
+                    try:self.game_input_handler(buttons,axes,triggers,True,mapped,current.get_name())
+                    except Exception:pass
                 self._publish(available=True,connected=True,mode='mapped SDL' if mapped else 'raw SDL joystick',name=current.get_name(),buttons=buttons,axes=[round(float(x),3) for x in axes[:4]],rawButtons=raw_buttons,rawAxes=raw_axes,hats=hats,devices=devices,error='')
-                time.sleep(.04)
+                active=getattr(getattr(self.game_input_handler,'__self__',None),'active_mode','native')=='xbox360'
+                time.sleep(.01 if active else .04)
         except Exception as exc:
+            if self.game_input_handler:
+                try:self.game_input_handler({},[0,0,0,0],[0,0],False,False,'')
+                except Exception:pass
             self._publish(error='Controller read error: '+repr(exc),connected=False)
 
 monitor=ControllerMonitor()
