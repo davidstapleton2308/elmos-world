@@ -47,6 +47,7 @@ exe = EXE(
     icon=str(APP / 'elmos_world.ico'),
     version=str(ROOT / 'build' / 'version_file.txt'),
     console=True,
+    hide_console='hide-early',
     upx=False,
 )
 coll = COLLECT(
