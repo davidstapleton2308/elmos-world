@@ -5,6 +5,7 @@ from pathlib import Path
 from backend import Engine, Path as FilePath, APP, active_game_process
 from game_media import ScreenshotLibrary
 from controller_input import monitor
+from elmos_input import input_manager
 from native_game_menu import NativeGameMenu
 import update_center
 HERE=Path(__file__).parent
@@ -55,6 +56,9 @@ class Handler(BaseHTTPRequestHandler):
   if u.path=='/app.js':return self.send_file(HERE/'app.js','text/javascript; charset=utf-8')
   if u.path=='/graphite_weave.svg':return self.send_file(HERE/'graphite_weave.svg','image/svg+xml',cache=True)
   if not self.valid():return self.error(403,'Unauthorized local request')
+  if u.path=='/api/input-status':
+   gameid=parse_qs(u.query).get('id',[''])[0][:512]
+   return self.result(input_manager.status(gameid))
   if u.path=='/api/controller':
    with _menu_lock:
     pending=_menu_requested
@@ -171,6 +175,10 @@ class Handler(BaseHTTPRequestHandler):
    elif action=='/api/refresh-all-galleries':
     games=[g for g in engine.list_games(force=False) if not g.get('hidden')]
     out=media.batch_refresh(games,force=bool(body.get('force')))
+   elif action=='/api/input-profile':
+    gameid=body.get('id','')
+    if not engine.find(gameid):raise ValueError('Game not found')
+    out=input_manager.set_profile(gameid,body.get('mode','native'),body.get('bindings'))
    elif action=='/api/controller-map':out={'buttons':monitor.set_navigation_map(body.get('buttons',{}))}
    elif action=='/api/shield':
     from backend import set_launch_shield
@@ -301,6 +309,7 @@ def restore_elmos_after_game_exit():
 
 def resume_game_from_native_menu():
  """Dismiss the small native panel and refocus the SAME running process."""
+ input_manager.resume()
  from backend import active_game_process, focus_launched_game, set_launch_shield, session_event
  set_launch_shield(False)
  p=active_game_process()
@@ -311,6 +320,7 @@ def resume_game_from_native_menu():
 
 def return_home_from_native_menu():
  """Leave the game running, but bring back the original fullscreen library."""
+ input_manager.pause()
  from backend import set_launch_shield, session_event
  set_launch_shield(False)
  session_event('native_menu_home','Game remains open')
@@ -324,6 +334,7 @@ def return_home_from_native_menu():
 
 def quit_game_from_native_menu():
  """Close only the game process Elmos started; then restore the library."""
+ input_manager.pause()
  from backend import close_active_game, set_launch_shield, session_event
  set_launch_shield(False)
  result=close_active_game()
@@ -355,6 +366,7 @@ def show_game_menu():
  menu=_native_menu
  if menu is not None and menu.visible:
   menu.select('resume');return
+ input_manager.pause()  # Neutralize virtual Xbox before any menu receives input.
  if menu is not None and menu.show(active_session_status().get('gameName')):
   session_event('native_overlay_opened','Compact controller-first game controls')
   return
@@ -423,6 +435,7 @@ if __name__=='__main__':
  global_native_menu.start()  # prewarm compact panel; first PS press has no Tk startup delay
  monitor.return_handler=show_game_menu
  monitor.menu_input_handler=global_native_menu.gamepad
+ monitor.game_input_handler=input_manager.feed
  monitor.start()
  try:
   import webview

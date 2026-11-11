@@ -1,6 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 """Windows standalone onedir build. Run with: python -m PyInstaller build/ElmosWorld.spec"""
 from pathlib import Path
+import os
 from PyInstaller.utils.hooks import collect_all
 
 ROOT = Path(SPECPATH).resolve().parent
@@ -16,13 +17,13 @@ binaries = []
 hiddenimports = [
     'server', 'update_center', 'backend', 'game_media', 'game_descriptions', 'game_discovery',
     'game_uninstall', 'geforce_library', 'steam_core', 'provider_adapters',
-    'controller_input', 'native_game_menu', 'tkinter', 'tkinter.filedialog',
+    'controller_input', 'native_game_menu', 'elmos_input', 'vgamepad', 'tkinter', 'tkinter.filedialog',
     'webview.platforms.winforms', 'webview.platforms.edgechromium',
     'pygame._sdl2.controller', 'clr',
 ]
 # These libraries load important components dynamically on Windows. Bundle
 # their data files and native extensions rather than depending on local Python.
-for package in ('webview', 'pygame', 'pythonnet', 'clr_loader'):
+for package in ('webview', 'pygame', 'vgamepad', 'pythonnet', 'clr_loader'):
     pkg_data, pkg_binaries, pkg_hidden = collect_all(package)
     datas += pkg_data
     binaries += pkg_binaries
@@ -46,7 +47,8 @@ exe = EXE(
     name='ElmosWorld',
     icon=str(APP / 'elmos_world.ico'),
     version=str(ROOT / 'build' / 'version_file.txt'),
-    console=False,
+    console=True,
+    hide_console=None if os.environ.get('ELMOS_INPUT_DEBUG_CONSOLE') else 'hide-early',
     upx=False,
 )
 coll = COLLECT(

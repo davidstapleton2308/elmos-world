@@ -5,6 +5,7 @@ import os, re, json, time, secrets, random, shutil, tempfile, hashlib, difflib, 
 from pathlib import Path
 from game_discovery import detect as detect_pc_game, blocked_exe, JUNK_ROOT, clean_game_title
 import steam_core as vdf
+from elmos_input import input_manager
 
 _active_game_lock=threading.RLock()
 _active_game=None
@@ -119,6 +120,7 @@ def close_active_game():
  with _active_game_lock:
   if _active_game is process:_active_game=None
  _session_window=0;_session_window_since=0
+ input_manager.stop_if(_active_game_id,pid)
  return {'closed':True,'method':method,'message':'Game closed and returned to Elmos World.'}
 
 
@@ -212,6 +214,7 @@ def handoff_active_game():
    focused=focus_launched_game(p.pid,timeout=0.35)
    if not focused:set_launch_shield(True)
  session_event('handoff_succeeded' if focused else 'handoff_blocked',f'type={_active_game_type}; since launch={(time.monotonic()-_launch_process_at):.2f}s' if _launch_process_at else f'type={_active_game_type}')
+ if focused:input_manager.resume()
  return focused
 
 def request_game_close():
@@ -653,6 +656,7 @@ class Engine:
  def record_finished_session(self,gameid,started,process):
   try:process.wait()
   except Exception:return
+  finally:input_manager.stop_if(gameid,process.pid)
   seconds=max(0,int(time.monotonic()-started))
   session_event('process_exited',f'{gameid[-55:]} · {seconds}s')
   with self.lock:
@@ -849,8 +853,15 @@ class Engine:
     if _active_game is not None and _active_game.poll() is None:
      session_event('launch_rejected',f'active pid={_active_game.pid}')
      raise RuntimeError('Another game is already running. Resume or close it before starting a new game.')
-    # No shell, elevation or changes to emulator configuration.
-    process=subprocess.Popen([str(exe)]+args,cwd=str(exe.parent),close_fds=True)
+    # Prepare optional virtual hardware before the game enumerates XInput.
+    # Failure is explicit: never silently launch a game with broken mappings.
+    input_manager.prepare(gameid)
+    try:
+     process=subprocess.Popen([str(exe)]+args,cwd=str(exe.parent),close_fds=True)
+     input_manager.activate(process.pid)
+    except BaseException:
+     input_manager.stop()
+     raise
     _active_game=process
     _active_game_type=g['type']
     _active_game_id=gameid

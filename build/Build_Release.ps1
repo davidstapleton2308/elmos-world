@@ -127,6 +127,7 @@ if (-not (Test-Path -LiteralPath $BuildPython -PathType Leaf)) {
 }
 
 Write-Host 'Installing build dependencies...'
+$env:VGAMEPAD_SKIP_VIGEMBUS_INSTALL = 'true' # Packaging must never change system drivers.
 & $BuildPython -m pip install --disable-pip-version-check -r (Join-Path $Root 'build\requirements-windows.txt')
 if ($LASTEXITCODE -ne 0) { throw 'Python package installation failed. Check the output above.' }
 
