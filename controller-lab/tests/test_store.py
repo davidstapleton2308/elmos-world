@@ -13,6 +13,8 @@ def test_mapping_profiles_are_saved_per_controller_game_and_target(tmp_path):
         left_stick_as_wasd=True,
         right_stick_mouse=True,
         mouse_sensitivity=22,
+        touchpad_mode="mouse",
+        touchpad_sensitivity=0.6,
         left_stick=StickTuning(deadzone=0.18, exponent=1.4, invert_y=True),
         layer=ActionLayer(activator="left_paddle", mode="hold",
                           button_map={"south": "north"}, keyboard_map={"south": ["Q"]},
@@ -32,6 +34,8 @@ def test_mapping_profiles_are_saved_per_controller_game_and_target(tmp_path):
     assert loaded.left_stick_as_wasd is True
     assert loaded.right_stick_mouse is True
     assert loaded.mouse_sensitivity == 22
+    assert loaded.touchpad_mode == "mouse"
+    assert loaded.touchpad_sensitivity == 0.6
     assert loaded.layer.keyboard_map == {"south": ["Q"]}
     assert loaded.layer.mouse_map == {"south": "right"}
 
