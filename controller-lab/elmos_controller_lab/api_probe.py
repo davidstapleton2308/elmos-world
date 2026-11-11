@@ -93,11 +93,11 @@ def probe_hidapi(vendor_id: int | None = None, product_id: int | None = None) ->
         return {"available": False, "reason": str(exc), "devices": []}
 
 
-def run_probe(target_profile: dict[str, Any] | None = None) -> dict[str, Any]:
+def run_probe(target_profile: dict[str, Any] | None = None, sdl_devices: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     vendor_id = target_profile.get("vendorId") if target_profile else None
     product_id = target_profile.get("productId") if target_profile else None
     xinput = probe_xinput()
-    sdl = probe_sdl()
+    sdl = probe_sdl() if sdl_devices is None else {"available": True, "devices": sdl_devices}
     hid = probe_hidapi(vendor_id, product_id)
     expected_xinput = bool(target_profile and target_profile.get("xinput"))
     expected_hid = bool(target_profile and target_profile.get("vendorId") and target_profile.get("productId"))
