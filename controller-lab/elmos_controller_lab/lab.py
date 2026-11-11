@@ -42,6 +42,16 @@ def command_profiles(args):
     print_json({"driverInstalled": result.get("driverInstalled"), "count": len(profiles), "profiles": profiles})
 
 
+
+def command_sweep(args):
+    def on_event(event):
+        if event.get("event_name") == "sweep_progress":
+            print(f"[{event.get('completed')}/{event.get('total')}] {event.get('profile')}: {event.get('status')}", flush=True)
+    with BridgeClient(args.bridge, on_event=on_event) as bridge:
+        result = bridge.request("sweep", timeout=1200)
+        print_json(result)
+
+
 def command_install(args):
     with BridgeClient(args.bridge) as bridge:
         print_json(bridge.request("install-driver", timeout=120))
@@ -128,6 +138,8 @@ def build_parser():
     profiles.set_defaults(func=command_profiles)
     install = sub.add_parser("install-driver", help="Explicitly install the Windows virtual-device driver")
     install.set_defaults(func=command_install)
+    sweep = sub.add_parser("sweep", help="Create, submit a test state to, and remove each supported virtual profile")
+    sweep.set_defaults(func=command_sweep)
     emulate = sub.add_parser("emulate", help="Feed a physical or synthetic controller into a virtual identity")
     emulate.add_argument("--profile", required=True, help="HIDMaestro profile id, e.g. xbox-360-wired or dualsense")
     emulate.add_argument("--slot", default="virtual-0")
