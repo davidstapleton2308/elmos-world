@@ -3,5 +3,6 @@
 pyinstaller>=6.10,<7
 pywebview>=5.4,<7
 pygame-ce>=2.5,<3
+vgamepad==0.2.0
 pythonnet>=3.0,<4
 Pillow>=11,<13
