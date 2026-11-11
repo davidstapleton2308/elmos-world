@@ -11,6 +11,10 @@ dotnet publish $Project -c Release -r win-x64 --self-contained true -p:PublishSi
 if ($LASTEXITCODE -ne 0) { throw 'Controller Lab bridge build failed.' }
 $Exe = Join-Path $Output 'Elmos.ControllerLab.Bridge.exe'
 if (!(Test-Path $Exe)) { throw 'The published bridge executable is missing.' }
+foreach ($notice in @('LICENSE','THIRD-PARTY-NOTICES.txt')) {
+    $source = Join-Path $Root ("runtime/" + $notice)
+    if (Test-Path $source) { Copy-Item $source $Output -Force }
+}
 & $Exe --catalog-check
 if ($LASTEXITCODE -ne 0) { throw 'The virtual-controller profile catalog failed its startup check.' }
 Write-Host "Build complete: $Exe" -ForegroundColor Green
