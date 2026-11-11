@@ -61,7 +61,8 @@ count, not a claim that every profile has passed real-hardware or game testing.
 - Explicit virtual driver installation, create, state streaming and disposal commands.
 - A synthetic demo source so output profiles can be exercised without a physical pad.
 - Offline Python regression tests for the mapping layer and persistent per-device/per-game profiles.
-- A read-only API visibility probe for XInput, SDL and optional HIDAPI.
+- Read-only API visibility probes for XInput, SDL, Windows Gaming Input and optional HIDAPI.
+- A localhost browser Gamepad API page and cross-controller matrix integration.
 - Optional raw HID sensor capture and tested report parsers for DualShock 4 and DualSense USB/Bluetooth IMU, touchpad and battery data.
 - An automated cross-controller matrix that compares API visibility before and
   after virtual-device creation and checks for device leaks after teardown.
