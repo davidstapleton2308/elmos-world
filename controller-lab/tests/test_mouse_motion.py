@@ -11,13 +11,12 @@ def test_small_movements_accumulate_instead_of_vanishing():
 
 def test_reversal_cancels_residual_without_drift():
     accumulator = MouseDeltaAccumulator()
-    for _ in range(100):
-        accumulator.consume(0.17, -0.17)
-    total = [0, 0]
-    for _ in range(100):
-        x, y = accumulator.consume(-0.17, 0.17)
-        total[0] += x
-        total[1] += y
+    total_x = total_y = 0
+    for delta in ([0.17] * 100 + [-0.17] * 100):
+        x, y = accumulator.consume(delta, -delta)
+        total_x += x
+        total_y += y
+    assert (total_x, total_y) == (0, 0)
     assert accumulator.consume(0.0, 0.0) == (0, 0)
 
 
