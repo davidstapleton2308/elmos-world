@@ -93,7 +93,7 @@ class ControllerState:
         for name in AXES:
             low, high = (0.0, 1.0) if "trigger" in name else (-1.0, 1.0)
             axes[name] = clamp(self.axes.get(name, 0.0), low, high)
-        extra = {str(k): clamp(v, -1.0, 1.0) for k, v in self.extra.items()}
+        extra = {str(k): clamp(v, 0.0, 1.0) for k, v in self.extra.items()}
         battery = None if self.battery is None else clamp(self.battery, 0, 100)
         return ControllerState(
             device_id=str(self.device_id),
