@@ -4,7 +4,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from .model import ControllerState
+from .model import ControllerState, MotionState
+from .sony_hid import SonyHIDSensorReader
 
 
 BUTTON_CONSTANTS = {
@@ -45,6 +46,7 @@ class SDLDevice:
     controller: Any = None
     vendor_id: int = 0
     product_id: int = 0
+    sensor_reader: Any = None
 
 
 class SDLInputSource:
@@ -63,6 +65,7 @@ class SDLInputSource:
 
     def refresh(self) -> list[dict[str, Any]]:
         pygame = self.pygame
+        retained_sensors = {old.instance_id: old.sensor_reader for old in self.devices if old.sensor_reader}
         for old in self.devices:
             try:
                 if old.controller:
@@ -93,20 +96,36 @@ class SDLInputSource:
                         ctl = self.controller_api.Controller(index)
                     except Exception:
                         mapped = False
+                guid = str(joystick.get_guid())
+                vendor_id = int(getattr(joystick, "get_vendor", lambda: 0)() or 0)
+                product_id = int(getattr(joystick, "get_product", lambda: 0)() or 0)
+                try:
+                    raw_guid = bytes.fromhex(guid)
+                    if not vendor_id and len(raw_guid) >= 10:
+                        vendor_id = int.from_bytes(raw_guid[4:6], "little")
+                    if not product_id and len(raw_guid) >= 10:
+                        product_id = int.from_bytes(raw_guid[8:10], "little")
+                except ValueError:
+                    pass
+                instance_id = int(joystick.get_instance_id())
                 found.append(SDLDevice(
                     index=index,
-                    instance_id=int(joystick.get_instance_id()),
-                    guid=str(joystick.get_guid()),
+                    instance_id=instance_id,
+                    guid=guid,
                     name=str(joystick.get_name()),
                     mapped=mapped,
                     joystick=joystick,
                     controller=ctl,
-                    vendor_id=int(getattr(joystick, "get_vendor", lambda: 0)() or 0),
-                    product_id=int(getattr(joystick, "get_product", lambda: 0)() or 0),
+                    vendor_id=vendor_id,
+                    product_id=product_id,
+                    sensor_reader=retained_sensors.pop(instance_id, None),
                 ))
             except Exception:
                 continue
         self.devices = found
+        for stale in retained_sensors.values():
+            try: stale.close()
+            except Exception: pass
         return self.list_devices()
 
     def list_devices(self) -> list[dict[str, Any]]:
@@ -114,6 +133,7 @@ class SDLInputSource:
             "index": d.index, "instance_id": d.instance_id, "guid": d.guid,
             "name": d.name, "mapped": d.mapped,
             "vendor_id": d.vendor_id, "product_id": d.product_id,
+            "sensor_available": d.sensor_reader is not None,
             "axes": d.joystick.get_numaxes(), "buttons": d.joystick.get_numbuttons(),
             "hats": d.joystick.get_numhats(),
         } for d in self.devices]
@@ -121,6 +141,18 @@ class SDLInputSource:
     @staticmethod
     def _constant(pygame: Any, controller_api: Any, name: str, fallback: int) -> int:
         return int(getattr(pygame, name, getattr(controller_api, name, fallback)))
+
+    def attach_sensor_reader(self, instance_id: int) -> bool:
+        device = next((d for d in self.devices if d.instance_id == instance_id), None)
+        if device is None:
+            self.refresh()
+            device = next((d for d in self.devices if d.instance_id == instance_id), None)
+        if device is None:
+            return False
+        if device.sensor_reader is not None:
+            return True
+        device.sensor_reader = SonyHIDSensorReader.open(device.vendor_id, device.product_id)
+        return device.sensor_reader is not None
 
     def read(self, index: int) -> ControllerState:
         self.pygame.event.pump()
@@ -197,13 +229,38 @@ class SDLInputSource:
                 if hy < 0: dpad.add("down")
                 if hx < 0: dpad.add("left")
                 if hx > 0: dpad.add("right")
+        motion = MotionState()
+        touchpads = []
+        battery = None
+        charging = battery_full = mic_muted = headphones_connected = False
+        touchpad_packet_counter = sensor_timestamp = 0
+        if device.sensor_reader is not None:
+            sensor = device.sensor_reader.poll()
+            if sensor is not None:
+                motion = sensor.motion
+                touchpads = list(sensor.touchpads)
+                battery = sensor.battery
+                charging = sensor.charging
+                battery_full = sensor.battery_full
+                mic_muted = sensor.mic_muted
+                headphones_connected = sensor.headphones_connected
+                touchpad_packet_counter = sensor.touchpad_packet_counter
+                sensor_timestamp = sensor.sensor_timestamp
         return ControllerState(
             device_id=str(device.instance_id), name=device.name, guid=device.guid,
-            buttons=buttons, axes=axes, dpad=dpad,
+            buttons=buttons, axes=axes, dpad=dpad, motion=motion, touchpads=touchpads,
+            battery=battery, charging=charging, battery_full=battery_full,
+            mic_muted=mic_muted, headphones_connected=headphones_connected,
+            touchpad_packet_counter=touchpad_packet_counter, sensor_timestamp=sensor_timestamp,
         ).normalized()
 
     def close(self) -> None:
         for device in self.devices:
+            try:
+                if device.sensor_reader:
+                    device.sensor_reader.close()
+            except Exception:
+                pass
             try:
                 if device.controller:
                     device.controller.quit()
