@@ -6,6 +6,8 @@ irreversible false-positive moves.
 """
 from pathlib import Path
 import tempfile
+import time
+import os
 import unittest
 import sys
 
@@ -69,6 +71,11 @@ class DiscoveryPrecisionCorpusTests(unittest.TestCase):
                 item(folder/'Binaries'/'Win64'/exe)
                 (folder/'Engine').mkdir()
                 (folder/'Content').mkdir()
+                # Model completed downloads. Windows timestamps can be a moment
+                # ahead of the test clock immediately after file creation.
+                old_time=time.time()-300
+                for path in [folder,*folder.rglob('*')]:
+                    os.utime(path,(old_time,old_time))
                 result=self.inspect(folder)
                 self.assertEqual(result['kind'],'game',result)
                 self.assertEqual(result['action'],'ready',result)
