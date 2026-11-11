@@ -45,6 +45,8 @@ def profile_from_dict(value: dict[str, Any]) -> MappingProfile:
         mouse_deadzone=float(value.get("mouse_deadzone", 0.15)),
         touchpad_mode=str(value.get("touchpad_mode", "off")),
         touchpad_sensitivity=float(value.get("touchpad_sensitivity", 1.0)),
+        action_bindings=dict(value.get("action_bindings", {})) if isinstance(value.get("action_bindings"), dict) else {},
+        chord_map=dict(value.get("chord_map", {})) if isinstance(value.get("chord_map"), dict) else {},
         layer=layer,
     )
 
