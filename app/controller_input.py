@@ -116,8 +116,10 @@ class ControllerMonitor:
                         axes=[max(-1,min(1,ctl.get_axis(axis_code(label,index))/32767.0))
                               for label,index in (('CONTROLLER_AXIS_LEFTX',0),('CONTROLLER_AXIS_LEFTY',1),
                                                   ('CONTROLLER_AXIS_RIGHTX',2),('CONTROLLER_AXIS_RIGHTY',3))]
-                        triggers=[max(0,min(1,float(ctl.get_axis(axis_code(label,index)))/32767.0))
-                                  for label,index in (('CONTROLLER_AXIS_TRIGGERLEFT',4),('CONTROLLER_AXIS_TRIGGERRIGHT',5))]
+                        try:
+                            triggers=[max(0,min(1,float(ctl.get_axis(axis_code(label,index)))/32767.0))
+                                      for label,index in (('CONTROLLER_AXIS_TRIGGERLEFT',4),('CONTROLLER_AXIS_TRIGGERRIGHT',5))]
+                        except Exception:triggers=[0.0,0.0]
                     except Exception:
                         mapped=False
                 if mapped:
