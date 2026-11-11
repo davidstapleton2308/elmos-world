@@ -38,3 +38,12 @@ def test_command_execution_and_final_cleanup_are_synchronized():
     assert "lock (DeviceLock) result = Execute(root);" in SOURCE
     assert "Watchdog?.Dispose();" in SOURCE
     assert "LastInputTick.Clear();" in SOURCE
+
+def test_timer_callback_contains_unhandled_exceptions():
+    """A timer callback must not throw onto the ThreadPool and kill the bridge."""
+    start = SOURCE.index("private static void CheckInputLeases")
+    end = SOURCE.index("private const string BackendSdkVersion", start)
+    callback = SOURCE[start:end]
+    assert "try\n        {\n            lock (DeviceLock)" in callback
+    assert "catch (Exception ex)" in callback
+    assert "catch { /* The bridge may be shutting down or stdout may be closed. */ }" in callback
