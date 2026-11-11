@@ -191,7 +191,7 @@ class Handler(BaseHTTPRequestHandler):
     if not engine.find(gameid):raise ValueError('Game not found')
     out=save_launch_profile(gameid,body.get('readySeconds'))
    elif action=='/api/handoff':
-    from backend import handoff_active_game, active_session_status, active_game_process, find_game_window
+    from backend import handoff_active_game, active_session_status, find_game_window
     # Low-impact games skip aggressive foreground stealing on launch. The
     # launcher minimizes when a stable game window appears; existing PS controls
     # and ordinary game launches are unchanged.
