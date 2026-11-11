@@ -421,6 +421,16 @@ internal static class Program
                     driverPrepared = DriverPrepared, backendSdkVersion = BackendSdkVersion,
                     profileCount = Context.AllProfiles.Count, activeControllers = Controllers.Count,
                     runtime = Environment.Version.ToString(), architecture = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture.ToString() };
+            case "heartbeat":
+            {
+                // A heartbeat renews the lease without resubmitting (or changing) held input.
+                // Unknown/expired slots must not be resurrected by a late heartbeat.
+                var slot = Text(root, "slot", "") ?? "";
+                if (slot.Length is 0 or > 80 || !Controllers.ContainsKey(slot))
+                    throw new InvalidOperationException($"No active virtual device exists in slot '{slot}'.");
+                RenewLease(slot);
+                return new { renewed = true, slot };
+            }
             case "profiles":
                 return new { driverInstalled = Context!.IsDriverInstalled,
                     profiles = Context.AllProfiles.Select(ProfileInfo).ToArray() };
