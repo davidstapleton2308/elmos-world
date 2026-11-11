@@ -161,3 +161,16 @@ def radial_action_frame(stick: str, axes: dict[str, float], config: dict[str, An
     sectors = config.get("sectors", {})
     spec = sectors.get(names[index], {}) if isinstance(sectors, dict) else {}
     return _action_frame(spec)
+
+
+def radial_requires(radial_menus: dict[str, Any], output: str) -> bool:
+    for config in (radial_menus or {}).values():
+        sectors = config.get("sectors", {}) if isinstance(config, dict) else {}
+        if not isinstance(sectors, dict):
+            continue
+        for spec in sectors.values():
+            if isinstance(spec, dict):
+                action = spec.get("action", spec)
+                if isinstance(action, dict) and _values(action.get(output)):
+                    return True
+    return False
