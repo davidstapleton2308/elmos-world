@@ -237,7 +237,7 @@ class SDLInputSource:
         if device.sensor_reader is not None:
             sensor = device.sensor_reader.poll()
             if sensor is not None:
-                motion = sensor.motion
+                motion = sensor.motion if device.sensor_reader.fresh else MotionState()
                 touchpads = list(sensor.touchpads)
                 battery = sensor.battery
                 charging = sensor.charging
