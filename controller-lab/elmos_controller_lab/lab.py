@@ -11,6 +11,7 @@ from .bridge import BridgeClient, BridgeError
 from .api_probe import probe_hidapi, probe_xinput, run_probe
 from .browser_probe import BrowserProbeServer
 from .mapping import Mapper, MappingProfile
+from .actions import radial_requires
 from .model import ControllerState, neutral_state
 from .sdl_source import SDLInputSource
 from .store import MappingStore
@@ -364,12 +365,15 @@ def command_emulate(args):
             keyboard_slot = args.slot + "-keyboard"
             mouse_slot = args.slot + "-mouse"
             need_keyboard = bool(mapping.keyboard_map or mapping.trigger_keyboard_map or mapping.left_stick_as_wasd or
-                                 (mapping.layer and (mapping.layer.keyboard_map or mapping.layer.left_stick_as_wasd)))
+                                 radial_requires(mapping.radial_menus, "keyboard") or
+                                 (mapping.layer and (mapping.layer.keyboard_map or mapping.layer.left_stick_as_wasd or
+                                                     radial_requires(mapping.layer.radial_menus, "keyboard"))))
             need_mouse = bool(mapping.mouse_map or mapping.right_stick_mouse or mapping.touchpad_mode == "mouse" or
-                              mapping.gyro_mode == "mouse" or
+                              mapping.gyro_mode == "mouse" or radial_requires(mapping.radial_menus, "mouse") or
                               (mapping.layer and (mapping.layer.mouse_map or mapping.layer.right_stick_mouse or
                                                   mapping.layer.touchpad_mode == "mouse" or
-                                                  mapping.layer.gyro_mode == "mouse")))
+                                                  mapping.layer.gyro_mode == "mouse" or
+                                                  radial_requires(mapping.layer.radial_menus, "mouse"))))
             if need_keyboard:
                 result = bridge.request("create", slot=keyboard_slot, profile_id="microsoft-wired-keyboard-600")
                 created_slots.append(keyboard_slot)
