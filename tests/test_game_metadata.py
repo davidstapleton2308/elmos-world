@@ -54,7 +54,7 @@ class ManifestIdentityFixtures(unittest.TestCase):
 
     def test_conflicting_manifest_names_cause_review(self):
         root=self.game('UnknownBuild','OuterWilds.exe','goggame-345.info',{'name':'Outer Wilds'})
-        (root/'appmanifest_480.acf').write_text('"AppState"\n{ "name" "Portal" }',encoding='utf-8')
+        (root/'appmanifest_480.acf').write_text('"AppState"\n{\n "name" "Portal"\n}',encoding='utf-8')
         result=inspect_folder(root,min_age=0)
         self.assertEqual(result['kind'],'game')
         self.assertEqual(result['action'],'review')

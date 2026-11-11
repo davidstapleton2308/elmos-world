@@ -94,6 +94,9 @@ class DiscoveryPrecisionCorpusTests(unittest.TestCase):
                 folder=self.folder/folder_name;folder.mkdir()
                 item(folder/exe)
                 item(folder/config,300)
+                old_time=time.time()-300
+                for path in [folder,*folder.rglob('*')]:
+                    os.utime(path,(old_time,old_time))
                 result=self.inspect(folder)
                 self.assertEqual(result['kind'],'emulator',result)
                 self.assertEqual(result['action'],'ready',result)
