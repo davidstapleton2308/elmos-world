@@ -140,6 +140,7 @@ class Handler(BaseHTTPRequestHandler):
    if action=='/api/smart-mode':out=engine.smart_mode(body.get('enabled') is True)
    elif action=='/api/smart-organize':out=engine.smart_organize(manual=True)
    elif action=='/api/smart-auto':out=engine.smart_organize(manual=False)
+   elif action=='/api/smart-undo':out=engine.smart_undo()
    elif action=='/api/update-config':
     out={'repository':update_center.configure(body.get('repository',''))}
    elif action=='/api/update-install':

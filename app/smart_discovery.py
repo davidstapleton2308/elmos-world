@@ -380,3 +380,41 @@ def move_verified(item, downloads, games_root, emulators_root, *, min_age=120):
         'path': str(target), 'exe': str(target / exe_relative),
         'emulator': current['emulator'], 'from': str(src),
     }
+
+
+def undo_verified(record, downloads, games_root, emulators_root):
+    """Reverse a recorded organization via rename only, never overwrite.
+
+    The undo destination must be a top-level child of Downloads. This is not
+    a generic move command: callers supply an entry created by Elmos World.
+    """
+    kind = record.get('kind')
+    if kind not in ('game', 'emulator'):
+        raise ValueError('Only recorded game/emulator moves can be undone')
+    old = Path(record.get('from', ''))
+    new = Path(record.get('path', ''))
+    inbox = Path(downloads)
+    root = Path(games_root if kind == 'game' else emulators_root)
+    if (old.parent.resolve() != inbox.resolve() or
+            new.parent.resolve() != root.resolve()):
+        raise ValueError('Source or target is outside approved folders')
+    if any(_reparse(p) for p in (inbox, root, new)):
+        raise ValueError('Reparse points cannot be used during undo')
+    if old.exists() or old.is_symlink():
+        raise FileExistsError('Original Downloads folder already exists')
+    if not new.is_dir():
+        raise FileNotFoundError('Organized folder no longer exists')
+    files, dirs, links, truncated = _walk(new)
+    if links or truncated:
+        raise ValueError('Folder contents changed to include links or too many files')
+    exe = Path(record.get('exe', ''))
+    if not exe.is_file() or not exe.is_relative_to(new):
+        raise ValueError('Recorded game/emulator executable no longer exists')
+    if new.stat().st_dev != inbox.stat().st_dev:
+        raise ValueError('Cannot undo across disks without risk of partial copy')
+    # The destination check is repeated immediately before atomic rename.
+    if old.exists():
+        raise FileExistsError('Cannot replace Downloads folder during undo')
+    os.rename(new, old)
+    return {'kind': kind, 'name': record.get('name', new.name),
+            'from': str(new), 'path': str(old)}

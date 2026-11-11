@@ -1071,6 +1071,37 @@ class Engine:
  def note(self,gameid,note):
   self.extra.setdefault('notes',{})[gameid]=str(note)[:5000];self.save()
 
+ def _smart_history(self):
+  saved=read_json(APP/'smart_moves.json',[])
+  return saved if isinstance(saved,list) else []
+
+ def _smart_record_move(self,result):
+  history=self._smart_history()
+  history.append({key:result[key] for key in ('kind','name','path','from','exe')})
+  write_json(APP/'smart_moves.json',history[-100:])
+
+ def smart_undo(self):
+  """Undo only the latest recorded move if both paths are still safe."""
+  from smart_discovery import undo_verified
+  with self.lock:
+   if active_game_process():raise RuntimeError('Finish your game before undoing organization.')
+   history=self._smart_history()
+   if not history:raise RuntimeError('There are no organized folders to undo.')
+   record=history[-1]
+   downloads=Path(os.environ.get('USERPROFILE',str(Path.home())))/'Downloads'
+   undone=undo_verified(record,downloads,self.games_root,DEFAULT_EMULATORS)
+   history.pop()
+   write_json(APP/'smart_moves.json',history)
+   # Remove only the matching registered emulator; never an unrelated entry.
+   if record['kind']=='emulator':
+    for eid,em in list(self.extra['emulators'].items()):
+     if normpath(em.get('exe',''))==normpath(record['exe']):
+      del self.extra['emulators'][eid]
+      break
+    self.save()
+   self._cache=None;self._cache_time=0
+   return {'ok':True,'undone':undone}
+
  def smart_preview(self):
   """Inspect Downloads and installed emulator folders without changing files."""
   from smart_discovery import scan_downloads, discover_emulators
@@ -1080,6 +1111,7 @@ class Engine:
   return {'downloads':str(downloads),'gamesFolder':str(self.games_root),
           'emulatorsFolder':str(DEFAULT_EMULATORS),
           'autoEnabled':bool(self.cfg.get('smart_auto_enabled',False)),
+          'lastMove':self._smart_history()[-1] if self._smart_history() else None,
           'artEnabled':bool(self.cfg.get('api_key','').strip()),
           'items':found,'installedEmulators':installed,
           'counts':{'ready':sum(i['action']=='ready' for i in found),
@@ -1145,6 +1177,7 @@ class Engine:
     try:
      result=move_verified(item,downloads,self.games_root,DEFAULT_EMULATORS)
      moved.append(result)
+     self._smart_record_move(result)
      if result['kind']=='emulator':
       entry={'kind':'emulator','action':'ready','emulator':result['emulator'],'exe':result['exe']}
       if self._smart_register_emulator(entry):registered.append(result['name'])

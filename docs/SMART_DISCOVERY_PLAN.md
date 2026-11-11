@@ -112,3 +112,10 @@ a GOG manifest declaring "Outer Wilds" can recover the actual name.
 Contradictory metadata produces a review outcome, never a forced match.
 Manifest metadata can be fabricated, so an engine/game binary and sufficiently
 strong structural evidence are still required before organizing.
+
+## Undo
+
+Each completed move is journaled in LOCALAPPDATA/SteamMatch/smart_moves.json.
+The Settings interface can undo the most recent move via an atomic same-volume
+rename back to Downloads. Undo refuses to overwrite existing folders or
+follow reparse points. It does not delete game files or artwork.

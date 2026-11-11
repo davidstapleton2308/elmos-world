@@ -1100,6 +1100,7 @@ async function smartRefresh(show=true){
   if(show)$('smartStatus').textContent='Scanning Downloads safely…';
   const data=await api('/api/smart-preview');
   $('smartAuto').checked=!!data.autoEnabled;
+  $('smartUndo').hidden=!data.lastMove;
   const icons={game:'🎮',emulator:'🕹️',rom:'💿',archive:'📦',installer:'⚠️'};
   const rows=(data.items||[]).filter(x=>x.kind!=='other').slice(0,80);
   $('smartResults').innerHTML=rows.map(x=>'<div class="smart-row"><strong>'+icons[x.kind]+' '+esc(x.title)+'</strong><span>'+esc(x.kind.toUpperCase())+' · '+x.confidence+'/100 · '+esc(x.action.toUpperCase())+'</span><small>'+esc(x.reason)+' — '+esc(x.path)+'</small></div>').join('')||'<p class="muted">No game-related folders or archives in Downloads.</p>';
@@ -1115,6 +1116,13 @@ $('smartAuto').onchange=async()=>{
  if(!result){$('smartAuto').checked=!enabled;return;}
  notify(result.autoEnabled?'Safe auto-organization enabled.':'Auto-organization disabled.');
  smartRefresh(false);
+};
+$('smartUndo').onclick=async()=>{
+ if(!confirm('Undo the most recent automatically organized folder? This moves the folder back into Downloads without deleting files.'))return;
+ const response=await safe(()=>api('/api/smart-undo',{}));
+ if(!response)return;
+ notify('Moved '+response.undone.name+' back to Downloads.');
+ await reload(true);await smartRefresh(true);
 };
 $('smartOrganize').onclick=async()=>{
  if(!confirm('Organize only high-confidence, completed game and emulator folders? Existing destination folders will never be overwritten.'))return;
