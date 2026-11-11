@@ -136,9 +136,10 @@ HIDAPI. This is an early Windows API compatibility check, not yet a complete
 WGI/GameInput/Steam/browser conformance suite.
 
 
-The bridge creates each deployable non-keyboard/non-mouse profile that does not
-require the separate composite USB/IP transport, submits a representative
-button/axis/d-pad state, and disposes the virtual device before moving on.
+The bridge creates each deployable profile that does not require the separate
+composite USB/IP transport. It sends keyboard reports to keyboard profiles,
+mouse reports to mouse profiles, and representative button/axis/d-pad states
+to gamepad, wheel and joystick profiles, then disposes each virtual device.
 It reports per-profile pass/fail progress and saves the complete JSON report
 under LocalAppData/ElmosControllerLab/reports. This validates the profile's
 create, state-submit and cleanup path; it does not yet prove that every game
