@@ -134,6 +134,14 @@ class BridgeClient:
             with self._lock:
                 self._pending.pop(request_id, None)
 
+    def heartbeat(self, slot: str, timeout: float = 2.0) -> None:
+        """Renew an existing virtual device lease without changing its input state.
+
+        Call periodically while intentionally idle; stop calling if the source
+        disconnects or the mapping process becomes unhealthy.
+        """
+        self.request("heartbeat", timeout=timeout, slot=slot)
+
     def send_state(self, slot: str, state: dict[str, Any]) -> None:
         self.start()
         if not self.process or not self.process.stdin:
