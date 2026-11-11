@@ -38,6 +38,8 @@ class ActionLayer:
     left_stick_as_wasd: bool | None = None
     right_stick_mouse: bool | None = None
     mouse_sensitivity: float | None = None
+    touchpad_mode: str | None = None
+    touchpad_sensitivity: float | None = None
 
 
 @dataclass
@@ -57,6 +59,8 @@ class MappingProfile:
     right_stick_mouse: bool = False
     mouse_sensitivity: float = 14.0
     mouse_deadzone: float = 0.15
+    touchpad_mode: str = "off"  # off | mouse | right_stick
+    touchpad_sensitivity: float = 1.0
     layer: ActionLayer | None = None
 
 
@@ -105,6 +109,7 @@ class Mapper:
         self._layer_toggle = False
         self._last_activator = False
         self._current_layer_active = False
+        self._last_touchpad: tuple[int, float, float] | None = None
 
     def map_actions(self, source: ControllerState) -> MappedOutput:
         """Map a physical snapshot to gamepad, virtual keyboard and virtual mouse outputs."""
@@ -189,6 +194,39 @@ class Mapper:
                 sensitivity = clamp(sensitivity, 0.1, 500.0, 14.0)
                 mouse_dx = int(round((rx / radius) * scale * sensitivity))
                 mouse_dy = int(round((-ry / radius) * scale * sensitivity))
+
+        touchpad_mode = p.touchpad_mode
+        touchpad_sensitivity = p.touchpad_sensitivity
+        if layer and layer_active:
+            if layer.touchpad_mode is not None:
+                touchpad_mode = layer.touchpad_mode
+            if layer.touchpad_sensitivity is not None:
+                touchpad_sensitivity = layer.touchpad_sensitivity
+        touchpad_sensitivity = clamp(touchpad_sensitivity, 0.01, 10.0, 1.0)
+        if touchpad_mode == "right_stick":
+            contact = next((item for item in normalized.touchpads if item.active), None)
+            if contact is None:
+                gamepad.axes["right_x"] = 0.0
+                gamepad.axes["right_y"] = 0.0
+            else:
+                tx = clamp((contact.x - 960.0) / 960.0, -1.0, 1.0)
+                ty = clamp((540.0 - contact.y) / 540.0, -1.0, 1.0)
+                gamepad.axes["right_x"], gamepad.axes["right_y"] = shape_stick(
+                    tx, ty, p.right_stick
+                )
+            self._last_touchpad = None
+        elif touchpad_mode == "mouse":
+            contact = next((item for item in normalized.touchpads if item.active), None)
+            if contact is None:
+                self._last_touchpad = None
+            else:
+                current = (contact.tracking_id, contact.x, contact.y)
+                if self._last_touchpad is not None and self._last_touchpad[0] == contact.tracking_id:
+                    mouse_dx += int(round((contact.x - self._last_touchpad[1]) * touchpad_sensitivity))
+                    mouse_dy += int(round((contact.y - self._last_touchpad[2]) * touchpad_sensitivity))
+                self._last_touchpad = current
+        else:
+            self._last_touchpad = None
 
         return MappedOutput(
             gamepad=gamepad,
