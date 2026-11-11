@@ -116,12 +116,14 @@ class Mapper:
         layer_gain = clamp(layer.axis_sensitivity, 0.05, 4.0, 1.0) if layer and layer_active else 1.0
         axes["left_x"], axes["left_y"] = clamp(lx * layer_gain, -1, 1), clamp(ly * layer_gain, -1, 1)
         axes["right_x"], axes["right_y"] = clamp(rx * layer_gain, -1, 1), clamp(ry * layer_gain, -1, 1)
+        trigger_deadzone = clamp(p.trigger_deadzone, 0.0, 0.95, 0.02)
+        trigger_exponent = clamp(p.trigger_exponent, 0.2, 4.0, 1.0)
         for name in ("left_trigger", "right_trigger"):
             value = clamp(axes.get(name, 0), 0, 1)
-            if value <= p.trigger_deadzone:
+            if value <= trigger_deadzone:
                 value = 0.0
             else:
-                value = ((value - p.trigger_deadzone) / (1.0 - p.trigger_deadzone)) ** clamp(p.trigger_exponent, 0.2, 4.0)
+                value = ((value - trigger_deadzone) / (1.0 - trigger_deadzone)) ** trigger_exponent
             axes[name] = clamp(value, 0, 1)
 
         return ControllerState(
