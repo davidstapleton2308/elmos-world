@@ -5,6 +5,7 @@ using System.Linq;
 using System.Security.Principal;
 using System.Text.Json;
 using HIDMaestro;
+using Windows.Gaming.Input;
 
 internal static class Program
 {
@@ -330,6 +331,34 @@ internal static class Program
         return new { total = candidates.Length, passed, failed, reportPath };
     }
 
+    private static object ProbeWgi()
+    {
+        try
+        {
+            var devices = RawGameController.RawGameControllers;
+            var result = devices.Select(device =>
+            {
+                var reading = device.GetCurrentReading();
+                return new
+                {
+                    name = device.DisplayName,
+                    vendorId = device.HardwareVendorId,
+                    productId = device.HardwareProductId,
+                    buttons = device.ButtonCount,
+                    buttonsDown = reading.Buttons.Count(value => value),
+                    axes = device.AxisCount,
+                    axisValues = reading.Axes.Select(value => Math.Round(value, 4)).ToArray(),
+                    switches = device.SwitchCount
+                };
+            }).ToArray();
+            return new { available = true, devices = result };
+        }
+        catch (Exception ex)
+        {
+            return new { available = false, error = ex.GetType().Name, message = ex.Message, devices = Array.Empty<object>() };
+        }
+    }
+
     private static object Execute(JsonElement root)
     {
         var op = Text(root, "op", "") ?? "";
@@ -338,6 +367,8 @@ internal static class Program
             case "hello":
                 return new { version = "0.1.0", platform = Environment.OSVersion.ToString(),
                     elevated = IsElevated(), driverInstalled = Context!.IsDriverInstalled };
+            case "wgi":
+                return ProbeWgi();
             case "status":
                 return new { elevated = IsElevated(), driverInstalled = Context!.IsDriverInstalled,
                     driverPrepared = DriverPrepared, backendSdkVersion = BackendSdkVersion,
