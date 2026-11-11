@@ -43,6 +43,8 @@ class SDLDevice:
     mapped: bool
     joystick: Any
     controller: Any = None
+    vendor_id: int = 0
+    product_id: int = 0
 
 
 class SDLInputSource:
@@ -61,6 +63,17 @@ class SDLInputSource:
 
     def refresh(self) -> list[dict[str, Any]]:
         pygame = self.pygame
+        for old in self.devices:
+            try:
+                if old.controller:
+                    old.controller.quit()
+            except Exception:
+                pass
+            try:
+                old.joystick.quit()
+            except Exception:
+                pass
+        self.devices = []
         pygame.init()
         pygame.joystick.init()
         try:
@@ -88,6 +101,8 @@ class SDLInputSource:
                     mapped=mapped,
                     joystick=joystick,
                     controller=ctl,
+                    vendor_id=int(getattr(joystick, "get_vendor", lambda: 0)() or 0),
+                    product_id=int(getattr(joystick, "get_product", lambda: 0)() or 0),
                 ))
             except Exception:
                 continue
@@ -98,6 +113,7 @@ class SDLInputSource:
         return [{
             "index": d.index, "instance_id": d.instance_id, "guid": d.guid,
             "name": d.name, "mapped": d.mapped,
+            "vendor_id": d.vendor_id, "product_id": d.product_id,
             "axes": d.joystick.get_numaxes(), "buttons": d.joystick.get_numbuttons(),
             "hats": d.joystick.get_numhats(),
         } for d in self.devices]
@@ -114,7 +130,19 @@ class SDLInputSource:
             device = next((d for d in self.devices if d.index == index), None)
         if device is None:
             raise RuntimeError(f"Controller index {index} is no longer connected.")
+        return self._read_device(device)
 
+    def read_instance(self, instance_id: int) -> ControllerState:
+        self.pygame.event.pump()
+        device = next((d for d in self.devices if d.instance_id == instance_id), None)
+        if device is None:
+            self.refresh()
+            device = next((d for d in self.devices if d.instance_id == instance_id), None)
+        if device is None:
+            raise RuntimeError(f"Controller instance {instance_id} is no longer connected.")
+        return self._read_device(device)
+
+    def _read_device(self, device: SDLDevice) -> ControllerState:
         pygame, api, joy, ctl = self.pygame, self.controller_api, device.joystick, device.controller
         buttons: set[str] = set()
         dpad: set[str] = set()
