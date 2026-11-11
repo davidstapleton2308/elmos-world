@@ -46,7 +46,7 @@ class ManifestIdentityFixtures(unittest.TestCase):
         self.assertIn('GOG',result['reason'])
 
     def test_steam_acf_title_with_matching_id_is_recovered(self):
-        txt='"AppState"\\n{\\n "appid" "480"\\n "name" "Outer Wilds"\\n "installdir" "Game01"\\n}'
+        txt='"AppState"\n{\n "appid" "480"\n "name" "Outer Wilds"\n "installdir" "Game01"\n}'
         root=self.game('n0name','OuterWilds.exe','appmanifest_480.acf',txt)
         result=inspect_folder(root)
         self.assertEqual(result['title'],'Outer Wilds')
@@ -54,7 +54,7 @@ class ManifestIdentityFixtures(unittest.TestCase):
 
     def test_conflicting_manifest_names_cause_review(self):
         root=self.game('UnknownBuild','OuterWilds.exe','goggame-345.info',{'name':'Outer Wilds'})
-        (root/'appmanifest_480.acf').write_text('"AppState"\\n{ "name" "Portal" }',encoding='utf-8')
+        (root/'appmanifest_480.acf').write_text('"AppState"\n{ "name" "Portal" }',encoding='utf-8')
         result=inspect_folder(root,min_age=0)
         self.assertEqual(result['kind'],'game')
         self.assertEqual(result['action'],'review')
@@ -68,7 +68,7 @@ class ManifestIdentityFixtures(unittest.TestCase):
 
     def test_an_acf_id_mismatch_cannot_identify_an_unknown_game(self):
         root=self.game('Unknown','OuterWilds.exe','appmanifest_480.acf',
-                       '"AppState"\\n{\\n "appid" "999"\\n "name" "Outer Wilds"\\n}')
+                       '"AppState"\n{\n "appid" "999"\n "name" "Outer Wilds"\n}')
         names=inspect_manifest_names(root,list(root.iterdir()))
         self.assertFalse(names['title'])
 
