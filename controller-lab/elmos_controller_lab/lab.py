@@ -11,6 +11,7 @@ from .bridge import BridgeClient, BridgeError
 from .mapping import Mapper, MappingProfile
 from .model import ControllerState, neutral_state
 from .sdl_source import SDLInputSource
+from .store import MappingStore
 
 
 def print_json(value):
@@ -75,9 +76,7 @@ def _demo_state(t: float) -> ControllerState:
 
 
 def command_emulate(args):
-    events = []
     def on_event(event):
-        events.append(event)
         if event.get("event_name", "").startswith("output"):
             print("[device feedback]", json.dumps(event, default=str), flush=True)
         elif event.get("event_name") == "error":
@@ -90,39 +89,47 @@ def command_emulate(args):
         if not status.get("driverPrepared"):
             raise BridgeError("The pinned virtual driver has not been explicitly prepared. Run Install-ControllerLab-Driver.ps1 first.")
         if not status.get("elevated"):
-            raise BridgeError("Virtual device creation requires an elevated session. Run Install-ControllerLab-Driver.ps1 and approve UAC.")
-        created = bridge.request("create", slot=args.slot, profile_id=args.profile)
-        print("Created virtual device:", created["profile"]["name"], flush=True)
-        mapper = Mapper(MappingProfile())
+            raise BridgeError("Virtual device creation requires an elevated session. Run Run-ControllerLab-Elevated.ps1 and approve UAC.")
+
         source = None
-        if not args.demo:
-            source = SDLInputSource()
-            devices = source.list_devices()
-            print_json({"physical_devices": devices})
-            if not devices:
-                raise BridgeError("No physical controller found. Connect one over USB/Bluetooth or use --demo.")
-            if not any(d["index"] == args.device for d in devices):
-                raise BridgeError(f"No SDL device at index {args.device}.")
-        start = time.monotonic()
+        created = False
         try:
+            device_guid = "synthetic"
+            if not args.demo:
+                source = SDLInputSource()
+                devices = source.list_devices()
+                print_json({"physical_devices": devices})
+                if not devices:
+                    raise BridgeError("No physical controller found. Connect one over USB/Bluetooth or use --demo.")
+                selected = next((d for d in devices if d["index"] == args.device), None)
+                if selected is None:
+                    raise BridgeError(f"No SDL device at index {args.device}.")
+                device_guid = selected["guid"] or selected["name"]
+
+            mapping = MappingStore().get(device_guid, args.game, args.profile)
+            mapper = Mapper(mapping)
+            created_result = bridge.request("create", slot=args.slot, profile_id=args.profile)
+            created = True
+            print("Created virtual device:", created_result["profile"]["name"], flush=True)
+            print(f"Input: {device_guid} | Game: {args.game} | Mapping: {mapping.name}", flush=True)
+
+            start = time.monotonic()
             while True:
                 now = time.monotonic()
-                if args.demo:
-                    physical = _demo_state(now - start)
-                else:
-                    physical = source.read(args.device)
+                physical = _demo_state(now - start) if args.demo else source.read(args.device)
                 mapped = mapper.map(physical)
                 bridge.send_state(args.slot, mapped.to_wire())
                 time.sleep(1.0 / max(30, min(250, args.rate)))
         except KeyboardInterrupt:
             print("\nStopping virtual controller…", flush=True)
         finally:
-            try:
-                bridge.send_state(args.slot, neutral_state().to_wire())
-                time.sleep(0.03)
-                bridge.request("destroy", slot=args.slot, timeout=15)
-            except Exception as exc:
-                print("Cleanup warning:", exc, file=sys.stderr)
+            if created:
+                try:
+                    bridge.send_state(args.slot, neutral_state().to_wire())
+                    time.sleep(0.03)
+                    bridge.request("destroy", slot=args.slot, timeout=15)
+                except Exception as exc:
+                    print("Cleanup warning:", exc, file=sys.stderr)
             if source:
                 source.close()
 
@@ -149,6 +156,7 @@ def build_parser():
     emulate.add_argument("--device", type=int, default=0, help="Physical SDL controller index")
     emulate.add_argument("--demo", action="store_true", help="Use a synthetic input stream instead of a physical controller")
     emulate.add_argument("--rate", type=int, default=120)
+    emulate.add_argument("--game", default="default", help="Game identity used to load a device-specific mapping profile")
     emulate.set_defaults(func=command_emulate)
     return parser
 
