@@ -8,7 +8,7 @@ import sys
 import time
 
 from .bridge import BridgeClient, BridgeError
-from .api_probe import run_probe
+from .api_probe import probe_hidapi, probe_xinput, run_probe
 from .mapping import Mapper, MappingProfile
 from .model import ControllerState, neutral_state
 from .sdl_source import SDLInputSource
@@ -65,6 +65,166 @@ def command_sweep(args):
     with BridgeClient(args.bridge, on_event=on_event) as bridge:
         result = bridge.request("sweep", timeout=1200)
         print_json(result)
+
+
+
+def _target_matches(device, profile):
+    vendor = int(profile.get("vendorId") or 0)
+    product = int(profile.get("productId") or 0)
+    if vendor and product and device.get("vendor_id") and device.get("product_id"):
+        return int(device["vendor_id"]) == vendor and int(device["product_id"]) == product
+    expected = str(profile.get("displayName") or profile.get("name") or profile.get("id") or "").casefold()
+    actual = str(device.get("name") or device.get("product") or "").casefold()
+    return bool(expected and (expected in actual or actual in expected))
+
+
+def _snapshot(profile, source=None):
+    sdl_devices = source.refresh() if source else None
+    report = run_probe(profile, sdl_devices=sdl_devices)
+    return report
+
+
+def command_matrix(args):
+    def on_event(event):
+        if event.get("event_name", "").startswith("output"):
+            print("[device feedback]", json.dumps(event, default=str), flush=True)
+        elif event.get("event_name") == "error":
+            print("[bridge error]", event.get("message"), file=sys.stderr, flush=True)
+
+    with BridgeClient(args.bridge, on_event=on_event) as bridge:
+        status = bridge.request("status")
+        if not status.get("driverInstalled") or not status.get("driverPrepared"):
+            raise BridgeError("The pinned virtual driver must be explicitly installed first.")
+        if not status.get("elevated"):
+            raise BridgeError("The matrix creates Windows virtual devices. Run Run-ControllerLab-Elevated.ps1 and approve UAC.")
+
+        catalog = bridge.request("profiles").get("profiles", [])
+        by_id = {p.get("id"): p for p in catalog}
+        target_ids = [x.strip() for x in args.targets.split(",") if x.strip()]
+        source = None
+        device_guid = "synthetic"
+        physical_instance = None
+        if not args.demo:
+            source = SDLInputSource()
+            devices = source.list_devices()
+            print_json({"physical_devices": devices})
+            selected = next((d for d in devices if d["index"] == args.device), None)
+            if selected is None:
+                raise BridgeError("The selected physical SDL controller was not found.")
+            device_guid = selected.get("guid") or selected.get("name") or "unknown"
+            physical_instance = selected["instance_id"]
+
+        results = []
+        try:
+            for index, target_id in enumerate(target_ids):
+                profile = by_id.get(target_id)
+                if not profile:
+                    results.append({"profile": target_id, "status": "skip", "reason": "Profile id not found"})
+                    continue
+                if not profile.get("deployable") or profile.get("requiresUsbip"):
+                    results.append({"profile": target_id, "status": "skip", "reason": "Not deployable or requires separate composite USB/IP transport"})
+                    continue
+
+                slot = f"matrix-{index}"
+                baseline = _snapshot(profile, source)
+                baseline_sdl = baseline["apis"]["sdl_gamecontroller"]["devices"]
+                baseline_sdl_ids = {d.get("instance_id") for d in baseline_sdl}
+                baseline_xinput = {d.get("slot") for d in baseline["apis"]["xinput"]["devices"]}
+                baseline_hid_count = len(baseline["apis"]["hidapi"]["devices"])
+                created = False
+                target_result = {"profile": target_id, "name": profile.get("name"), "type": profile.get("type")}
+                try:
+                    bridge.request("create", slot=slot, profile_id=target_id)
+                    created = True
+                    if source:
+                        devices_after_create = source.refresh()
+                        if not any(d.get("instance_id") == physical_instance for d in devices_after_create):
+                            raise BridgeError("The physical source controller disappeared during virtual device creation.")
+
+                    mapper = Mapper(MappingStore().get(device_guid, args.game, target_id))
+                    start = time.monotonic()
+                    frames = 0
+                    while time.monotonic() - start < max(0.25, min(15.0, args.duration)):
+                        elapsed = time.monotonic() - start
+                        physical = _demo_state(elapsed) if args.demo else source.read_instance(physical_instance)
+                        bridge.send_state(slot, mapper.map(physical).to_wire())
+                        frames += 1
+                        time.sleep(1.0 / max(30, min(250, args.rate)))
+
+                    after = _snapshot(profile, source)
+                    after_sdl = after["apis"]["sdl_gamecontroller"]["devices"]
+                    new_sdl = [d for d in after_sdl if d.get("instance_id") not in baseline_sdl_ids]
+                    sdl_match = [d for d in new_sdl if _target_matches(d, profile)]
+                    after_xinput = {d.get("slot") for d in after["apis"]["xinput"]["devices"]}
+                    new_xinput = sorted(x for x in after_xinput - baseline_xinput if x is not None)
+                    after_hid_count = len(after["apis"]["hidapi"]["devices"])
+                    hid_visible = after_hid_count > baseline_hid_count
+                    xinput_expected = bool(profile.get("xinput"))
+                    api_visible = bool(new_xinput) if xinput_expected else bool(sdl_match or hid_visible)
+
+                    bridge.send_state(slot, neutral_state().to_wire())
+                    time.sleep(0.03)
+                    bridge.request("destroy", slot=slot, timeout=30)
+                    created = False
+
+                    cleanup_deadline = time.monotonic() + 2.0
+                    clean_snapshot = after
+                    while time.monotonic() < cleanup_deadline:
+                        clean_snapshot = _snapshot(profile, source)
+                        clean_sdl = clean_snapshot["apis"]["sdl_gamecontroller"]["devices"]
+                        leaked_sdl = [d for d in clean_sdl if d.get("instance_id") not in baseline_sdl_ids and _target_matches(d, profile)]
+                        clean_xinput = {d.get("slot") for d in clean_snapshot["apis"]["xinput"]["devices"]}
+                        leaked_xinput = clean_xinput - baseline_xinput
+                        clean_hid_count = len(clean_snapshot["apis"]["hidapi"]["devices"])
+                        if not leaked_sdl and not leaked_xinput and clean_hid_count <= baseline_hid_count:
+                            break
+                        time.sleep(0.15)
+                    cleanup_ok = not leaked_sdl and not leaked_xinput and clean_hid_count <= baseline_hid_count
+                    target_result.update({
+                        "status": "pass" if api_visible and cleanup_ok else "fail",
+                        "frames_sent": frames,
+                        "xinput_expected": xinput_expected,
+                        "new_xinput_slots": new_xinput,
+                        "new_sdl_devices": sdl_match,
+                        "hidapi_count_before": baseline_hid_count,
+                        "hidapi_count_after": after_hid_count,
+                        "api_visible": api_visible,
+                        "cleanup_ok": cleanup_ok,
+                        "leaked_sdl_devices": leaked_sdl,
+                        "leaked_xinput_slots": sorted(x for x in leaked_xinput if x is not None),
+                    })
+                except Exception as exc:
+                    target_result.update({"status": "error", "error": type(exc).__name__, "message": str(exc)})
+                    if created:
+                        try:
+                            bridge.send_state(slot, neutral_state().to_wire())
+                            bridge.request("destroy", slot=slot, timeout=30)
+                        except Exception as cleanup_error:
+                            target_result["cleanup_error"] = str(cleanup_error)
+                results.append(target_result)
+                print(f"[{index + 1}/{len(target_ids)}] {target_id}: {target_result['status']}", flush=True)
+        finally:
+            if source:
+                source.close()
+
+    report = {
+        "created_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "source": device_guid,
+        "demo": bool(args.demo),
+        "game": args.game,
+        "targets": results,
+        "passed": sum(1 for r in results if r.get("status") == "pass"),
+        "failed": sum(1 for r in results if r.get("status") in ("fail", "error")),
+        "skipped": sum(1 for r in results if r.get("status") == "skip"),
+    }
+    import os
+    from pathlib import Path
+    folder = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "ElmosControllerLab" / "reports"
+    folder.mkdir(parents=True, exist_ok=True)
+    report_path = folder / ("cross-controller-matrix-" + time.strftime("%Y%m%d-%H%M%S") + ".json")
+    report["report_path"] = str(report_path)
+    report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    print_json(report)
 
 
 def command_install(args):
@@ -166,6 +326,14 @@ def build_parser():
     install.set_defaults(func=command_install)
     sweep = sub.add_parser("sweep", help="Create, submit a test state to, and remove each supported virtual profile")
     sweep.set_defaults(func=command_sweep)
+    matrix = sub.add_parser("matrix", help="Test one physical or synthetic source across multiple virtual profiles and Windows APIs")
+    matrix.add_argument("--targets", default="xbox-360-wired,xbox-series-xs-bt,dualsense,dualshock-4-v2,switch-pro,steam-controller")
+    matrix.add_argument("--device", type=int, default=0)
+    matrix.add_argument("--demo", action="store_true")
+    matrix.add_argument("--duration", type=float, default=1.0)
+    matrix.add_argument("--rate", type=int, default=120)
+    matrix.add_argument("--game", default="default")
+    matrix.set_defaults(func=command_matrix)
     emulate = sub.add_parser("emulate", help="Feed a physical or synthetic controller into a virtual identity")
     emulate.add_argument("--profile", required=True, help="HIDMaestro profile id, e.g. xbox-360-wired or dualsense")
     emulate.add_argument("--slot", default="virtual-0")
