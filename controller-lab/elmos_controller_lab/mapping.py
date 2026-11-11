@@ -32,7 +32,12 @@ class ActionLayer:
     activator: str = "left_paddle"
     mode: str = "hold"  # hold | toggle
     button_map: dict[str, str] = field(default_factory=dict)
+    keyboard_map: dict[str, list[str]] = field(default_factory=dict)
+    mouse_map: dict[str, str] = field(default_factory=dict)
     axis_sensitivity: float = 1.0
+    left_stick_as_wasd: bool | None = None
+    right_stick_mouse: bool | None = None
+    mouse_sensitivity: float | None = None
 
 
 @dataclass
@@ -44,6 +49,14 @@ class MappingProfile:
     right_stick: StickTuning = field(default_factory=StickTuning)
     trigger_deadzone: float = 0.02
     trigger_exponent: float = 1.0
+    trigger_key_threshold: float = 0.55
+    keyboard_map: dict[str, list[str]] = field(default_factory=dict)
+    trigger_keyboard_map: dict[str, list[str]] = field(default_factory=dict)
+    mouse_map: dict[str, str] = field(default_factory=dict)
+    left_stick_as_wasd: bool = False
+    right_stick_mouse: bool = False
+    mouse_sensitivity: float = 14.0
+    mouse_deadzone: float = 0.15
     layer: ActionLayer | None = None
 
 
@@ -74,11 +87,116 @@ def shape_stick(x: float, y: float, tuning: StickTuning) -> tuple[float, float]:
     )
 
 
+@dataclass
+class MappedOutput:
+    gamepad: ControllerState
+    keyboard_keys: set[str] = field(default_factory=set)
+    keyboard_modifiers: set[str] = field(default_factory=set)
+    mouse_buttons: set[str] = field(default_factory=set)
+    mouse_dx: int = 0
+    mouse_dy: int = 0
+    mouse_wheel: int = 0
+    mouse_pan: int = 0
+
+
 class Mapper:
     def __init__(self, profile: MappingProfile | None = None):
         self.profile = profile or MappingProfile()
         self._layer_toggle = False
         self._last_activator = False
+        self._current_layer_active = False
+
+    def map_actions(self, source: ControllerState) -> MappedOutput:
+        """Map a physical snapshot to gamepad, virtual keyboard and virtual mouse outputs."""
+        normalized = source.normalized()
+        gamepad = self.map(normalized)
+        p = self.profile
+        layer = p.layer
+        layer_active = self._current_layer_active
+        keyboard_map = dict(p.keyboard_map)
+        mouse_map = dict(p.mouse_map)
+        if layer and layer_active:
+            keyboard_map.update(layer.keyboard_map)
+            mouse_map.update(layer.mouse_map)
+
+        keys: set[str] = set()
+        modifiers: set[str] = set()
+        modifier_names = {
+            "leftcontrol", "leftshift", "leftalt", "leftgui",
+            "rightcontrol", "rightshift", "rightalt", "rightgui",
+        }
+
+        def add_keys(values):
+            if isinstance(values, str):
+                values = [values]
+            for value in values or ():
+                name = str(value).strip()
+                if not name:
+                    continue
+                if name.casefold() in modifier_names:
+                    modifiers.add(name[0].upper() + name[1:])
+                else:
+                    keys.add(name[0].upper() + name[1:])
+
+        for button in normalized.buttons:
+            if layer and button == layer.activator:
+                continue
+            add_keys(keyboard_map.get(button, []))
+            mouse_button = mouse_map.get(button)
+            if mouse_button in ("left", "right", "middle", "back", "forward",
+                                "button6", "button7", "button8", "button9", "button10"):
+                mouse_buttons.add(mouse_button)
+
+        for direction in normalized.dpad:
+            add_keys(keyboard_map.get("dpad_" + direction, []))
+
+        trigger_threshold = clamp(p.trigger_key_threshold, 0.05, 0.99, 0.55)
+        for trigger in ("left_trigger", "right_trigger"):
+            if normalized.axes.get(trigger, 0.0) >= trigger_threshold:
+                add_keys(p.trigger_keyboard_map.get(trigger, []))
+                mouse_button = mouse_map.get(trigger)
+                if mouse_button in ("left", "right", "middle", "back", "forward",
+                                    "button6", "button7", "button8", "button9", "button10"):
+                    mouse_buttons.add(mouse_button)
+
+        left_wasd = p.left_stick_as_wasd
+        right_mouse = p.right_stick_mouse
+        sensitivity = p.mouse_sensitivity
+        if layer and layer_active:
+            if layer.left_stick_as_wasd is not None:
+                left_wasd = layer.left_stick_as_wasd
+            if layer.right_stick_mouse is not None:
+                right_mouse = layer.right_stick_mouse
+            if layer.mouse_sensitivity is not None:
+                sensitivity = layer.mouse_sensitivity
+
+        if left_wasd:
+            lx, ly = gamepad.axes["left_x"], gamepad.axes["left_y"]
+            threshold = 0.45
+            if ly >= threshold: add_keys(["W"])
+            if ly <= -threshold: add_keys(["S"])
+            if lx <= -threshold: add_keys(["A"])
+            if lx >= threshold: add_keys(["D"])
+
+        mouse_dx = mouse_dy = 0
+        if right_mouse:
+            rx, ry = gamepad.axes["right_x"], gamepad.axes["right_y"]
+            deadzone = clamp(p.mouse_deadzone, 0.0, 0.95, 0.15)
+            radius = math.hypot(rx, ry)
+            if radius > deadzone:
+                scale = min(1.0, (radius - deadzone) / max(1e-6, 1.0 - deadzone))
+                sensitivity = clamp(sensitivity, 0.1, 500.0, 14.0)
+                mouse_dx = int(round((rx / radius) * scale * sensitivity))
+                mouse_dy = int(round((-ry / radius) * scale * sensitivity))
+
+        return MappedOutput(
+            gamepad=gamepad,
+            keyboard_keys=keys,
+            keyboard_modifiers=modifiers,
+            mouse_buttons=mouse_buttons,
+            mouse_dx=mouse_dx,
+            mouse_dy=mouse_dy,
+        )
 
     def map(self, source: ControllerState) -> ControllerState:
         p = self.profile
@@ -91,6 +209,7 @@ class Mapper:
                 self._layer_toggle = not self._layer_toggle
             layer_active = self._layer_toggle if layer.mode == "toggle" else pressed
             self._last_activator = pressed
+        self._current_layer_active = layer_active
 
         active_button_map = dict(p.button_map)
         if layer and layer_active:
