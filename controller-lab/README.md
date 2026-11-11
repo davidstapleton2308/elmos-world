@@ -115,14 +115,14 @@ inspect physical controllers, or run the Python mapping tests.
 Try these after the explicit driver setup:
 
 ~~~powershell
-.\scripts\Run-ControllerLab.ps1 emulate --profile xbox-360-wired --demo
-.\scripts\Run-ControllerLab.ps1 emulate --profile dualsense --demo
-.\scripts\Run-ControllerLab.ps1 emulate --profile switch-pro --demo
+.\scripts\Run-ControllerLab-Elevated.ps1 emulate --profile xbox-360-wired --demo
+.\scripts\Run-ControllerLab-Elevated.ps1 emulate --profile dualsense --demo
+.\scripts\Run-ControllerLab-Elevated.ps1 emulate --profile switch-pro --demo
 ~~~
 
 The demo sends a synthetic pattern through the same mapping and output path as
-a physical controller. Press Ctrl+C to send a neutral frame and remove the
-virtual device. The SDK bridge refuses composite USB personas in this first
+a physical controller. Run it through the elevated script after approving UAC.
+Press Ctrl+C to send a neutral frame and remove the virtual device. The SDK bridge refuses composite USB personas in this first
 version because they require a separate USB/IP transport installation flow.
 
 For a physical controller, connect it over USB or Bluetooth, inspect it with
