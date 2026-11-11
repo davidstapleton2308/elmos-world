@@ -4,6 +4,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from .model import BUTTONS
+
 
 @dataclass
 class ActionFrame:
@@ -46,11 +48,13 @@ def _action_frame(spec: dict[str, Any] | None) -> ActionFrame:
             modifiers.add(name[0].upper() + name[1:])
         else:
             keys.add(name[0].upper() + name[1:])
+    valid_mouse = {"left", "right", "middle", "back", "forward",
+                   "button6", "button7", "button8", "button9", "button10"}
     return ActionFrame(
-        gamepad_buttons=set(_values(spec.get("gamepad"))),
+        gamepad_buttons={x for x in _values(spec.get("gamepad")) if x in BUTTONS},
         keyboard_keys=keys,
         keyboard_modifiers=modifiers,
-        mouse_buttons=set(_values(spec.get("mouse"))),
+        mouse_buttons={x for x in _values(spec.get("mouse")) if x in valid_mouse},
     )
 
 
@@ -79,6 +83,9 @@ class TemporalActionEngine:
                 continue
             runtime = self._runtime.setdefault(button, _ButtonRuntime())
             down = button in active_buttons
+            if runtime.pending_tap_until is not None and timestamp > runtime.pending_tap_until:
+                output.merge(_action_frame(raw.get("tap")))
+                runtime.pending_tap_until = None
             hold_ms = max(0.0, min(5000.0, float(raw.get("hold_ms", 300))))
             double_ms = max(50.0, min(1000.0, float(raw.get("double_tap_ms", 250))))
             turbo_hz = max(0.0, min(30.0, float(raw.get("turbo_hz", 0))))
