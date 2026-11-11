@@ -19,3 +19,13 @@ def test_api_probe_uses_bridge_for_windows_gaming_input():
     result = run_probe(bridge=FakeBridge())
     assert result["apis"]["windows_gaming_input"]["available"] is True
     assert result["apis"]["windows_gaming_input"]["devices"][0]["name"] == "Virtual Gamepad"
+
+
+def test_api_probe_includes_browser_gamepad_snapshot_when_available():
+    class FakeBrowser:
+        def snapshot(self):
+            return {"time": 123, "devices": [{"index": 1, "id": "Virtual Controller"}]}
+
+    result = run_probe(browser_probe=FakeBrowser())
+    assert result["apis"]["browser_gamepad"]["available"] is True
+    assert result["apis"]["browser_gamepad"]["devices"][0]["id"] == "Virtual Controller"
