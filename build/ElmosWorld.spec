@@ -47,7 +47,8 @@ exe = EXE(
     name='ElmosWorld',
     icon=str(APP / 'elmos_world.ico'),
     version=str(ROOT / 'build' / 'version_file.txt'),
-    console=bool(os.environ.get('ELMOS_INPUT_DEBUG_CONSOLE')),
+    console=True,
+    hide_console=None if os.environ.get('ELMOS_INPUT_DEBUG_CONSOLE') else 'hide-early',
     upx=False,
 )
 coll = COLLECT(
