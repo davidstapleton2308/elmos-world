@@ -67,6 +67,7 @@ class InputEngineTests(unittest.TestCase):
         self.manager.set_mode("game", "xbox360")
         self.manager.prepare("game")
         self.manager.activate(100)
+        self.manager.pause()
         sink = self.created[0]
         self.manager.feed({"a": True}, [1, 0, 0, 0], [0.3, 0], True, True, "Wireless Controller")
         self.assertEqual(sink.frames, [])
