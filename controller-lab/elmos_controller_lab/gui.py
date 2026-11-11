@@ -276,6 +276,11 @@ class ControllerLabApp:
             keyboard_map={k: [x.strip() for x in v.get().split(",") if x.strip()]
                           for k, v in self.keyboard_entries.items() if v.get().strip()},
             mouse_map={k: v.get() for k, v in self.mouse_targets.items() if v.get() != "none"},
+            trigger_keyboard_map=dict(self.mapping.trigger_keyboard_map),
+            action_bindings=dict(self.mapping.action_bindings),
+            chord_map=dict(self.mapping.chord_map),
+            trigger_deadzone=self.mapping.trigger_deadzone,
+            trigger_exponent=self.mapping.trigger_exponent,
             left_stick=StickTuning(deadzone=float(self.left_deadzone.get()), exponent=float(self.left_exponent.get()),
                                    sensitivity=float(self.left_sensitivity.get())),
             right_stick=StickTuning(deadzone=float(self.right_deadzone.get()), exponent=float(self.right_exponent.get()),
@@ -294,6 +299,15 @@ class ControllerLabApp:
                             if v.get() not in ("default", k)},
                 keyboard_map={k: [x.strip() for x in v.get().split(",") if x.strip()]
                               for k, v in self.layer_keyboard_entries.items() if v.get().strip()},
+                mouse_map=dict(self.mapping.layer.mouse_map) if self.mapping.layer else {},
+                action_bindings=dict(self.mapping.layer.action_bindings) if self.mapping.layer else {},
+                chord_map=dict(self.mapping.layer.chord_map) if self.mapping.layer else {},
+                axis_sensitivity=self.mapping.layer.axis_sensitivity if self.mapping.layer else 1.0,
+                left_stick_as_wasd=self.mapping.layer.left_stick_as_wasd if self.mapping.layer else None,
+                right_stick_mouse=self.mapping.layer.right_stick_mouse if self.mapping.layer else None,
+                mouse_sensitivity=self.mapping.layer.mouse_sensitivity if self.mapping.layer else None,
+                touchpad_mode=self.mapping.layer.touchpad_mode if self.mapping.layer else None,
+                touchpad_sensitivity=self.mapping.layer.touchpad_sensitivity if self.mapping.layer else None,
             )
         return mapping
 
