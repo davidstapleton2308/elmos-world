@@ -1,0 +1,30 @@
+name: Elmos Input Safety Tests
+
+on:
+  push:
+    branches:
+      - main
+      - feature/elmos-input-xbox-bridge
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  input-regression:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Syntax check Python backend
+        run: python -m compileall -q app tests
+      - name: Check controller engine without modifying Windows drivers
+        run: python -m unittest discover -s tests -p "test_elmos_input.py" -v
+      - name: Check launcher JavaScript syntax
+        run: node --check app/app.js
