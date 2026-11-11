@@ -9,7 +9,7 @@ from unittest import mock
 from types import SimpleNamespace
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "app"))
-from elmos_input import InputManager, Xbox360Sink, clamp, normalize, stick_axis
+from elmos_input import InputManager, Xbox360Sink, apply_bindings, clamp, normalize, stick_axis
 
 
 class FakeSink:
@@ -193,6 +193,30 @@ class InputEngineTests(unittest.TestCase):
         self.assertEqual(source.triggers, {"left": 0.25, "right": 1.0})
         sink.close()
         self.assertIsNone(sink.pad)
+
+
+    def test_game_specific_face_button_remaps_and_persists(self):
+        self.manager.set_profile("game", "xbox360", {"a": "b", "b": "a"})
+        self.assertEqual(self.manager.status("game")["bindings"], {"a": "b", "b": "a"})
+        self.manager.prepare("game")
+        self.manager.activate(44)
+        self.manager.feed({"a": True, "b": False}, [0, 0, 0, 0],
+                          [0, 0], True, True, "Wireless Controller")
+        self.assertFalse(self.created[0].frames[-1][0]["a"])
+        self.assertTrue(self.created[0].frames[-1][0]["b"])
+        self.manager.stop()
+        again = InputManager(self.manager.path, factory=FakeSink)
+        self.assertEqual(again.status("game")["bindings"], {"a": "b", "b": "a"})
+        self.assertEqual(again.get_mode("game"), "xbox360")
+
+    def test_rejected_bad_button_bindings_do_not_corrupt_profile(self):
+        self.manager.set_mode("game", "xbox360")
+        with self.assertRaises(ValueError):
+            self.manager.set_profile("game", "native", {"guide": "a"})
+        self.assertEqual(self.manager.get_mode("game"), "xbox360")
+        mapped = apply_bindings({"a": True, "b": True}, {"a": "b"})
+        self.assertTrue(mapped["b"])
+        self.assertFalse(mapped["a"])
 
 
 if __name__ == "__main__":
