@@ -224,15 +224,23 @@ internal static class Program
     {
         id = p.Id,
         name = p.Name,
+        displayName = p.DisplayName,
         vendor = p.Vendor,
+        manufacturer = p.ManufacturerString,
         type = p.Type,
         connection = p.Connection,
+        productString = p.ProductString,
+        vendorId = p.VendorId,
+        productId = p.ProductId,
+        driverMode = p.DriverMode,
         backend = p.Backend,
         deployable = p.IsDeployable,
         buttons = p.ButtonCount,
         axes = p.AxisCount,
+        availableAxes = p.AvailableAxes.Select(a => a.ToString()).ToArray(),
         sticks = p.StickCount,
         triggers = p.TriggerCount,
+        triggerMode = p.TriggerMode,
         xinput = p.XInput != null || p.DriverMode == "xinputhid",
         requiresUsbip = p.RequiresUsbipBackend
     };
