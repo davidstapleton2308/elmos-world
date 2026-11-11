@@ -1,6 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 """Windows standalone onedir build. Run with: python -m PyInstaller build/ElmosWorld.spec"""
 from pathlib import Path
+import os
 from PyInstaller.utils.hooks import collect_all
 
 ROOT = Path(SPECPATH).resolve().parent
@@ -46,7 +47,7 @@ exe = EXE(
     name='ElmosWorld',
     icon=str(APP / 'elmos_world.ico'),
     version=str(ROOT / 'build' / 'version_file.txt'),
-    console=False,
+    console=bool(os.environ.get('ELMOS_INPUT_DEBUG_CONSOLE')),
     upx=False,
 )
 coll = COLLECT(
