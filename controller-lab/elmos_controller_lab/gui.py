@@ -48,6 +48,8 @@ class ControllerLabApp:
         self.button_targets = {}
         self.keyboard_entries = {}
         self.mouse_targets = {}
+        self.layer_button_targets = {}
+        self.layer_keyboard_entries = {}
         self.left_deadzone = tk.DoubleVar(value=0.12)
         self.right_deadzone = tk.DoubleVar(value=0.12)
         self.left_exponent = tk.DoubleVar(value=1.0)
@@ -162,8 +164,21 @@ class ControllerLabApp:
         ttk.Label(layer, text="Activation").grid(row=2, column=0, sticky="w", padx=5, pady=5)
         ttk.Combobox(layer, textvariable=self.layer_mode, values=["hold", "toggle"],
                      state="readonly", width=22).grid(row=2, column=1, sticky="w", padx=5)
-        ttk.Label(layer, text="The layer engine supports alternate button, keyboard and mouse maps. The visual editor for those alternate maps is next.",
-                  wraplength=800, foreground="#777").grid(row=3, column=0, columnspan=3, sticky="w", padx=5, pady=10)
+        layer_face = ttk.LabelFrame(layer_tab, text="Alternate face-button actions while the layer is active", padding=10)
+        layer_face.pack(fill="x", pady=8)
+        for col, label in enumerate(("Physical input", "Virtual gamepad button", "Keyboard keys")):
+            ttk.Label(layer_face, text=label).grid(row=0, column=col, sticky="w", padx=5, pady=3)
+        for row, semantic in enumerate(("south", "east", "west", "north"), start=1):
+            ttk.Label(layer_face, text=semantic.title()).grid(row=row, column=0, sticky="w", padx=5, pady=4)
+            target = tk.StringVar(value=semantic)
+            self.layer_button_targets[semantic] = target
+            ttk.Combobox(layer_face, textvariable=target, values=["default"] + GAMEPAD_BUTTONS,
+                         state="readonly", width=20).grid(row=row, column=1, padx=5, pady=4)
+            keys = tk.StringVar()
+            self.layer_keyboard_entries[semantic] = keys
+            ttk.Entry(layer_face, textvariable=keys, width=28).grid(row=row, column=2, padx=5, pady=4)
+        ttk.Label(layer_tab, text="The activator is reserved for the layer. Hold or toggle it to switch to these alternate actions.",
+                  foreground="#777").pack(anchor="w", pady=4)
 
         footer = ttk.Frame(root, padding=(16, 8))
         footer.pack(fill="x")
@@ -275,6 +290,10 @@ class ControllerLabApp:
             mapping.layer = ActionLayer(
                 activator=self.layer_activator.get(),
                 mode=self.layer_mode.get(),
+                button_map={k: v.get() for k, v in self.layer_button_targets.items()
+                            if v.get() not in ("default", k)},
+                keyboard_map={k: [x.strip() for x in v.get().split(",") if x.strip()]
+                              for k, v in self.layer_keyboard_entries.items() if v.get().strip()},
             )
         return mapping
 
@@ -311,6 +330,10 @@ class ControllerLabApp:
             self.touchpad_mode.set(p.touchpad_mode)
             self.touchpad_sensitivity.set(p.touchpad_sensitivity)
             self.layer_enabled.set(p.layer is not None)
+            for key, var in self.layer_button_targets.items():
+                var.set(p.layer.button_map.get(key, key) if p.layer else key)
+            for key, var in self.layer_keyboard_entries.items():
+                var.set(", ".join(p.layer.keyboard_map.get(key, [])) if p.layer else "")
             if p.layer:
                 self.layer_activator.set(p.layer.activator)
                 self.layer_mode.set(p.layer.mode)
@@ -340,8 +363,10 @@ class ControllerLabApp:
             slot = "gui-gamepad"
             self.bridge.request("create", slot=slot, profile_id=target["id"])
             self.active_slots.append(slot)
-            need_keyboard = bool(self.mapping.keyboard_map or self.mapping.trigger_keyboard_map or self.mapping.left_stick_as_wasd)
-            need_mouse = bool(self.mapping.mouse_map or self.mapping.right_stick_mouse or self.mapping.touchpad_mode == "mouse")
+            need_keyboard = bool(self.mapping.keyboard_map or self.mapping.trigger_keyboard_map or self.mapping.left_stick_as_wasd or
+                                 (self.mapping.layer and self.mapping.layer.keyboard_map))
+            need_mouse = bool(self.mapping.mouse_map or self.mapping.right_stick_mouse or self.mapping.touchpad_mode == "mouse" or
+                              (self.mapping.layer and self.mapping.layer.mouse_map))
             if need_keyboard:
                 self.bridge.request("create", slot="gui-keyboard", profile_id="microsoft-wired-keyboard-600")
                 self.active_slots.append("gui-keyboard")
