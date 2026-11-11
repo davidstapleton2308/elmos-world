@@ -266,7 +266,7 @@ internal static class Program
                     throw new NotSupportedException("This profile uses the separate composite USB/IP transport. It is listed for discovery but disabled in this first lab build until its extra installation and teardown workflow is implemented.");
                 var controller = Context.CreateController(profile, "elmos-controller-lab/" + slot);
                 controller.OutputDecoded += (_, e) => Emit(new { event_name = "output_decoded", slot, fields = e.Fields });
-                controller.OutputReceived += (_, e) => Emit(new { event_name = "output_raw", slot, report_id = e.ReportId, data = Convert.ToBase64String(e.Data) });
+                controller.OutputReceived += (_, e) => Emit(new { event_name = "output_raw", slot, report_id = e.ReportId, data = Convert.ToBase64String(e.Data.ToArray()) });
                 Controllers.Add(slot, controller);
                 return new { created = true, slot, profile = ProfileInfo(profile), identity = controller.IdentityKey };
             }
