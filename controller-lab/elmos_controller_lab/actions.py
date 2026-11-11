@@ -104,7 +104,7 @@ class TemporalActionEngine:
                     output.merge(_action_frame(raw.get("double_tap")))
                 elif turbo_hz > 0 and raw.get("turbo"):
                     phase = ((timestamp - runtime.pressed_at) * turbo_hz) % 1.0
-                    if phase < 0.5:
+                    if phase < 0.5 - 1e-9:
                         output.merge(_action_frame(raw.get("turbo")))
                 elif raw.get("hold") and timestamp - runtime.pressed_at >= hold_ms / 1000.0:
                     runtime.hold_fired = True
