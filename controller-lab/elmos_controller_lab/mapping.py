@@ -121,6 +121,7 @@ class Mapper:
 
         keys: set[str] = set()
         modifiers: set[str] = set()
+        mouse_buttons: set[str] = set()
         modifier_names = {
             "leftcontrol", "leftshift", "leftalt", "leftgui",
             "rightcontrol", "rightshift", "rightalt", "rightgui",
