@@ -1069,6 +1069,12 @@ async function refreshInputStudio(){
  picker.value=entries.some(g=>g.id===previous)?previous:(entries.some(g=>g.id===selected)?selected:entries[0].id);
  const result=await api('/api/input-status?id='+encodeURIComponent(picker.value));
  $('inputMode').value=result.mode||'native';
+ const buttonNames={a:'A · Cross',b:'B · Circle',x:'X · Square',y:'Y · Triangle',lb:'LB · L1',rb:'RB · R1',start:'Start',back:'Back',ls:'Left stick click',rs:'Right stick click',up:'D-pad Up',down:'D-pad Down',left:'D-pad Left',right:'D-pad Right'};
+ for(const [physical,element] of Object.entries({a:'inputBindA',b:'inputBindB',x:'inputBindX',y:'inputBindY'})){
+  const picker=$(element);
+  picker.innerHTML=Object.entries(buttonNames).map(([key,name])=>'<option value="'+key+'">'+name+'</option>').join('');
+  picker.value=result.bindings?.[physical]||physical;
+ }
  status.textContent=(result.virtualConnected?'Virtual Xbox connected · ':'')+(result.running?'Game session active · ':'')+
   (result.error?result.error:result.mode==='xbox360'?'Virtual Xbox selected. Requires a compatible installed driver. No changes until you launch this game.':'This game uses native controller input; no virtual device will be created.');
 }
@@ -1115,7 +1121,8 @@ $('inputModeRefresh').onclick=()=>refreshInputStudio().catch(e=>notify(e.message
 $('inputModeSave').onclick=async()=>{
  const id=$('inputGame').value,mode=$('inputMode').value;
  if(!id)return;
- const saved=await safe(()=>api('/api/input-profile',{id,mode}));
+ const bindings=Object.fromEntries(Object.entries({a:'inputBindA',b:'inputBindB',x:'inputBindX',y:'inputBindY'}).map(([key,element])=>[key,$(element).value]));
+ const saved=await safe(()=>api('/api/input-profile',{id,mode,bindings}));
  if(saved){notify(mode==='xbox360'?'Virtual Xbox profile saved for this game.':'Native controller profile saved.');refreshInputStudio().catch(()=>{});}
 };
 setupControllerEditor();pollController().then(()=>{if(latestNative?.guideIndex!==undefined && !localStorage.getItem('elmo-controller-map')){$('mapGuide').value=String(latestNative.guideIndex)}});applyVisualPreferences();$('themeChoice').onchange=()=>{elmoTheme=$('themeChoice').value;localStorage.setItem('elmo-theme',elmoTheme);applyVisualPreferences()};$('motionChoice').onchange=()=>{elmoMotion=$('motionChoice').value;localStorage.setItem('elmo-motion',elmoMotion);applyVisualPreferences()};
