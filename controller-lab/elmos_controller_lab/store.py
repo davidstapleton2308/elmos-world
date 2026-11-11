@@ -43,6 +43,8 @@ def profile_from_dict(value: dict[str, Any]) -> MappingProfile:
         right_stick_mouse=bool(value.get("right_stick_mouse", False)),
         mouse_sensitivity=float(value.get("mouse_sensitivity", 14.0)),
         mouse_deadzone=float(value.get("mouse_deadzone", 0.15)),
+        touchpad_mode=str(value.get("touchpad_mode", "off")),
+        touchpad_sensitivity=float(value.get("touchpad_sensitivity", 1.0)),
         layer=layer,
     )
 
