@@ -9,6 +9,7 @@ import time
 
 from .bridge import BridgeClient, BridgeError
 from .api_probe import probe_hidapi, probe_xinput, run_probe
+from .browser_probe import BrowserProbeServer
 from .mapping import Mapper, MappingProfile
 from .model import ControllerState, neutral_state
 from .sdl_source import SDLInputSource
@@ -86,9 +87,9 @@ def _target_matches(device, profile):
     return bool(expected and (expected in actual or actual in expected))
 
 
-def _snapshot(profile, source=None, bridge=None):
+def _snapshot(profile, source=None, bridge=None, browser_probe=None):
     sdl_devices = source.refresh() if source else None
-    report = run_probe(profile, sdl_devices=sdl_devices, bridge=bridge)
+    report = run_probe(profile, sdl_devices=sdl_devices, bridge=bridge, browser_probe=browser_probe)
     return report
 
 
@@ -110,6 +111,10 @@ def command_matrix(args):
         by_id = {p.get("id"): p for p in catalog}
         target_ids = [x.strip() for x in args.targets.split(",") if x.strip()]
         source = None
+        browser_server = BrowserProbeServer() if args.browser else None
+        if browser_server:
+            print("Browser Gamepad API probe:", browser_server.start(open_browser=True), flush=True)
+            print("If prompted, press a controller button once in the browser page before the matrix begins.", flush=True)
         device_guid = "synthetic"
         physical_instance = None
         if not args.demo:
@@ -136,13 +141,15 @@ def command_matrix(args):
                     continue
 
                 slot = f"matrix-{index}"
-                baseline = _snapshot(profile, source, bridge)
+                baseline = _snapshot(profile, source, bridge, browser_server)
                 baseline_sdl = baseline["apis"]["sdl_gamecontroller"]["devices"]
                 baseline_sdl_ids = {d.get("instance_id") for d in baseline_sdl}
                 baseline_xinput = {d.get("slot") for d in baseline["apis"]["xinput"]["devices"]}
                 baseline_hid_count = len(baseline["apis"]["hidapi"]["devices"])
                 baseline_wgi = baseline["apis"]["windows_gaming_input"].get("devices", [])
                 baseline_wgi_keys = {(d.get("vendorId"), d.get("productId"), d.get("name")) for d in baseline_wgi}
+                baseline_browser = baseline["apis"]["browser_gamepad"].get("devices", [])
+                baseline_browser_keys = {(d.get("index"), d.get("id")) for d in baseline_browser}
                 created = False
                 target_result = {"profile": target_id, "name": profile.get("name"), "type": profile.get("type")}
                 try:
@@ -163,7 +170,7 @@ def command_matrix(args):
                         frames += 1
                         time.sleep(1.0 / max(30, min(250, args.rate)))
 
-                    after = _snapshot(profile, source, bridge)
+                    after = _snapshot(profile, source, bridge, browser_server)
                     after_sdl = after["apis"]["sdl_gamecontroller"]["devices"]
                     new_sdl = [d for d in after_sdl if d.get("instance_id") not in baseline_sdl_ids]
                     sdl_match = [d for d in new_sdl if _target_matches(d, profile)]
@@ -175,8 +182,11 @@ def command_matrix(args):
                     after_wgi = after["apis"]["windows_gaming_input"].get("devices", [])
                     new_wgi = [d for d in after_wgi if (d.get("vendorId"), d.get("productId"), d.get("name")) not in baseline_wgi_keys]
                     wgi_match = [d for d in new_wgi if _target_matches(d, profile)]
+                    after_browser = after["apis"]["browser_gamepad"].get("devices", [])
+                    new_browser = [d for d in after_browser if (d.get("index"), d.get("id")) not in baseline_browser_keys]
+                    browser_match = [d for d in new_browser if _target_matches(d, profile)]
                     xinput_expected = bool(profile.get("xinput"))
-                    api_visible = bool(new_xinput) if xinput_expected else bool(sdl_match or hid_visible or wgi_match)
+                    api_visible = bool(new_xinput) if xinput_expected else bool(sdl_match or hid_visible or wgi_match or browser_match)
 
                     bridge.send_state(slot, neutral_state().to_wire())
                     time.sleep(0.03)
@@ -186,7 +196,7 @@ def command_matrix(args):
                     cleanup_deadline = time.monotonic() + 2.0
                     clean_snapshot = after
                     while time.monotonic() < cleanup_deadline:
-                        clean_snapshot = _snapshot(profile, source, bridge)
+                        clean_snapshot = _snapshot(profile, source, bridge, browser_server)
                         clean_sdl = clean_snapshot["apis"]["sdl_gamecontroller"]["devices"]
                         leaked_sdl = [d for d in clean_sdl if d.get("instance_id") not in baseline_sdl_ids and _target_matches(d, profile)]
                         clean_xinput = {d.get("slot") for d in clean_snapshot["apis"]["xinput"]["devices"]}
@@ -196,10 +206,14 @@ def command_matrix(args):
                         leaked_wgi = [d for d in clean_wgi
                                       if (d.get("vendorId"), d.get("productId"), d.get("name")) not in baseline_wgi_keys
                                       and _target_matches(d, profile)]
-                        if not leaked_sdl and not leaked_xinput and not leaked_wgi and clean_hid_count <= baseline_hid_count:
+                        clean_browser = clean_snapshot["apis"]["browser_gamepad"].get("devices", [])
+                        leaked_browser = [d for d in clean_browser
+                                          if (d.get("index"), d.get("id")) not in baseline_browser_keys
+                                          and _target_matches(d, profile)]
+                        if not leaked_sdl and not leaked_xinput and not leaked_wgi and not leaked_browser and clean_hid_count <= baseline_hid_count:
                             break
                         time.sleep(0.15)
-                    cleanup_ok = not leaked_sdl and not leaked_xinput and not leaked_wgi and clean_hid_count <= baseline_hid_count
+                    cleanup_ok = not leaked_sdl and not leaked_xinput and not leaked_wgi and not leaked_browser and clean_hid_count <= baseline_hid_count
                     target_result.update({
                         "status": "pass" if api_visible and cleanup_ok else "fail",
                         "frames_sent": frames,
@@ -207,12 +221,15 @@ def command_matrix(args):
                         "new_xinput_slots": new_xinput,
                         "new_sdl_devices": sdl_match,
                         "new_wgi_devices": wgi_match,
+                        "new_browser_gamepads": browser_match,
+                        "browser_gamepad_snapshot": new_browser,
                         "hidapi_count_before": baseline_hid_count,
                         "hidapi_count_after": after_hid_count,
                         "api_visible": api_visible,
                         "cleanup_ok": cleanup_ok,
                         "leaked_sdl_devices": leaked_sdl,
                         "leaked_wgi_devices": leaked_wgi,
+                        "leaked_browser_gamepads": leaked_browser,
                         "leaked_xinput_slots": sorted(x for x in leaked_xinput if x is not None),
                     })
                 except Exception as exc:
@@ -228,6 +245,8 @@ def command_matrix(args):
         finally:
             if source:
                 source.close()
+            if browser_server:
+                browser_server.stop()
 
     report = {
         "created_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
