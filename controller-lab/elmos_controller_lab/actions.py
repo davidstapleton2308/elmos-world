@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import math
 from typing import Any
 
 from .model import BUTTONS
@@ -131,3 +132,32 @@ class TemporalActionEngine:
             if required and required.issubset(active_buttons):
                 output.merge(_action_frame(raw.get("action", raw)))
         return output
+
+
+
+def radial_action_frame(stick: str, axes: dict[str, float], config: dict[str, Any]) -> ActionFrame:
+    """Resolve a 4/8-way stick direction to one action while outside its deadzone."""
+    if stick not in ("left_stick", "right_stick") or not isinstance(config, dict):
+        return ActionFrame()
+    x = float(axes.get(stick.replace("_stick", "_x"), 0.0))
+    y = float(axes.get(stick.replace("_stick", "_y"), 0.0))
+    radius = math.hypot(x, y)
+    try:
+        deadzone = max(0.0, min(0.95, float(config.get("deadzone", 0.35))))
+    except (TypeError, ValueError):
+        deadzone = 0.35
+    if radius < deadzone or radius == 0:
+        return ActionFrame()
+    count = 4 if int(config.get("sectors_count", 8)) == 4 else 8
+    if count == 4:
+        names = ("right", "up", "left", "down")
+        width = 90.0
+    else:
+        names = ("right", "up_right", "up", "up_left",
+                 "left", "down_left", "down", "down_right")
+        width = 45.0
+    angle = math.degrees(math.atan2(y, x)) % 360.0
+    index = int(((angle + width / 2.0) % 360.0) // width) % count
+    sectors = config.get("sectors", {})
+    spec = sectors.get(names[index], {}) if isinstance(sectors, dict) else {}
+    return _action_frame(spec)
