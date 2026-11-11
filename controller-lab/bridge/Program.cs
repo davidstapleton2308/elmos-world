@@ -374,6 +374,64 @@ internal static class Program
                 controller.SubmitState(in frame);
                 return new { submitted = true, slot };
             }
+            case "keyboard":
+            {
+                var slot = Text(root, "slot", "virtual-keyboard") ?? "virtual-keyboard";
+                if (!Controllers.TryGetValue(slot, out var controller))
+                    throw new InvalidOperationException($"No virtual keyboard is active in slot '{slot}'.");
+                if (!controller.Profile.Type.Contains("keyboard", StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException($"Slot '{slot}' is not a keyboard profile.");
+                HMKeyModifiers modifiers = HMKeyModifiers.None;
+                if (root.TryGetProperty("modifiers", out var modifierArray) && modifierArray.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var item in modifierArray.EnumerateArray())
+                    {
+                        if (item.ValueKind != JsonValueKind.String || !Enum.TryParse<HMKeyModifiers>(item.GetString(), true, out var modifier))
+                            throw new ArgumentException("Unknown keyboard modifier.");
+                        modifiers |= modifier;
+                    }
+                }
+                var keys = new List<HMKey>();
+                if (root.TryGetProperty("keys", out var keyArray) && keyArray.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var item in keyArray.EnumerateArray())
+                    {
+                        if (item.ValueKind != JsonValueKind.String || !Enum.TryParse<HMKey>(item.GetString(), true, out var key) || key == HMKey.None)
+                            throw new ArgumentException("Unknown keyboard key.");
+                        keys.Add(key);
+                    }
+                }
+                controller.SubmitKeyboard(modifiers, keys.ToArray());
+                return new { submitted = true, slot, keyCount = keys.Count };
+            }
+            case "mouse":
+            {
+                var slot = Text(root, "slot", "virtual-mouse") ?? "virtual-mouse";
+                if (!Controllers.TryGetValue(slot, out var controller))
+                    throw new InvalidOperationException($"No virtual mouse is active in slot '{slot}'.");
+                if (!controller.Profile.Type.Contains("mouse", StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException($"Slot '{slot}' is not a mouse profile.");
+                HMMouseButtons buttons = HMMouseButtons.None;
+                if (root.TryGetProperty("buttons", out var buttonArray) && buttonArray.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var item in buttonArray.EnumerateArray())
+                    {
+                        if (item.ValueKind != JsonValueKind.String || !Enum.TryParse<HMMouseButtons>(item.GetString(), true, out var button))
+                            throw new ArgumentException("Unknown mouse button.");
+                        buttons |= button;
+                    }
+                }
+                var frame = new HMMouseState
+                {
+                    Buttons = buttons,
+                    X = (int)Clamp(Number(root, "x"), -32768, 32767),
+                    Y = (int)Clamp(Number(root, "y"), -32768, 32767),
+                    Wheel = (int)Clamp(Number(root, "wheel"), -127, 127),
+                    Pan = (int)Clamp(Number(root, "pan"), -127, 127)
+                };
+                controller.SubmitMouse(in frame);
+                return new { submitted = true, slot };
+            }
             case "destroy":
             {
                 var slot = Text(root, "slot", "virtual-0") ?? "virtual-0";
