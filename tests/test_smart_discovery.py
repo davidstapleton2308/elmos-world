@@ -79,7 +79,7 @@ class DiscoveryFixtureTests(unittest.TestCase):
         touch(folder/'xenia-canary-config.toml',100)
         item=self.look(folder)
         self.assertEqual(item['kind'],'emulator')
-        self.assertEqual(item['action'],'ready')
+        self.assertEqual(item['action'],'ready',item)
         self.assertEqual(item['emulator']['platform'],'Xbox 360')
 
     def test_emulator_without_supporting_config_needs_review(self):
