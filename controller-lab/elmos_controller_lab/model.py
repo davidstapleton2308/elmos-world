@@ -54,8 +54,14 @@ class MotionState:
     accel_x: float = 0.0
     accel_y: float = 0.0
     accel_z: float = 0.0
+    raw_gyro_pitch: int = 0
+    raw_gyro_yaw: int = 0
+    raw_gyro_roll: int = 0
+    raw_accel_x: int = 0
+    raw_accel_y: int = 0
+    raw_accel_z: int = 0
 
-    def to_dict(self) -> dict[str, float]:
+    def to_dict(self) -> dict[str, float | int]:
         return {
             "gyro_x": clamp(self.gyro_x, -4000, 4000),
             "gyro_y": clamp(self.gyro_y, -4000, 4000),
@@ -63,6 +69,12 @@ class MotionState:
             "accel_x": clamp(self.accel_x, -16, 16),
             "accel_y": clamp(self.accel_y, -16, 16),
             "accel_z": clamp(self.accel_z, -16, 16),
+            "raw_gyro_pitch": int(clamp(self.raw_gyro_pitch, -32768, 32767)),
+            "raw_gyro_yaw": int(clamp(self.raw_gyro_yaw, -32768, 32767)),
+            "raw_gyro_roll": int(clamp(self.raw_gyro_roll, -32768, 32767)),
+            "raw_accel_x": int(clamp(self.raw_accel_x, -32768, 32767)),
+            "raw_accel_y": int(clamp(self.raw_accel_y, -32768, 32767)),
+            "raw_accel_z": int(clamp(self.raw_accel_z, -32768, 32767)),
         }
 
 
@@ -83,6 +95,11 @@ class ControllerState:
     touchpads: list[TouchContact] = field(default_factory=list)
     battery: float | None = None
     charging: bool = False
+    battery_full: bool = False
+    mic_muted: bool = False
+    headphones_connected: bool = False
+    touchpad_packet_counter: int = 0
+    sensor_timestamp: int = 0
     timestamp: float = field(default_factory=time.monotonic)
     extra: dict[str, float] = field(default_factory=dict)
 
@@ -106,6 +123,11 @@ class ControllerState:
             touchpads=list(self.touchpads[:2]),
             battery=battery,
             charging=bool(self.charging),
+            battery_full=bool(self.battery_full),
+            mic_muted=bool(self.mic_muted),
+            headphones_connected=bool(self.headphones_connected),
+            touchpad_packet_counter=int(clamp(self.touchpad_packet_counter, 0, 255)),
+            sensor_timestamp=int(clamp(self.sensor_timestamp, 0, 4294967295)),
             timestamp=float(self.timestamp),
             extra=extra,
         )
@@ -123,6 +145,11 @@ class ControllerState:
             "touchpads": [p.to_dict() for p in state.touchpads],
             "battery": state.battery,
             "charging": state.charging,
+            "battery_full": state.battery_full,
+            "mic_muted": state.mic_muted,
+            "headphones_connected": state.headphones_connected,
+            "touchpad_packet_counter": state.touchpad_packet_counter,
+            "sensor_timestamp": state.sensor_timestamp,
             "timestamp": state.timestamp,
             "extra_axes": state.extra,
         }
