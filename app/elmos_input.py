@@ -267,11 +267,16 @@ class InputManager:
             return True
         try:
             import ctypes
-            hwnd = ctypes.windll.user32.GetForegroundWindow()
+            user32 = ctypes.windll.user32
+            user32.GetForegroundWindow.argtypes = []
+            user32.GetForegroundWindow.restype = ctypes.c_void_p
+            user32.GetWindowThreadProcessId.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_ulong)]
+            user32.GetWindowThreadProcessId.restype = ctypes.c_ulong
+            hwnd = user32.GetForegroundWindow()
             if not hwnd:
                 return False
             owner = ctypes.c_ulong()
-            ctypes.windll.user32.GetWindowThreadProcessId(ctypes.c_void_p(hwnd), ctypes.byref(owner))
+            user32.GetWindowThreadProcessId(hwnd, ctypes.byref(owner))
             return owner.value == self.pid
         except Exception:
             return False
