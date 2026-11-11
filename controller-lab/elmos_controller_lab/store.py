@@ -50,6 +50,7 @@ def profile_from_dict(value: dict[str, Any]) -> MappingProfile:
         gyro_mode=str(value.get("gyro_mode", "off")),
         gyro_sensitivity=float(value.get("gyro_sensitivity", 10.0)),
         gyro_deadzone=float(value.get("gyro_deadzone", 0.8)),
+        radial_menus=dict(value.get("radial_menus", {})) if isinstance(value.get("radial_menus"), dict) else {},
         layer=layer,
     )
 
