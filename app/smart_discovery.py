@@ -128,7 +128,7 @@ def _walk(folder):
 def _identity(title, exe):
     a = words(title)
     b = words(exe.stem)
-    b = re.sub(r'\s+(?:win64|win32|shipping|binaries|x64|x86)+$', '', b).strip() or b
+    b = re.sub(r'(?:\s+(?:win64|win32|shipping|binaries|x64|x86))+$', '', b).strip() or b
     if not a or not b:
         return 0.0
     if a == b:
