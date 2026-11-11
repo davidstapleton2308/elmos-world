@@ -338,17 +338,21 @@ internal static class Program
             var devices = RawGameController.RawGameControllers;
             var result = devices.Select(device =>
             {
-                var reading = device.GetCurrentReading();
+                var buttons = new bool[device.ButtonCount];
+                var switches = new GameControllerSwitchPosition[device.SwitchCount];
+                var axes = new double[device.AxisCount];
+                var timestamp = device.GetCurrentReading(buttons, switches, axes);
                 return new
                 {
                     name = device.DisplayName,
                     vendorId = device.HardwareVendorId,
                     productId = device.HardwareProductId,
                     buttons = device.ButtonCount,
-                    buttonsDown = reading.Buttons.Count(value => value),
+                    buttonsDown = buttons.Count(value => value),
                     axes = device.AxisCount,
-                    axisValues = reading.Axes.Select(value => Math.Round(value, 4)).ToArray(),
-                    switches = device.SwitchCount
+                    axisValues = axes.Select(value => Math.Round(value, 4)).ToArray(),
+                    switches = device.SwitchCount,
+                    timestamp
                 };
             }).ToArray();
             return new { available = true, devices = result };
