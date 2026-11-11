@@ -12,14 +12,19 @@ def test_canonical_y_and_trigger_ranges():
 def test_wire_model_preserves_advanced_features():
     state = ControllerState(
         buttons={"south", "guide"}, dpad={"up", "right"},
-        motion=MotionState(gyro_x=10, accel_y=1),
+        motion=MotionState(gyro_x=10, accel_y=1, raw_gyro_pitch=1234),
         touchpads=[TouchContact(active=True, x=900, y=500, pressure=0.7, tracking_id=2)],
-        battery=87, charging=True,
+        battery=87, charging=True, battery_full=False, mic_muted=True,
+        touchpad_packet_counter=9, sensor_timestamp=123456,
     )
     wire = state.to_wire()
     assert wire["buttons"] == ["guide", "south"]
     assert wire["dpad"] == ["right", "up"]
     assert wire["motion"]["gyro_x"] == 10
+    assert wire["motion"]["raw_gyro_pitch"] == 1234
     assert wire["touchpads"][0]["active"] is True
     assert wire["battery"] == 87
     assert wire["charging"] is True
+    assert wire["mic_muted"] is True
+    assert wire["touchpad_packet_counter"] == 9
+    assert wire["sensor_timestamp"] == 123456
