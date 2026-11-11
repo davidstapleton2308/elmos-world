@@ -158,7 +158,8 @@ def command_matrix(args):
                     after_xinput = {d.get("slot") for d in after["apis"]["xinput"]["devices"]}
                     new_xinput = sorted(x for x in after_xinput - baseline_xinput if x is not None)
                     after_hid_count = len(after["apis"]["hidapi"]["devices"])
-                    hid_visible = after_hid_count > baseline_hid_count
+                    hid_expected = bool(profile.get("vendorId") and profile.get("productId"))
+                    hid_visible = hid_expected and after_hid_count > baseline_hid_count
                     xinput_expected = bool(profile.get("xinput"))
                     api_visible = bool(new_xinput) if xinput_expected else bool(sdl_match or hid_visible)
 
