@@ -47,6 +47,9 @@ def profile_from_dict(value: dict[str, Any]) -> MappingProfile:
         touchpad_sensitivity=float(value.get("touchpad_sensitivity", 1.0)),
         action_bindings=dict(value.get("action_bindings", {})) if isinstance(value.get("action_bindings"), dict) else {},
         chord_map=dict(value.get("chord_map", {})) if isinstance(value.get("chord_map"), dict) else {},
+        gyro_mode=str(value.get("gyro_mode", "off")),
+        gyro_sensitivity=float(value.get("gyro_sensitivity", 10.0)),
+        gyro_deadzone=float(value.get("gyro_deadzone", 0.8)),
         layer=layer,
     )
 
