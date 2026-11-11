@@ -143,6 +143,27 @@ class BridgeClient:
             self.process.stdin.write(json.dumps(message, separators=(",", ":")) + "\n")
             self.process.stdin.flush()
 
+    def send_keyboard(self, slot: str, keys: list[str], modifiers: list[str] | None = None) -> None:
+        self._send_unacknowledged({
+            "op": "keyboard", "slot": slot, "keys": keys,
+            "modifiers": modifiers or [],
+        })
+
+    def send_mouse(self, slot: str, buttons: list[str] | None = None,
+                   x: int = 0, y: int = 0, wheel: int = 0, pan: int = 0) -> None:
+        self._send_unacknowledged({
+            "op": "mouse", "slot": slot, "buttons": buttons or [],
+            "x": int(x), "y": int(y), "wheel": int(wheel), "pan": int(pan),
+        })
+
+    def _send_unacknowledged(self, message: dict[str, Any]) -> None:
+        self.start()
+        if not self.process or not self.process.stdin:
+            raise BridgeError("Virtual bridge is not running.")
+        with self._write_lock:
+            self.process.stdin.write(json.dumps(message, separators=(",", ":")) + "\\n")
+            self.process.stdin.flush()
+
     def close(self) -> None:
         process = self.process
         if not process:
