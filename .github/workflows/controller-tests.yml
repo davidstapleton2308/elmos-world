@@ -48,6 +48,7 @@ jobs:
       - name: Build a preview portable executable
         shell: pwsh
         run: |
+          $env:ELMOS_INPUT_DEBUG_CONSOLE = '1'
           python -m PyInstaller --noconfirm --clean --distpath dist --workpath build/work build/ElmosWorld.spec
           if ($LASTEXITCODE -ne 0) { throw 'PyInstaller build failed.' }
           if (!(Test-Path dist/ElmosWorld/ElmosWorld.exe)) { throw 'Executable missing.' }
