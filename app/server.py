@@ -178,7 +178,7 @@ class Handler(BaseHTTPRequestHandler):
    elif action=='/api/input-profile':
     gameid=body.get('id','')
     if not engine.find(gameid):raise ValueError('Game not found')
-    out=input_manager.set_mode(gameid,body.get('mode','native'))
+    out=input_manager.set_profile(gameid,body.get('mode','native'),body.get('bindings'))
    elif action=='/api/controller-map':out={'buttons':monitor.set_navigation_map(body.get('buttons',{}))}
    elif action=='/api/shield':
     from backend import set_launch_shield
