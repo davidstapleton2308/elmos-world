@@ -9,7 +9,14 @@ using HIDMaestro;
 internal static class Program
 {
     private static readonly object OutputLock = new();
+    private const string BackendSdkVersion = "2.1.0";
     private static HMContext? Context;
+    private static readonly string DriverStampPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "ElmosControllerLab", "hidmaestro-driver-version.txt");
+    private static bool DriverPrepared => Context!.IsDriverInstalled &&
+        File.Exists(DriverStampPath) &&
+        string.Equals(File.ReadAllText(DriverStampPath).Trim(), BackendSdkVersion, StringComparison.Ordinal);
     private static readonly Dictionary<string, HMController> Controllers = new(StringComparer.OrdinalIgnoreCase);
     private static bool IsElevated()
     {
@@ -240,6 +247,7 @@ internal static class Program
                     elevated = IsElevated(), driverInstalled = Context!.IsDriverInstalled };
             case "status":
                 return new { elevated = IsElevated(), driverInstalled = Context!.IsDriverInstalled,
+                    driverPrepared = DriverPrepared, backendSdkVersion = BackendSdkVersion,
                     profileCount = Context.AllProfiles.Count, activeControllers = Controllers.Count,
                     runtime = Environment.Version.ToString(), architecture = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture.ToString() };
             case "profiles":
@@ -249,7 +257,11 @@ internal static class Program
                 if (!IsElevated())
                     throw new UnauthorizedAccessException("Driver installation requires administrator approval. Close the lab and run Install-ControllerLab-Driver.ps1, then approve the Windows UAC prompt.");
                 Context!.InstallDriver();
-                return new { installed = Context.IsDriverInstalled, outcome = Context.LastDriverInstall?.ToString() ?? "checked" };
+                if (!Context.IsDriverInstalled) throw new InvalidOperationException("The SDK returned, but Windows does not report the virtual driver as installed.");
+                Directory.CreateDirectory(Path.GetDirectoryName(DriverStampPath)!);
+                File.WriteAllText(DriverStampPath, BackendSdkVersion);
+                return new { installed = Context.IsDriverInstalled, prepared = DriverPrepared,
+                    backendSdkVersion = BackendSdkVersion, outcome = Context.LastDriverInstall?.ToString() ?? "checked" };
             case "create":
             {
                 if (!IsElevated())
@@ -260,6 +272,8 @@ internal static class Program
                 if (Controllers.ContainsKey(slot)) throw new InvalidOperationException($"Slot '{slot}' already exists.");
                 if (!Context!.IsDriverInstalled)
                     throw new InvalidOperationException("Virtual driver is not installed. Use the explicit Install driver action first.");
+                if (!DriverPrepared)
+                    throw new InvalidOperationException("The virtual driver has not been explicitly prepared for this SDK version. Run Install-ControllerLab-Driver.ps1 first; device creation will not install or upgrade drivers silently.");
                 var profile = Context.GetProfile(profileId) ?? throw new ArgumentException($"Unknown virtual profile: {profileId}");
                 if (!profile.IsDeployable) throw new InvalidOperationException($"Profile '{profileId}' is not deployable.");
                 if (profile.RequiresUsbipBackend)
@@ -313,7 +327,8 @@ internal static class Program
             var loaded = Context.LoadDefaultProfiles();
             if (args.Contains("--catalog-check"))
             {
-                Emit(new { ok = loaded > 0, profiles = Context.AllProfiles.Count, deployable = Context.AllProfiles.Count(p => p.IsDeployable) });
+                Emit(new { ok = loaded > 0, profiles = Context.AllProfiles.Count, deployable = Context.AllProfiles.Count(p => p.IsDeployable),
+                    byType = Context.AllProfiles.GroupBy(p => p.Type).ToDictionary(g => g.Key, g => g.Count()) });
                 Context.Dispose();
                 Context = null;
                 return loaded > 0 ? 0 : 4;
