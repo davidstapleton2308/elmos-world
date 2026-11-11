@@ -1,6 +1,8 @@
 """Undo safety tests: never overwrite or lose organized files."""
 from pathlib import Path
 import tempfile
+import time
+import os
 import unittest
 import sys
 
@@ -19,6 +21,9 @@ class SmartUndoTests(unittest.TestCase):
         (self.folder/'OuterWilds.exe').write_bytes(bytes(160_000))
         (self.folder/'UnityPlayer.dll').write_bytes(bytes(100))
         (self.folder/'OuterWilds_Data').mkdir()
+        completed=time.time()-300
+        for path in [self.folder,*self.folder.rglob('*')]:
+            os.utime(path,(completed,completed))
     def tearDown(self):
         self.tmp.cleanup()
     def move(self):
