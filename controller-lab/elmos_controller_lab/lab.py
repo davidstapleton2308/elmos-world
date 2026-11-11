@@ -19,6 +19,12 @@ def print_json(value):
     print(json.dumps(value, indent=2, default=str))
 
 
+
+def command_gui(args):
+    from .gui import main as gui_main
+    gui_main(args.bridge)
+
+
 def command_devices(_args):
     source = SDLInputSource()
     try:
@@ -349,6 +355,8 @@ def build_parser():
     parser = argparse.ArgumentParser(prog="elmos-controller-lab")
     parser.add_argument("--bridge", help="Path to Elmos.ControllerLab.Bridge.exe")
     sub = parser.add_subparsers(dest="command", required=True)
+    gui = sub.add_parser("gui", help="Open the Controller Lab mapping and live-output interface")
+    gui.set_defaults(func=command_gui)
     devices = sub.add_parser("devices", help="List physical SDL controllers")
     devices.set_defaults(func=command_devices)
     status = sub.add_parser("status", help="Check virtual-device driver status")
