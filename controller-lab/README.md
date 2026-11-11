@@ -38,6 +38,14 @@ GitHub repository later without depending on Elmo's launcher code.
                        v
         XInput / DirectInput / HID / SDL / WGI / GameInput
 
+## Current virtual profile catalogue
+
+The pinned SDK's Windows smoke test currently loads **337 profiles**, with
+**240 marked deployable**. The catalogue includes 90 gamepads, 68 wheels,
+20 joysticks, 18 pedal sets, 5 HOTAS devices, 4 arcade sticks and 3 flight
+sticks, plus keyboards, mice and other HID devices. This is a catalogue
+count, not a claim that every profile has passed real-hardware or game testing.
+
 ## What exists in v0.1
 
 - A canonical controller model independent of physical vendor and target profile.
@@ -108,6 +116,25 @@ After the explicit driver setup, run this elevated command:
 ~~~powershell
 .\scripts\Run-ControllerLab-Elevated.ps1 sweep
 ~~~
+
+## Cross-controller compatibility matrix
+
+Run the same physical controller through several virtual identities, or use a
+synthetic source first:
+
+~~~powershell
+.\scripts\Run-ControllerLab-Elevated.ps1 matrix --device 0 --targets xbox-360-wired,xbox-series-xs-bt,dualsense,dualshock-4-v2,switch-pro,steam-controller
+.\scripts\Run-ControllerLab-Elevated.ps1 matrix --demo --duration 1
+~~~
+
+For each target the matrix snapshots XInput, SDL and optional HIDAPI visibility,
+creates the virtual device, streams a test state, compares newly visible device
+instances, removes the virtual device, and checks for leaked devices. It saves
+a JSON report under LocalAppData/ElmosControllerLab/reports. XInput profiles
+must appear in a new XInput slot; HID profiles must appear through SDL or
+HIDAPI. This is an early Windows API compatibility check, not yet a complete
+WGI/GameInput/Steam/browser conformance suite.
+
 
 The bridge creates each deployable non-keyboard/non-mouse profile that does not
 require the separate composite USB/IP transport, submits a representative
