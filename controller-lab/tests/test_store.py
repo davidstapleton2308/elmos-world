@@ -18,6 +18,7 @@ def test_mapping_profiles_are_saved_per_controller_game_and_target(tmp_path):
         gyro_mode="mouse",
         gyro_sensitivity=16.0,
         gyro_deadzone=0.4,
+        radial_menus={"right_stick": {"sectors_count": 8, "sectors": {"up": {"keyboard": ["1"]}}}},
         action_bindings={"south": {"tap": {"keyboard": ["Space"]}, "hold_ms": 300}},
         chord_map={"left_shoulder+south": {"action": {"gamepad": ["north"]}, "suppress": True}},
         left_stick=StickTuning(deadzone=0.18, exponent=1.4, invert_y=True),
@@ -44,6 +45,7 @@ def test_mapping_profiles_are_saved_per_controller_game_and_target(tmp_path):
     assert loaded.gyro_mode == "mouse"
     assert loaded.gyro_sensitivity == 16.0
     assert loaded.gyro_deadzone == 0.4
+    assert loaded.radial_menus["right_stick"]["sectors"]["up"]["keyboard"] == ["1"]
     assert loaded.action_bindings["south"]["tap"]["keyboard"] == ["Space"]
     assert loaded.chord_map["left_shoulder+south"]["suppress"] is True
     assert loaded.layer.keyboard_map == {"south": ["Q"]}
