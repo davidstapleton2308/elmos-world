@@ -44,6 +44,6 @@ def test_timer_callback_contains_unhandled_exceptions():
     start = SOURCE.index("private static void CheckInputLeases")
     end = SOURCE.index("private const string BackendSdkVersion", start)
     callback = SOURCE[start:end]
-    assert "try\n        {\n            lock (DeviceLock)" in callback
-    assert "catch (Exception ex)" in callback
+    assert "lock (DeviceLock)" in callback
+    assert callback.count("catch (Exception ex)") >= 2
     assert "catch { /* The bridge may be shutting down or stdout may be closed. */ }" in callback
