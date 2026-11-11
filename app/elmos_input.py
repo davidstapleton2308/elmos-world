@@ -196,6 +196,8 @@ class InputManager:
             if self.game_id is None:
                 raise RuntimeError("No prepared input session.")
             self.pid = int(pid)
+            # Safe because feed also checks the actual foreground PID.
+            self.paused = False
 
     def resume(self):
         with self.lock:
@@ -213,13 +215,27 @@ class InputManager:
             self.sink.neutral()
         self.last_neutral = True
 
+    def _game_is_foreground(self):
+        if os.name != 'nt' or self.pid is None:
+            return True
+        try:
+            import ctypes
+            hwnd = ctypes.windll.user32.GetForegroundWindow()
+            if not hwnd:
+                return False
+            owner = ctypes.c_ulong()
+            ctypes.windll.user32.GetWindowThreadProcessId(ctypes.c_void_p(hwnd), ctypes.byref(owner))
+            return owner.value == self.pid
+        except Exception:
+            return False
+
     def feed(self, buttons, axes, triggers, connected, mapped, source_name=""):
         """SDL monitor callback. Never let translation faults kill the reader."""
         with self.lock:
             if self.sink is None:
                 return
             self.last_feed = time.monotonic()
-            if self.paused or not connected or not mapped:
+            if self.paused or not connected or not mapped or not self._game_is_foreground():
                 try:
                     self._neutral()
                 except Exception as exc:
@@ -271,3 +287,6 @@ class InputManager:
 
 
 input_manager = InputManager()
+
+import atexit
+atexit.register(input_manager.stop)
