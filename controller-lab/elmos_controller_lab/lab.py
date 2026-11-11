@@ -21,6 +21,26 @@ def print_json(value):
 
 
 
+
+def command_browser_probe(args):
+    server = BrowserProbeServer()
+    print("Open the browser Gamepad API test page:", server.start(open_browser=not args.no_open), flush=True)
+    print("Press a controller button once to activate it in the browser. Press Ctrl+C to stop.", flush=True)
+    previous = None
+    try:
+        while True:
+            snapshot = server.snapshot()
+            encoded = json.dumps(snapshot, sort_keys=True)
+            if encoded != previous:
+                print_json(snapshot)
+                previous = encoded
+            time.sleep(0.5)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.stop()
+
+
 def command_gui(args):
     from .gui import main as gui_main
     gui_main(args.bridge)
@@ -83,7 +103,7 @@ def _target_matches(device, profile):
     if vendor and product and device_vendor and device_product:
         return device_vendor == vendor and device_product == product
     expected = str(profile.get("displayName") or profile.get("name") or profile.get("id") or "").casefold()
-    actual = str(device.get("name") or device.get("product") or "").casefold()
+    actual = str(device.get("name") or device.get("product") or device.get("id") or "").casefold()
     return bool(expected and (expected in actual or actual in expected))
 
 
@@ -400,6 +420,9 @@ def build_parser():
     probe = sub.add_parser("probe", help="Check what Windows currently exposes through XInput, SDL and optional HIDAPI")
     probe.add_argument("--profile", default="", help="Compare visibility with one virtual profile's VID/PID and XInput expectation")
     probe.set_defaults(func=command_probe)
+    browser_probe = sub.add_parser("browser-probe", help="Open a local browser Gamepad API test page")
+    browser_probe.add_argument("--no-open", action="store_true", help="Print the local URL without launching a browser")
+    browser_probe.set_defaults(func=command_browser_probe)
     install = sub.add_parser("install-driver", help="Explicitly install the Windows virtual-device driver")
     install.set_defaults(func=command_install)
     sweep = sub.add_parser("sweep", help="Create, submit a test state to, and remove each supported virtual profile")
@@ -411,6 +434,7 @@ def build_parser():
     matrix.add_argument("--duration", type=float, default=1.0)
     matrix.add_argument("--rate", type=int, default=120)
     matrix.add_argument("--game", default="default")
+    matrix.add_argument("--browser", action="store_true", help="Also open and test browser Gamepad API visibility")
     matrix.set_defaults(func=command_matrix)
     emulate = sub.add_parser("emulate", help="Feed a physical or synthetic controller into a virtual identity")
     emulate.add_argument("--profile", required=True, help="HIDMaestro profile id, e.g. xbox-360-wired or dualsense")
