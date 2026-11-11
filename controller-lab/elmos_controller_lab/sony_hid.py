@@ -17,6 +17,7 @@ class SonyHIDSensorReader:
         self.product_id = product_id
         self.path = path
         self.last_frame: SonySensorFrame | None = None
+        self.fresh = False
         self.error = ""
 
     @classmethod
@@ -53,6 +54,7 @@ class SonyHIDSensorReader:
             return None
 
     def poll(self) -> SonySensorFrame | None:
+        self.fresh = False
         try:
             # Drain a small bounded number of reports so the caller gets the
             # newest sensor frame without blocking the SDL input loop.
@@ -63,6 +65,7 @@ class SonyHIDSensorReader:
                 frame = parse_sony_report(self.vendor_id, self.product_id, bytes(data))
                 if frame is not None:
                     self.last_frame = frame
+                    self.fresh = True
         except Exception as exc:
             self.error = str(exc)
         return self.last_frame
