@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 import math
 from typing import Any
 
-from .actions import TemporalActionEngine
+from .actions import TemporalActionEngine, radial_action_frame
 from .model import AXES, BUTTONS, ControllerState, clamp
 
 
@@ -46,6 +46,7 @@ class ActionLayer:
     gyro_mode: str | None = None
     gyro_sensitivity: float | None = None
     gyro_deadzone: float | None = None
+    radial_menus: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 @dataclass
@@ -72,6 +73,7 @@ class MappingProfile:
     gyro_mode: str = "off"  # off | mouse | right_stick
     gyro_sensitivity: float = 10.0
     gyro_deadzone: float = 0.8
+    radial_menus: dict[str, dict[str, Any]] = field(default_factory=dict)
     layer: ActionLayer | None = None
 
 
@@ -125,6 +127,8 @@ class Mapper:
         self.action_engine = TemporalActionEngine()
         self._active_action_bindings: dict[str, dict[str, Any]] = {}
         self._active_chord_map: dict[str, dict[str, Any]] = {}
+        self._active_radial_menus: dict[str, dict[str, Any]] = {}
+        self._radial_axes: dict[str, float] = {}
 
     def _is_suppressed(self, button: str) -> bool:
         binding = self._active_action_bindings.get(button)
@@ -289,6 +293,8 @@ class Mapper:
             normalized.buttons, self._active_action_bindings,
             self._active_chord_map, normalized.timestamp
         )
+        for stick, config in self._active_radial_menus.items():
+            temporal.merge(radial_action_frame(stick, self._radial_axes, config))
         gamepad.buttons.update(temporal.gamepad_buttons)
         keys.update(temporal.keyboard_keys)
         modifiers.update(temporal.keyboard_modifiers)
@@ -317,9 +323,11 @@ class Mapper:
         self._current_layer_active = layer_active
         self._active_action_bindings = dict(p.action_bindings)
         self._active_chord_map = dict(p.chord_map)
+        self._active_radial_menus = dict(p.radial_menus)
         if layer and layer_active:
             self._active_action_bindings.update(layer.action_bindings)
             self._active_chord_map.update(layer.chord_map)
+            self._active_radial_menus.update(layer.radial_menus)
 
         active_button_map = dict(p.button_map)
         if layer and layer_active:
@@ -356,6 +364,13 @@ class Mapper:
             else:
                 value = ((value - trigger_deadzone) / (1.0 - trigger_deadzone)) ** trigger_exponent
             axes[name] = clamp(value, 0, 1)
+
+        self._radial_axes = {key: axes.get(key, 0.0) for key in
+                             ("left_x", "left_y", "right_x", "right_y")}
+        for stick, config in self._active_radial_menus.items():
+            if isinstance(config, dict) and config.get("suppress", True):
+                axes[stick.replace("_stick", "_x")] = 0.0
+                axes[stick.replace("_stick", "_y")] = 0.0
 
         return ControllerState(
             device_id=source.device_id,
