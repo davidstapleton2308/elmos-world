@@ -1,6 +1,11 @@
 name: Build Elmos World 3.1.1
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "ElmosWorld_3_1_1_GitHub_Ready.zip"
+      - ".github/workflows/build-elmos-world.yml"
   workflow_dispatch:
     inputs:
       publish_release:
@@ -22,7 +27,7 @@ jobs:
       - name: Extract project
         shell: pwsh
         run: |
-          $zip = 'Elmos_World_3.1.1_GitHub_Ready.zip'
+          $zip = 'ElmosWorld_3_1_1_GitHub_Ready.zip'
           if (!(Test-Path $zip)) { throw "Upload $zip to the repository root before running Actions." }
           Expand-Archive -LiteralPath $zip -DestinationPath extracted -Force
           $source = Join-Path 'extracted' 'ElmosWorld_3.1.1'
