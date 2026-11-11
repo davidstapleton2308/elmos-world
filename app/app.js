@@ -376,6 +376,7 @@ function open(name){
   requestAnimationFrame(()=>syncSelectedCard(true));
  }
  syncBrowsePreviewVisibility();if(name==='activity'){renderActivity();refreshLaunchTimeline();}
+ if(name==='settings')refreshInputStudio().catch(e=>$('inputModeStatus').textContent=e.message);
 }
 function revealModalControl(target){
  // The controller deliberately uses preventScroll to avoid moving the full page.
@@ -1055,6 +1056,22 @@ function setupControllerEditor(){syncNativeMenuButtons();const options=Array.fro
  $('resetControllerMap').onclick=()=>{controllerMap={...controllerMapDefault};localStorage.removeItem('elmo-controller-map');setupControllerEditor();api('/api/guide-index',{index:10}).then(()=>notify('PS4 button mapping restored.')).catch(e=>notify(e.message,true));};
  $('controllerRefresh').onclick=()=>pollController();
 }
+async function refreshInputStudio(){
+ const picker=$('inputGame'),status=$('inputModeStatus');
+ const entries=(state.games||[]).filter(g=>g&&g.id&&(g.type==='pc'||g.type==='rom'));
+ const previous=picker.value;
+ picker.innerHTML=entries.map(g=>'<option value="'+esc(g.id)+'">'+esc(g.name)+'</option>').join('');
+ if(!entries.length){
+  status.textContent='No PC or emulator games in your library yet.';
+  $('inputModeSave').disabled=true;return;
+ }
+ $('inputModeSave').disabled=false;
+ picker.value=entries.some(g=>g.id===previous)?previous:(entries.some(g=>g.id===selected)?selected:entries[0].id);
+ const result=await api('/api/input-status?id='+encodeURIComponent(picker.value));
+ $('inputMode').value=result.mode||'native';
+ status.textContent=(result.virtualConnected?'Virtual Xbox connected · ':'')+(result.running?'Game session active · ':'')+
+  (result.error?result.error:result.mode==='xbox360'?'Virtual Xbox selected. Requires a compatible installed driver. No changes until you launch this game.':'This game uses native controller input; no virtual device will be created.');
+}
 function applyVisualPreferences(){document.documentElement.dataset.theme=elmoTheme;document.documentElement.dataset.motion=elmoMotion;applyAtmosphere();$('themeChoice').value=elmoTheme;$('motionChoice').value=elmoMotion}
 function fullscreenToggle(){if(window.pywebview?.api?.toggle_fullscreen)window.pywebview.api.toggle_fullscreen().catch(()=>{});else if(document.fullscreenElement)document.exitFullscreen?.();else document.documentElement.requestFullscreen?.().catch(()=>{});}
 $('deleteHiddenButton').onclick=deleteHiddenDialog;
@@ -1093,6 +1110,14 @@ $('updateInstall').onclick=async()=>{if(!updateReady)return;
 setTimeout(checkElmosUpdate,2600);
 $('saveSettings').onclick=async()=>{const changes={games_folder:$('gamesRoot').value};if($('artKey').value.trim())changes.api_key=$('artKey').value.trim();const r=await safe(()=>api('/api/settings',changes));if(r){$('artKey').value='';await reload();notify('Settings saved.')}};
 $('resumeLibrary').onclick=resumeTrackedGame;
+$('inputGame').onchange=()=>refreshInputStudio().catch(e=>notify(e.message,true));
+$('inputModeRefresh').onclick=()=>refreshInputStudio().catch(e=>notify(e.message,true));
+$('inputModeSave').onclick=async()=>{
+ const id=$('inputGame').value,mode=$('inputMode').value;
+ if(!id)return;
+ const saved=await safe(()=>api('/api/input-profile',{id,mode}));
+ if(saved){notify(mode==='xbox360'?'Virtual Xbox profile saved for this game.':'Native controller profile saved.');refreshInputStudio().catch(()=>{});}
+};
 setupControllerEditor();pollController().then(()=>{if(latestNative?.guideIndex!==undefined && !localStorage.getItem('elmo-controller-map')){$('mapGuide').value=String(latestNative.guideIndex)}});applyVisualPreferences();$('themeChoice').onchange=()=>{elmoTheme=$('themeChoice').value;localStorage.setItem('elmo-theme',elmoTheme);applyVisualPreferences()};$('motionChoice').onchange=()=>{elmoMotion=$('motionChoice').value;localStorage.setItem('elmo-motion',elmoMotion);applyVisualPreferences()};
 $('soundChoice').onchange=()=>{localStorage.setItem('elmo-sound',$('soundChoice').value);if($('soundChoice').value==='on'){if(!menuAudio&&window.AudioContext)menuAudio=new AudioContext();menuAudio?.resume?.().then(()=>menuSound()).catch(()=>{})}};
 $('atmosphereChoice').onchange=()=>{localStorage.setItem('elmo-atmosphere',$('atmosphereChoice').value);applyAtmosphere();if(selected){const g=game(selected);if(g)updateAmbient(art(g,'hero')||art(g,'wide'))}};
@@ -1103,6 +1128,7 @@ $('refreshAllGalleries').onclick=async()=>{
  if(result)notify('Checking screenshot sources for '+result.total+' library games. Images are saved locally as they become available.');
 };
 $('runHealthCheck').onclick=()=>gameHealth();$('manageCollections').onclick=manageCollections;$('backupSettings').onclick=async()=>{const r=await safe(()=>api('/api/backup',{}));if(r)notify('Settings backup created: '+r.name)};$('restoreSettings').onclick=restoreSettingsDialog;reload(true).finally(()=>{
+ refreshInputStudio().catch(e=>{if($('inputModeStatus'))$('inputModeStatus').textContent=e.message});
  setTimeout(()=>$('splash').classList.add('done'),420);
  setTimeout(()=>$('splash').remove(),900);
  // Low-priority, one-at-a-time scan of the existing library. Never downloads
