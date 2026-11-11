@@ -300,7 +300,7 @@ internal static class Program
         }
     }
 
-    public static int Main()
+    public static int Main(string[] args)
     {
         if (!OperatingSystem.IsWindows())
         {
@@ -310,7 +310,14 @@ internal static class Program
         try
         {
             Context = new HMContext();
-            Context.LoadDefaultProfiles();
+            var loaded = Context.LoadDefaultProfiles();
+            if (args.Contains("--catalog-check"))
+            {
+                Emit(new { ok = loaded > 0, profiles = Context.AllProfiles.Count, deployable = Context.AllProfiles.Count(p => p.IsDeployable) });
+                Context.Dispose();
+                Context = null;
+                return loaded > 0 ? 0 : 4;
+            }
         }
         catch (Exception ex)
         {
