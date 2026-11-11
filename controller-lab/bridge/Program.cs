@@ -262,9 +262,7 @@ internal static class Program
             }
             """);
         var candidates = Context!.AllProfiles
-            .Where(p => p.IsDeployable && !p.RequiresUsbipBackend &&
-                !p.Type.Contains("keyboard", StringComparison.OrdinalIgnoreCase) &&
-                !p.Type.Contains("mouse", StringComparison.OrdinalIgnoreCase))
+            .Where(p => p.IsDeployable && !p.RequiresUsbipBackend)
             .OrderBy(p => p.Type, StringComparer.OrdinalIgnoreCase)
             .ThenBy(p => p.Vendor, StringComparer.OrdinalIgnoreCase)
             .ThenBy(p => p.Id, StringComparer.OrdinalIgnoreCase)
@@ -279,8 +277,25 @@ internal static class Program
             try
             {
                 using var virtualDevice = Context.CreateController(profile, "elmos-controller-lab/sweep/" + profile.Id);
-                var frame = BuildState(profile, sample.RootElement);
-                virtualDevice.SubmitState(in frame);
+                if (profile.Type.Contains("keyboard", StringComparison.OrdinalIgnoreCase))
+                {
+                    HMKey[] keys = { HMKey.A, HMKey.Enter };
+                    virtualDevice.SubmitKeyboard(HMKeyModifiers.LeftShift, keys);
+                }
+                else if (profile.Type.Contains("mouse", StringComparison.OrdinalIgnoreCase))
+                {
+                    var mouse = new HMMouseState
+                    {
+                        Buttons = HMMouseButtons.Left | HMMouseButtons.Right,
+                        X = 12, Y = -7, Wheel = 1, Pan = 0
+                    };
+                    virtualDevice.SubmitMouse(in mouse);
+                }
+                else
+                {
+                    var frame = BuildState(profile, sample.RootElement);
+                    virtualDevice.SubmitState(in frame);
+                }
                 passed++;
                 results.Add(new { id = profile.Id, name = profile.Name, type = profile.Type, status = "pass" });
                 message = "pass";
