@@ -237,6 +237,76 @@ internal static class Program
         requiresUsbip = p.RequiresUsbipBackend
     };
 
+    private static object RunProfileSweep()
+    {
+        if (!IsElevated())
+            throw new UnauthorizedAccessException("The profile sweep creates real Windows virtual devices. Run the elevated Controller Lab script and approve UAC.");
+        if (!DriverPrepared)
+            throw new InvalidOperationException("The pinned virtual driver is not prepared. Run the explicit driver setup first.");
+        if (Controllers.Count != 0)
+            throw new InvalidOperationException("Destroy active virtual slots before starting the profile sweep.");
+
+        using var sample = JsonDocument.Parse("""
+            {
+              "buttons":["south","east","west","north","left_shoulder","right_shoulder","back","start"],
+              "axes":{"left_x":0.35,"left_y":-0.55,"right_x":-0.25,"right_y":0.65,"left_trigger":0.72,"right_trigger":0.91},
+              "dpad":["up","right"]
+            }
+            """);
+        var candidates = Context!.AllProfiles
+            .Where(p => p.IsDeployable && !p.RequiresUsbipBackend &&
+                !p.Type.Contains("keyboard", StringComparison.OrdinalIgnoreCase) &&
+                !p.Type.Contains("mouse", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(p => p.Type, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(p => p.Vendor, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(p => p.Id, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        var results = new List<object>();
+        int passed = 0, failed = 0;
+        for (int i = 0; i < candidates.Length; i++)
+        {
+            var profile = candidates[i];
+            string message = "";
+            try
+            {
+                using var virtualDevice = Context.CreateController(profile, "elmos-controller-lab/sweep/" + profile.Id);
+                var frame = BuildState(profile, sample.RootElement);
+                virtualDevice.SubmitState(in frame);
+                passed++;
+                results.Add(new { id = profile.Id, name = profile.Name, type = profile.Type, status = "pass" });
+                message = "pass";
+            }
+            catch (Exception ex)
+            {
+                failed++;
+                results.Add(new { id = profile.Id, name = profile.Name, type = profile.Type,
+                    status = "fail", error = ex.GetType().Name, message = ex.Message });
+                message = "fail: " + ex.GetType().Name;
+            }
+            Emit(new { event_name = "sweep_progress", completed = i + 1,
+                total = candidates.Length, profile = profile.Id, status = message });
+        }
+
+        var report = new
+        {
+            backend = "HIDMaestro",
+            backendSdkVersion = BackendSdkVersion,
+            createdUtc = DateTime.UtcNow,
+            total = candidates.Length,
+            passed,
+            failed,
+            skippedComposite = Context.AllProfiles.Count(p => p.IsDeployable && p.RequiresUsbipBackend),
+            results
+        };
+        var folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "ElmosControllerLab", "reports");
+        Directory.CreateDirectory(folder);
+        var reportPath = Path.Combine(folder, "profile-sweep-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss") + ".json");
+        File.WriteAllText(reportPath, JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
+        return new { total = candidates.Length, passed, failed, reportPath, results };
+    }
+
     private static object Execute(JsonElement root)
     {
         var op = Text(root, "op", "") ?? "";
@@ -284,6 +354,8 @@ internal static class Program
                 Controllers.Add(slot, controller);
                 return new { created = true, slot, profile = ProfileInfo(profile), identity = controller.IdentityKey };
             }
+            case "sweep":
+                return RunProfileSweep();
             case "state":
             {
                 var slot = Text(root, "slot", "virtual-0") ?? "virtual-0";
