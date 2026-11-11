@@ -51,7 +51,8 @@ count, not a claim that every profile has passed real-hardware or game testing.
 - A canonical controller model independent of physical vendor and target profile.
 - SDL physical-controller discovery with mapped SDL input preferred over raw joystick indices.
 - Per-profile button remapping, radial stick deadzones, outer/anti-deadzones,
-  response curves, sensitivity, trigger shaping, and hold/toggle action layers.
+  response curves, sensitivity, trigger shaping, hold/toggle action layers,
+  tap/hold/double-tap actions, turbo pulses and chorded button combinations.
 - Virtual keyboard and mouse outputs, including button-to-key actions, trigger
   modifiers, left-stick WASD, right-stick mouse movement, and touchpad-as-mouse
   or touchpad-as-right-stick modes.
@@ -231,9 +232,9 @@ fallback layout; that fallback is not a claim of correct button identity.
    and cross-pairs in both directions.
 2. **Profile editor:** edit and persist physical source maps and virtual target
    profiles per game and per device GUID.
-3. **Advanced Steam Input mappings:** action sets, mode shifts, chorded
-   bindings, tap/hold/double-tap, turbo, macros, radial menus, touchpad
-   gestures, per-game layers and profile editor UI.
+3. **Advanced Steam Input mappings:** action sets, deeper mode shifts,
+   macro recording/playback, radial menus, touchpad gestures, and a full visual
+   editor for per-game layers and complex bindings.
 4. **Analog controls:** independent trigger thresholds, stick response curves,
    anti-deadzone, outer deadzone, smoothing, gyro aiming sensitivity, sensor
    calibration, and multi-finger trackpad gestures.
