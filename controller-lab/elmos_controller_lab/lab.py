@@ -113,6 +113,8 @@ def command_matrix(args):
                 raise BridgeError("The selected physical SDL controller was not found.")
             device_guid = selected.get("guid") or selected.get("name") or "unknown"
             physical_instance = selected["instance_id"]
+            if source.attach_sensor_reader(physical_instance):
+                print("Sony motion/touchpad sensor reader: attached", flush=True)
 
         results = []
         try:
@@ -279,6 +281,9 @@ def command_emulate(args):
                 if selected is None:
                     raise BridgeError(f"No SDL device at index {args.device}.")
                 device_guid = selected["guid"] or selected["name"]
+                sensor_ready = source.attach_sensor_reader(selected["instance_id"])
+                if sensor_ready:
+                    print("Sony motion/touchpad sensor reader: attached", flush=True)
 
             mapping = MappingStore().get(device_guid, args.game, args.profile)
             if args.actions_demo:
