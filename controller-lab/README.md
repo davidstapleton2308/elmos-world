@@ -53,7 +53,8 @@ count, not a claim that every profile has passed real-hardware or game testing.
 - Per-profile button remapping, radial stick deadzones, outer/anti-deadzones,
   response curves, sensitivity, trigger shaping, and hold/toggle action layers.
 - Virtual keyboard and mouse outputs, including button-to-key actions, trigger
-  modifiers, left-stick WASD and right-stick mouse movement.
+  modifiers, left-stick WASD, right-stick mouse movement, and touchpad-as-mouse
+  or touchpad-as-right-stick modes.
 - A Windows JSON-lines bridge using HIDMaestro's profile-based virtual device engine.
 - A catalog browser command that reads the SDK's embedded profile catalogue.
 - Explicit virtual driver installation, create, state streaming and disposal commands.
@@ -217,8 +218,8 @@ fallback layout; that fallback is not a claim of correct button identity.
    bindings, tap/hold/double-tap, turbo, macros, radial menus, touchpad
    gestures, per-game layers and profile editor UI.
 4. **Analog controls:** independent trigger thresholds, stick response curves,
-   anti-deadzone, outer deadzone, smoothing, calibration, gyro aiming and
-   trackpad-as-mouse/stick.
+   anti-deadzone, outer deadzone, smoothing, gyro aiming sensitivity, sensor
+   calibration, and multi-finger trackpad gestures.
 5. **Feedback:** route virtual rumble/FFB/haptics back to the physical device;
    support LEDs, battery, adaptive triggers and microphone state where available.
 6. **Compatibility matrix:** automatically enumerate each virtual identity in
