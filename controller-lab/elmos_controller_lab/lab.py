@@ -402,6 +402,8 @@ def command_emulate(args):
             print("\nStopping virtual controller outputs…", flush=True)
         finally:
             for slot in reversed(created_slots):
+                # A failed neutral report must never prevent device destruction.
+                # Destroying a virtual HID device is our fallback release path.
                 try:
                     if slot.endswith("-keyboard"):
                         bridge.send_keyboard(slot, [], [])
@@ -410,9 +412,12 @@ def command_emulate(args):
                     else:
                         bridge.send_state(slot, neutral_state().to_wire())
                     time.sleep(0.03)
+                except Exception as exc:
+                    print(f"Neutralization warning for {slot}:", exc, file=sys.stderr)
+                try:
                     bridge.request("destroy", slot=slot, timeout=15)
                 except Exception as exc:
-                    print(f"Cleanup warning for {slot}:", exc, file=sys.stderr)
+                    print(f"Destroy warning for {slot}:", exc, file=sys.stderr)
             if source:
                 source.close()
 
