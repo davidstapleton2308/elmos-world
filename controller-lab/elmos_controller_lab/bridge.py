@@ -161,7 +161,7 @@ class BridgeClient:
         if not self.process or not self.process.stdin:
             raise BridgeError("Virtual bridge is not running.")
         with self._write_lock:
-            self.process.stdin.write(json.dumps(message, separators=(",", ":")) + "\\n")
+            self.process.stdin.write(json.dumps(message, separators=(",", ":")) + chr(10))
             self.process.stdin.flush()
 
     def close(self) -> None:
