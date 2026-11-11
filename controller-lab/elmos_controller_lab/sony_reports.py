@@ -35,10 +35,12 @@ def _u32(data: bytes, offset: int) -> int:
     return int.from_bytes(data[offset:offset + 4], "little", signed=False)
 
 
-def _touch_point(data: bytes, offset: int) -> TouchContact:
+def _touch_point(data: bytes, offset: int, native_height: int = 1080) -> TouchContact:
     contact = data[offset]
     x = data[offset + 1] | ((data[offset + 2] & 0x0F) << 8)
     y = ((data[offset + 2] >> 4) & 0x0F) | (data[offset + 3] << 4)
+    if native_height != 1080:
+        y = int(round(y * 1079.0 / max(1, native_height - 1)))
     active = (contact & 0x80) == 0
     return TouchContact(
         active=active, x=x, y=y, pressure=1.0 if active else 0.0,
@@ -95,8 +97,8 @@ def parse_dualshock4_report(report: bytes) -> SonySensorFrame | None:
         latest = touch_start + (count - 1) * 9
         touch_counter = report[latest]
         touchpads = (
-            _touch_point(report, latest + 1),
-            _touch_point(report, latest + 5),
+            _touch_point(report, latest + 1, native_height=942),
+            _touch_point(report, latest + 5, native_height=942),
         )
 
     return SonySensorFrame(
