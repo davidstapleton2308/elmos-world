@@ -38,6 +38,8 @@ class InputEngineTests(unittest.TestCase):
         self.manager = InputManager(
             pathlib.Path(self.dir.name) / "input_profiles.json", factory=make
         )
+        # Synthetic game PIDs do not own Windows foreground windows.
+        self.manager._game_is_foreground = lambda: True
 
     def tearDown(self):
         self.manager.stop()
