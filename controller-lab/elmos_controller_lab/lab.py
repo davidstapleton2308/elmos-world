@@ -131,13 +131,6 @@ def command_matrix(args):
         by_id = {p.get("id"): p for p in catalog}
         target_ids = [x.strip() for x in args.targets.split(",") if x.strip()]
         source = None
-        browser_server = BrowserProbeServer() if args.browser else None
-        if browser_server:
-            print("Browser Gamepad API probe:", browser_server.start(open_browser=True), flush=True)
-            print("Press a controller button once in the browser page to activate it; waiting up to 10 seconds.", flush=True)
-            browser_deadline = time.monotonic() + 10.0
-            while not browser_server.snapshot().get("devices") and time.monotonic() < browser_deadline:
-                time.sleep(0.25)
         device_guid = "synthetic"
         physical_instance = None
         if not args.demo:
@@ -146,11 +139,20 @@ def command_matrix(args):
             print_json({"physical_devices": devices})
             selected = next((d for d in devices if d["index"] == args.device), None)
             if selected is None:
+                source.close()
                 raise BridgeError("The selected physical SDL controller was not found.")
             device_guid = selected.get("guid") or selected.get("name") or "unknown"
             physical_instance = selected["instance_id"]
             if source.attach_sensor_reader(physical_instance):
                 print("Sony motion/touchpad sensor reader: attached", flush=True)
+
+        browser_server = BrowserProbeServer() if args.browser else None
+        if browser_server:
+            print("Browser Gamepad API probe:", browser_server.start(open_browser=True), flush=True)
+            print("Press a controller button once in the browser page to activate it; waiting up to 10 seconds.", flush=True)
+            browser_deadline = time.monotonic() + 10.0
+            while not browser_server.snapshot().get("devices") and time.monotonic() < browser_deadline:
+                time.sleep(0.25)
 
         results = []
         try:
