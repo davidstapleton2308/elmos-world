@@ -22,22 +22,34 @@ internal static class Program
 
     private static void CheckInputLeases(object? _)
     {
-        lock (DeviceLock)
+        // An unhandled ThreadPool timer exception can terminate the entire bridge.
+        // Contain failures so an unrelated virtual device can still be cleaned up.
+        try
         {
-            foreach (var entry in LastInputTick.ToArray())
+            lock (DeviceLock)
             {
-                if (Stopwatch.GetElapsedTime(entry.Value) < InputTimeout) continue;
-                LastInputTick.Remove(entry.Key);
-                if (!Controllers.Remove(entry.Key, out var device)) continue;
-                try { device.Dispose(); }
-                catch (Exception ex)
+                foreach (var entry in LastInputTick.ToArray())
                 {
-                    Emit(new { event_name = "watchdog_error", slot = entry.Key,
-                        error = ex.GetType().Name, message = ex.Message });
+                    if (Stopwatch.GetElapsedTime(entry.Value) < InputTimeout) continue;
+                    LastInputTick.Remove(entry.Key);
+                    if (!Controllers.Remove(entry.Key, out var device)) continue;
+                    try { device.Dispose(); }
+                    catch (Exception ex)
+                    {
+                        Emit(new { event_name = "watchdog_error", slot = entry.Key,
+                            error = ex.GetType().Name, message = ex.Message });
+                    }
+                    Emit(new { event_name = "watchdog_expired", slot = entry.Key,
+                        timeout_ms = (int)InputTimeout.TotalMilliseconds });
                 }
-                Emit(new { event_name = "watchdog_expired", slot = entry.Key,
-                    timeout_ms = (int)InputTimeout.TotalMilliseconds });
             }
+        }
+        catch (Exception ex)
+        {
+            // Avoid letting diagnostic output failure escape the timer callback too.
+            try { Emit(new { event_name = "watchdog_error", error = ex.GetType().Name,
+                message = ex.Message }); }
+            catch { /* The bridge may be shutting down or stdout may be closed. */ }
         }
     }
 
