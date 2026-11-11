@@ -35,6 +35,14 @@ def profile_from_dict(value: dict[str, Any]) -> MappingProfile:
         right_stick=StickTuning(**_only_known(StickTuning, right)) if isinstance(right, dict) else StickTuning(),
         trigger_deadzone=float(value.get("trigger_deadzone", 0.02)),
         trigger_exponent=float(value.get("trigger_exponent", 1.0)),
+        trigger_key_threshold=float(value.get("trigger_key_threshold", 0.55)),
+        keyboard_map=dict(value.get("keyboard_map", {})) if isinstance(value.get("keyboard_map"), dict) else {},
+        trigger_keyboard_map=dict(value.get("trigger_keyboard_map", {})) if isinstance(value.get("trigger_keyboard_map"), dict) else {},
+        mouse_map=dict(value.get("mouse_map", {})) if isinstance(value.get("mouse_map"), dict) else {},
+        left_stick_as_wasd=bool(value.get("left_stick_as_wasd", False)),
+        right_stick_mouse=bool(value.get("right_stick_mouse", False)),
+        mouse_sensitivity=float(value.get("mouse_sensitivity", 14.0)),
+        mouse_deadzone=float(value.get("mouse_deadzone", 0.15)),
         layer=layer,
     )
 
