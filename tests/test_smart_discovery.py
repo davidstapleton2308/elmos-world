@@ -113,6 +113,9 @@ class DiscoveryFixtureTests(unittest.TestCase):
 
     def test_verified_move_preserves_file_and_folder(self):
         folder=self.unity('Outer Wilds','OuterWilds')
+        old_time=time.time()-300
+        for path in [folder,*folder.iterdir()]:
+            os.utime(path,(old_time,old_time))
         result=self.look(folder)
         moved=move_verified(result,self.downloads,self.games,self.emulators,min_age=0)
         self.assertFalse(folder.exists())

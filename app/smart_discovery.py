@@ -131,7 +131,7 @@ def _identity(title, exe):
     b = re.sub(r'(?:\s+(?:win64|win32|shipping|binaries|x64|x86))+$', '', b).strip() or b
     if not a or not b:
         return 0.0
-    if a == b:
+    if a == b or a.replace(' ', '') == b.replace(' ', ''):
         return 1.0
     known = KNOWN_EXES.get(a)
     if known and known.casefold() == exe.name.casefold():
