@@ -304,7 +304,7 @@ internal static class Program
         Directory.CreateDirectory(folder);
         var reportPath = Path.Combine(folder, "profile-sweep-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss") + ".json");
         File.WriteAllText(reportPath, JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
-        return new { total = candidates.Length, passed, failed, reportPath, results };
+        return new { total = candidates.Length, passed, failed, reportPath };
     }
 
     private static object Execute(JsonElement root)
