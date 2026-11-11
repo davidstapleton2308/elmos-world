@@ -53,6 +53,9 @@ class DiscoveryFixtureTests(unittest.TestCase):
 
     def test_valid_unity_folder_is_ready(self):
         folder=self.unity('Outer.Wilds.SteamRIP.com','OuterWilds')
+        old_time=time.time()-300
+        for path in [folder,*folder.rglob('*')]:
+            os.utime(path,(old_time,old_time))
         result=self.look(folder)
         self.assertEqual(result['kind'],'game')
         self.assertEqual(result['action'],'ready')
