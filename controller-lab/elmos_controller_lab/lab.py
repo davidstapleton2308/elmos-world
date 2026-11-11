@@ -8,6 +8,7 @@ import sys
 import time
 
 from .bridge import BridgeClient, BridgeError
+from .api_probe import run_probe
 from .mapping import Mapper, MappingProfile
 from .model import ControllerState, neutral_state
 from .sdl_source import SDLInputSource
@@ -43,6 +44,18 @@ def command_profiles(args):
                     and "mouse" not in str(p.get("type", "")).casefold()]
     print_json({"driverInstalled": result.get("driverInstalled"), "count": len(profiles), "profiles": profiles})
 
+
+
+
+def command_probe(args):
+    target = None
+    if args.profile:
+        with BridgeClient(args.bridge) as bridge:
+            profiles = bridge.request("profiles").get("profiles", [])
+        target = next((p for p in profiles if p.get("id") == args.profile), None)
+        if target is None:
+            raise BridgeError(f"Unknown virtual profile: {args.profile}")
+    print_json(run_probe(target))
 
 
 def command_sweep(args):
@@ -146,6 +159,9 @@ def build_parser():
     profiles.add_argument("--search", default="")
     profiles.add_argument("--include-non-gamepads", action="store_true")
     profiles.set_defaults(func=command_profiles)
+    probe = sub.add_parser("probe", help="Check what Windows currently exposes through XInput, SDL and optional HIDAPI")
+    probe.add_argument("--profile", default="", help="Compare visibility with one virtual profile's VID/PID and XInput expectation")
+    probe.set_defaults(func=command_probe)
     install = sub.add_parser("install-driver", help="Explicitly install the Windows virtual-device driver")
     install.set_defaults(func=command_install)
     sweep = sub.add_parser("sweep", help="Create, submit a test state to, and remove each supported virtual profile")
