@@ -98,6 +98,23 @@ catalog smoke test.
 .\scripts\Run-ControllerLab.ps1 status
 ~~~
 
+## Run the virtual profile regression sweep
+
+After the explicit driver setup, run this elevated command:
+
+~~~powershell
+.\scripts\Run-ControllerLab-Elevated.ps1 sweep
+~~~
+
+The bridge creates each deployable non-keyboard/non-mouse profile that does not
+require the separate composite USB/IP transport, submits a representative
+button/axis/d-pad state, and disposes the virtual device before moving on.
+It reports per-profile pass/fail progress and saves the complete JSON report
+under LocalAppData/ElmosControllerLab/reports. This validates the profile's
+create, state-submit and cleanup path; it does not yet prove that every game
+API or every game recognizes each device. API enumeration is the next test layer.
+
+
 ## Install the virtual-device driver
 
 Only when ready to create actual Windows virtual controllers:
