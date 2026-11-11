@@ -11,6 +11,7 @@ dependencies = ["pygame-ce>=2.5.8,<3"]
 
 [project.optional-dependencies]
 test = ["pytest>=8,<10"]
+sensors = ["hidapi>=0.14,<1"]
 
 [project.scripts]
 elmos-controller-lab = "elmos_controller_lab.lab:main"
