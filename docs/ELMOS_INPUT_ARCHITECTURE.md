@@ -7,6 +7,7 @@ implementation of Valve's proprietary Steam Input or a copy of Valve code.
 
 - DualShock 4 input from USB/Bluetooth using the existing SDL/pygame-ce reader.
 - Native input is the safe default; games continue to see the physical device.
+- Per-game Cross/Circle/Square/Triangle button remapping, saved with the profile.
 - Per-game opt-in Virtual Xbox 360 mode through Python vgamepad and an existing,
   separately installed compatible ViGEmBus Windows driver.
 - Xbox face buttons, shoulders, D-pad, thumb presses, analog sticks, L2/R2.
