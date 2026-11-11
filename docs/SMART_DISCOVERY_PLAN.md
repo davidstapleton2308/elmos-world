@@ -103,3 +103,12 @@ Reference points:
    each minute; preserve responsiveness while gaming.
 
 An accurate organizer must be willing to say **I don't know**.
+
+## Source-manifest identity (additional evidence)
+
+Read bounded, local, read-only GOG game info JSON, Steam ACF name fields, and
+Epic .egstore item metadata when present. For a folder named "a2f83b19",
+a GOG manifest declaring "Outer Wilds" can recover the actual name.
+Contradictory metadata produces a review outcome, never a forced match.
+Manifest metadata can be fabricated, so an engine/game binary and sufficiently
+strong structural evidence are still required before organizing.

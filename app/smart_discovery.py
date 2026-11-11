@@ -264,6 +264,17 @@ def inspect_folder(folder, *, min_age=120, now=None):
     elif re.fullmatch(r'(?:downloads?|new folder|folder)\s*\d*', folder.name, re.I):
         title = display_title(inferred)
 
+    # Product names from validated, bounded text manifests outrank release
+    # folder labels. A conflicting claim is always a manual-review case.
+    from game_metadata import inspect_manifest_names
+    meta = inspect_manifest_names(folder, files)
+    if meta['conflict']:
+        return _result(folder, 'game', 45,
+                       'Conflicting GOG/Steam/Epic game identity manifests; manual review required',
+                       title)
+    if meta['title']:
+        title = display_title(meta['title'])
+
     opts = candidates(folder, title)
     if not opts:
         return _result(folder, 'other', 20, 'No executable passed safe game candidate checks')
@@ -292,6 +303,8 @@ def inspect_folder(folder, *, min_age=120, now=None):
     if installers and not structural:
         score = min(score, 45)
         reason += '; installer found without game structure'
+    if meta['title']:
+        reason += '; canonical title declared by '+meta['source']
     if not stable:
         reason += '; files are recent or download is incomplete'
     return _result(folder, 'game', score, reason, title, exe, stable=stable)

@@ -16,7 +16,7 @@ binaries = []
 hiddenimports = [
     'server', 'update_center', 'backend', 'game_media', 'game_descriptions', 'game_discovery',
     'game_uninstall', 'geforce_library', 'steam_core', 'provider_adapters',
-    'controller_input', 'native_game_menu', 'smart_discovery', 'tkinter', 'tkinter.filedialog',
+    'controller_input', 'native_game_menu', 'smart_discovery', 'game_metadata', 'tkinter', 'tkinter.filedialog',
     'webview.platforms.winforms', 'webview.platforms.edgechromium',
     'pygame._sdl2.controller', 'clr',
 ]
