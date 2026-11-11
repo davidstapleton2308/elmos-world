@@ -60,6 +60,7 @@ count, not a claim that every profile has passed real-hardware or game testing.
 - A synthetic demo source so output profiles can be exercised without a physical pad.
 - Offline Python regression tests for the mapping layer and persistent per-device/per-game profiles.
 - A read-only API visibility probe for XInput, SDL and optional HIDAPI.
+- Optional raw HID sensor capture and tested report parsers for DualShock 4 and DualSense USB/Bluetooth IMU, touchpad and battery data.
 - An automated cross-controller matrix that compares API visibility before and
   after virtual-device creation and checks for device leaks after teardown.
 
@@ -80,7 +81,7 @@ the runtime. Do not remove those notices when redistributing a build.
 ## Requirements
 
 - Windows 10/11 x64 for the first hardware-output target.
-- Python 3.10+ and pygame-ce.
+- Python 3.10+, pygame-ce and hidapi (for Sony raw motion/touchpad capture).
 - .NET 10 SDK for building the bridge.
 - Administrator approval for installing the virtual-device driver and creating
   virtual Windows HID devices.
@@ -187,11 +188,12 @@ fallback layout; that fallback is not a claim of correct button identity.
 
 ## Known limitations — deliberately not hidden
 
-- The first physical-input adapter is SDL. Vendor-specific HID reports, gyro,
-  touchpad and battery capture are represented in the canonical model but are
-  not yet populated by the generic SDL reader. The read-only probe currently
-  checks SDL visibility, XInput slots and optional HIDAPI; WGI, GameInput and
-  browser Gamepad probes remain future work.
+- SDL supplies standardized buttons, sticks, triggers and d-pad input.
+  The optional HIDAPI reader currently adds raw IMU, touchpad and battery data
+  for supported DualShock 4 and DualSense USB/Bluetooth report layouts. Other
+  vendors' motion protocols still need dedicated adapters.
+- The read-only probe currently checks SDL visibility, XInput slots and HIDAPI;
+  WGI, GameInput and browser Gamepad probes remain future work.
 - The bridge can submit standard buttons, axes, triggers, d-pad, motion and
   touch contacts to profiles. Exact raw Sony motion calibration and vendor
   feature reports still need dedicated physical-device adapters.
