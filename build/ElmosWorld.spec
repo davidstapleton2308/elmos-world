@@ -35,7 +35,7 @@ analysis = Analysis(
     datas=datas,
     hiddenimports=sorted(set(hiddenimports)),
     hookspath=[],
-    runtime_hooks=[],
+    runtime_hooks=[str(ROOT / 'build' / 'pyi_stdio.py')],
     excludes=[],
     noarchive=False,
 )
@@ -46,8 +46,7 @@ exe = EXE(
     name='ElmosWorld',
     icon=str(APP / 'elmos_world.ico'),
     version=str(ROOT / 'build' / 'version_file.txt'),
-    console=True,
-    hide_console='hide-early',
+    console=False,
     upx=False,
 )
 coll = COLLECT(

@@ -77,11 +77,18 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'PyInstaller failed.' }
           if (!(Test-Path dist/ElmosWorld/ElmosWorld.exe)) { throw 'Standalone executable missing.' }
 
-      - name: Smoke-test standalone executable
+      - name: Verify executable is a genuine GUI application
         shell: pwsh
         run: |
-          & .\dist\ElmosWorld\ElmosWorld.exe --self-test
-          if ($LASTEXITCODE -ne 0) { throw 'Bundled executable smoke-test failed.' }
+          python build/verify_windows_gui.py dist/ElmosWorld/ElmosWorld.exe
+          if ($LASTEXITCODE -ne 0) { throw 'Windows GUI subsystem verification failed.' }
+
+      - name: Smoke-test standalone GUI executable
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path 'dist/ElmosWorld/ElmosWorld.exe').Path
+          $selfTest = Start-Process -FilePath $exe -ArgumentList '--self-test' -Wait -PassThru
+          if ($selfTest.ExitCode -ne 0) { throw "Bundled GUI executable smoke-test failed with exit code $($selfTest.ExitCode)." }
 
       - name: Preserve executable test diagnostic log
         if: failure()
