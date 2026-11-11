@@ -1,0 +1,16 @@
+ELMOS WORLD 3.1.1 — UPDATE CENTER
+
+New: Settings > Elmos World Update Center.
+- Check latest version from your configured public GitHub repository.
+- Read release notes and choose Update & Restart.
+- Download versioned Setup.exe and verify its SHA-256 checksum.
+- Block updating when a game session is active.
+- Create a local settings backup before installation.
+- Close Elmos World, install over the existing application, and relaunch.
+- GitHub Actions builds Windows Setup and publishes versioned tagged releases.
+
+Existing launch, controller, game library, and artwork systems are preserved.
+
+FIRST INSTALL: v3.1.1 still needs an initial Windows build/install and a GitHub repository.
+AUTOMATIC UPDATE: expected to work for future releases once v3.1.1 is installed and configured.
+LIMITATIONS: Unsigned executables; no automatic rollback. Windows end-to-end validation pending.

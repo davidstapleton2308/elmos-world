@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+ <defs><pattern id="weave" width="32" height="32" patternUnits="userSpaceOnUse">
+  <path d="M-16 16 L16 -16 M0 32 L32 0 M16 48 L48 16" stroke="#CBD9D2" stroke-opacity=".13" stroke-width=".5"/>
+  <path d="M-16 16 L16 48 M0 0 L32 32 M16 -16 L48 16" stroke="#6C8B7B" stroke-opacity=".19" stroke-width=".55"/>
+  <path d="M16 16 L16.3 16.3" stroke="#FFE5CB" stroke-opacity=".29" stroke-width=".9" stroke-linecap="round"/>
+ </pattern></defs>
+ <rect width="128" height="128" fill="url(#weave)"/>
+</svg>

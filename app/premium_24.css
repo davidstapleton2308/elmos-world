@@ -1,0 +1,202 @@
+/* Elmos World v2.4 — Poster Geometry & Game Detail Material Pass
+   This overrides only the front-end: game launching, timing and controller code
+   are deliberately unchanged. */
+:root{
+  /* The deck size is constrained by available *height*, not just screen width.
+     The highlighted card increases its physical layout width (not a transform),
+     so no top edge is ever magnified beyond a clipping viewport. */
+  --deck-width:clamp(128px, min(13.2vw, calc((50dvh - 88px)*.60)), 218px);
+}
+#libraryView #gameCards.cards[data-layout="deck"] {
+  overflow-x:auto!important;
+  overflow-y:hidden!important;
+  padding-top:10px!important;
+  padding-bottom:8px!important;
+  align-items:center!important;
+  scroll-snap-type:x mandatory!important;
+  scroll-padding-inline:50%!important;
+}
+#libraryView #gameCards.cards[data-layout="deck"] .game-card {
+  flex:0 0 var(--deck-width)!important;
+  height:calc(100% - 10px)!important;
+  transform:scale(.936)!important;
+  transform-origin:center center!important;
+  justify-content:center!important;
+}
+#libraryView #gameCards.cards[data-layout="deck"] .game-card.selected,
+#libraryView #gameCards.cards[data-layout="deck"] .game-card:focus-visible,
+#libraryView #gameCards.cards[data-layout="deck"] .game-card.selected:focus {
+  flex-basis:calc(var(--deck-width) * 1.12)!important;
+  transform:none!important;
+  opacity:1!important;
+  filter:none!important;
+  outline:0!important;
+  border:0!important;
+  box-shadow:none!important;
+  z-index:5!important;
+}
+#libraryView #gameCards.cards[data-layout="deck"] .game-card .poster {
+  width:100%!important;
+  height:auto!important;
+  flex:0 1 auto!important;
+  aspect-ratio:2 / 3!important;
+  max-height:calc(100% - 39px)!important;
+  border-radius:13px!important;
+  overflow:hidden!important;
+}
+#libraryView #gameCards.cards[data-layout="deck"] .game-card .poster img,
+#libraryView #gameCards.cards[data-layout="deck"] .game-card .poster img.cover-image {
+  width:100%!important;height:100%!important;
+  object-fit:contain!important;
+  object-position:center center!important;
+  display:block!important;
+}
+#libraryView #gameCards.cards[data-layout="deck"] .game-card.selected .poster,
+#libraryView #gameCards.cards[data-layout="deck"] .game-card:focus-visible .poster {
+  border:1px solid rgba(234,222,206,.42)!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.22),
+    0 0 0 1px rgba(198,199,192,.17),0 16px 42px rgba(0,0,0,.64),
+    0 26px 48px rgba(var(--ember-rgb),.11)!important;
+}
+/* Keep non-selected cards at their existing dimness — intentionally unchanged. */
+#libraryView #gameCards.cards[data-layout="deck"] .game-card:not(.selected):not(:focus-visible) {
+  opacity:.48!important;
+  filter:brightness(.76) saturate(.73)!important;
+}
+/* Cohesive obsidian game page; texture belongs to dark surfaces, not artwork. */
+#detailView {
+  background:#090e10!important;
+  background-image:radial-gradient(ellipse 60% 30% at 70% 0%,rgba(112,71,47,.075),transparent 78%),
+     linear-gradient(180deg,#0b1114,#080c0e 65%,#080c0e)!important;
+}
+#detailView .detail-hero {
+  min-height:clamp(340px,46dvh,520px)!important;
+  background-size:cover!important;
+  background-position:center 43%!important;
+  background-repeat:no-repeat!important;
+  background-color:#182324!important;
+  border:0!important;
+  isolation:isolate!important;
+}
+#detailView .detail-hero::before {
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(90deg,rgba(5,10,12,.88) 0%,rgba(5,10,12,.72) 30%,rgba(5,10,12,.28) 70%,rgba(5,10,12,.09)),
+             linear-gradient(0deg,#090e10 0%,rgba(9,14,16,.20) 30%,transparent 78%)!important;
+}
+#detailView .detail-overlay {
+  background:linear-gradient(0deg,#090e10 0%,rgba(9,14,16,.08) 35%,transparent 75%)!important;
+}
+#detailView .detail-content {
+  min-height:clamp(340px,46dvh,520px)!important;
+  padding:clamp(26px,3.6vw,65px) clamp(28px,5vw,95px) clamp(33px,5vh,56px)!important;
+}
+#detailView .detail-content h1 {
+  max-width:920px!important;
+  font-size:clamp(44px,5.2vw,82px)!important;
+  color:#F4F7F5!important;
+  text-shadow:0 8px 36px rgba(0,0,0,.45)!important;
+  letter-spacing:-.06em!important;
+}
+#detailView .detail-description {
+  max-width:min(700px,68vw)!important;
+  color:#D9E6DF!important;
+  font-size:clamp(14px,1.1vw,17px)!important;
+  line-height:1.65!important;
+  text-shadow:0 2px 12px rgba(0,0,0,.65)!important;
+  margin-top:9px!important;
+}
+#detailView .detail-platform {color:#A9DDBB!important;letter-spacing:.23em!important}
+#detailView .detail-bottom {
+  position:relative;z-index:1;
+  padding:24px clamp(28px,5vw,90px) 72px!important;
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) minmax(270px,330px)!important;
+  gap:clamp(20px,3vw,46px)!important;
+  border:0!important;
+  background:linear-gradient(180deg,rgba(16,24,26,.97),rgba(9,14,16,.99))!important;
+  box-shadow:0 -20px 65px rgba(0,0,0,.1)!important;
+  isolation:isolate!important;
+}
+#detailView .detail-bottom::before {
+  content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
+  background-image:url('/graphite_weave.svg');
+  background-repeat:repeat;background-size:150px 150px;
+  opacity:.23;
+}
+#detailView .detail-main {
+  position:relative;min-width:0;
+  border:1px solid rgba(229,238,230,.09)!important;
+  border-radius:22px!important;
+  background:linear-gradient(135deg,rgba(34,46,45,.48),rgba(14,21,23,.50))!important;
+  padding:clamp(23px,2.8vw,40px)!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.045),0 14px 42px rgba(0,0,0,.12)!important;
+}
+#detailView .detail-main .overline {
+  font-size:11px!important;letter-spacing:.21em!important;color:#E1B58F!important;
+}
+#detailView .about-body {
+  color:#E1E9E3!important;
+  font-size:clamp(15px,1.2vw,18px)!important;
+  line-height:1.82!important;
+  max-width:75ch!important;
+  margin:22px 0 26px!important;
+  text-wrap:pretty!important;
+}
+#detailView .detail-info {display:flex!important;flex-wrap:wrap!important;gap:12px!important}
+#detailView .detail-info span {
+  border:1px solid rgba(212,227,216,.1)!important;
+  border-radius:10px!important;
+  background:rgba(255,255,255,.035)!important;
+  padding:13px 17px!important;
+  font-size:11px!important;
+  line-height:1.9!important;
+  letter-spacing:.08em!important;
+  color:#9DACAA!important;
+}
+#detailView .detail-info span b {color:#E7F0E9!important;font-size:12px!important;letter-spacing:0!important}
+#detailView .screenshots {margin-top:28px!important}
+#detailView .screenshots:empty {display:none!important}
+#detailView .detail-aside {
+  min-width:0!important;
+  border-left:1px solid rgba(223,231,223,.1)!important;
+  padding-left:clamp(16px,2vw,28px)!important;
+  overflow-wrap:anywhere!important;
+}
+#detailView .launch-profile-control {
+  margin:14px 0!important;
+  border-radius:17px!important;
+  background:linear-gradient(145deg,rgba(37,50,48,.76),rgba(16,24,25,.84))!important;
+  border:1px solid rgba(231,233,225,.12)!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.05)!important;
+}
+#detailView .launch-profile-control label {color:#E9EFE9!important}
+#detailView .launch-profile-control select {
+  color:#EBF3EA!important;
+  background:#182424!important;
+  border-color:rgba(214,235,221,.23)!important;
+}
+#detailView .detail-aside .overline {color:#D0AA87!important}
+#detailView .aside-action {border-color:rgba(222,231,220,.12)!important;
+   background:linear-gradient(125deg,#202c2b,#151e20)!important;color:#D8E6DA!important}
+#detailView .aside-action:hover {border-color:rgba(235,211,186,.32)!important}
+#detailView .back-btn {background:rgba(13,19,21,.78)!important;border-color:rgba(231,239,229,.17)!important}
+@media(max-width:1050px){
+  #detailView .detail-bottom{grid-template-columns:1fr!important}
+  #detailView .detail-aside{border:0!important;border-top:1px solid rgba(223,231,223,.12)!important;
+    padding:24px 0 0!important}
+}
+@media(max-width:700px){
+  #detailView .detail-hero,#detailView .detail-content{min-height:400px!important}
+  #detailView .detail-description{max-width:90vw!important}
+  #detailView .detail-bottom{padding:18px 18px 50px!important}
+  #detailView .detail-main{padding:20px!important}
+}
+@media(prefers-reduced-motion:reduce){
+  #libraryView #gameCards.cards[data-layout="deck"] .game-card{transition:none!important}
+}
+/* Give the physically larger selected poster enough vertical space for its 2:3 art,
+   without scaling the card beyond the scrolling viewport. */
+#libraryView>.library-pad {
+  flex:0 0 clamp(338px,54dvh,506px)!important;
+  height:clamp(338px,54dvh,506px)!important;
+}

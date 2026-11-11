@@ -1,0 +1,7 @@
+# Dependencies for compiling the standalone Windows executable.
+# Windows 10/11 x64; supported build runtimes: CPython 3.11, 3.12, or 3.13.
+pyinstaller>=6.10,<7
+pywebview>=5.4,<7
+pygame-ce>=2.5,<3
+pythonnet>=3.0,<4
+Pillow>=11,<13

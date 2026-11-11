@@ -1,0 +1,23 @@
+ELMOS WORLD 3.1.1 - WINDOWS SOFT LAUNCH CHECKLIST
+================================================
+
+[ ] Build_Release.bat finishes and generates Setup.exe
+[ ] Setup.exe installs without administrative prompt
+[ ] Start menu and desktop shortcuts launch standalone ElmosWorld.exe
+[ ] No Python, terminal, or PowerShell window appears during normal use
+[ ] Only one instance stays open when Elmos World is launched twice
+[ ] Original game library, artwork, favorites, Xenia emulator, and settings remain
+[ ] Use PS4 controller left stick/D-pad to move through the carousel
+[ ] Right stick scrolls long Settings and Configure menus
+[ ] SSX starts with the original 5-second timing and game fullscreen handoff
+[ ] PC game starts; PS opens native in-game menu over supported windowed/borderless games
+[ ] Resume, Return Home and Close Game work from the native PS menu
+[ ] GeForce NOW tab lists previously imported shortcuts
+[ ] Screenshot strip, gallery viewer and imported captures remain available
+[ ] Close Elmos World; open installer again to check upgrade behavior
+[ ] Optional: uninstall Elmos World from Windows Apps, verify game files and
+    %LOCALAPPDATA%\SteamMatch user data are not erased
+[ ] If the launcher crashes, inspect %LOCALAPPDATA%\ElmosWorld\logs\launcher.log
+
+The installed executable has NOT been runtime-tested on the user's Windows PC
+by the packaging environment. That is the remaining acceptance requirement.

@@ -1,0 +1,11 @@
+{
+  "product": "Elmos World",
+  "version": "3.1.1",
+  "release_type": "update-center",
+  "installer_name": "ElmosWorld_Setup_3.1.1.exe",
+  "compiled_executable_included": false,
+  "repo_config_required": false,
+  "update_flow": "latest release -> SHA-256 verify -> settings backup -> detached helper -> silent Inno installer -> restart",
+  "note": "Installer built with Windows or GitHub Actions, not included in source ZIP",
+  "default_repository": "davidstapleton2308/elmos-world"
+}
