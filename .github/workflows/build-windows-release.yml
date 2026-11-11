@@ -1,20 +1,22 @@
-name: Build Elmos World Windows Setup
+name: Build and Release Elmos World
 
 on:
-  workflow_dispatch:
   push:
     branches:
       - main
-    tags:
-      - "v*"
+  workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: elmos-world-public-release
+  cancel-in-progress: false
+
 jobs:
   windows-installer:
     runs-on: windows-2022
-    timeout-minutes: 35
+    timeout-minutes: 40
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
@@ -25,92 +27,130 @@ jobs:
           python-version: "3.12"
           architecture: x64
 
+      - name: Determine next patch version and prepare release sources
+        id: release_version
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $json = gh release list --repo "${{ github.repository }}" --limit 100 --json tagName
+          if ($LASTEXITCODE -ne 0) { throw 'Could not list GitHub releases.' }
+          $all = @(ConvertFrom-Json -InputObject $json)
+          $versions = @(
+            $all | ForEach-Object {
+              if ($_.tagName -match '^v(\d+)\.(\d+)\.(\d+)$') {
+                [version]($_.tagName.Substring(1))
+              }
+            }
+          )
+          if ($versions.Count -gt 0) {
+            $last = $versions | Sort-Object -Descending | Select-Object -First 1
+            $next = "$($last.Major).$($last.Minor).$($last.Build + 1)"
+          } else {
+            $baseline = (Get-Content release_manifest.json -Raw | ConvertFrom-Json).version
+            $next = $baseline
+          }
+          "version=$next" >> $env:GITHUB_OUTPUT
+          Write-Host "Building Elmos World version $next"
+          python build/prepare_version.py "$next"
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to prepare release version.' }
+
+      - name: Validate source and release assets
+        shell: pwsh
+        run: |
+          python -m compileall -q app build/prepare_version.py
+          if ($LASTEXITCODE -ne 0) { throw 'Python compilation failed.' }
+          python -m unittest discover -s tests -p 'test_*.py'
+          if ($LASTEXITCODE -ne 0) { throw 'Project tests failed.' }
+
       - name: Install Windows build dependencies
         shell: pwsh
         run: |
           python -m pip install --disable-pip-version-check -r build/requirements-windows.txt
+          if ($LASTEXITCODE -ne 0) { throw 'Dependencies installation failed.' }
 
-      - name: Compile the desktop application
+      - name: Compile desktop application
         shell: pwsh
         run: |
           python -m PyInstaller --noconfirm --clean --distpath dist --workpath build/work build/ElmosWorld.spec
           if ($LASTEXITCODE -ne 0) { throw 'PyInstaller failed.' }
-          if (!(Test-Path dist/ElmosWorld/ElmosWorld.exe)) { throw 'Missing standalone executable.' }
+          if (!(Test-Path dist/ElmosWorld/ElmosWorld.exe)) { throw 'Standalone executable missing.' }
 
-      - name: Smoke-test bundled resources and dependencies
+      - name: Smoke-test standalone executable
         shell: pwsh
         run: |
           & .\dist\ElmosWorld\ElmosWorld.exe --self-test
-          if ($LASTEXITCODE -ne 0) { throw 'Standalone executable smoke test failed.' }
+          if ($LASTEXITCODE -ne 0) { throw 'Bundled executable smoke-test failed.' }
 
-      - name: Preserve standalone smoke-test diagnostics
+      - name: Preserve executable test diagnostic log
         if: failure()
         shell: pwsh
         run: |
-          $log = Join-Path $env:LOCALAPPDATA 'ElmosWorld/logs/launcher.log'
           New-Item -ItemType Directory -Path diagnostics -Force | Out-Null
+          $log = Join-Path $env:LOCALAPPDATA 'ElmosWorld/logs/launcher.log'
           if (Test-Path $log) {
-            Copy-Item $log diagnostics/launcher.log -Force
+            Copy-Item $log diagnostics/launcher.log
           } else {
-            Set-Content diagnostics/launcher.log 'The standalone self-test failed without creating its expected diagnostic log.'
+            Set-Content diagnostics/launcher.log 'No application diagnostic log found.'
           }
 
-      - name: Upload smoke-test diagnostics
+      - name: Upload diagnostic log on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: ElmosWorld-SmokeTest-Diagnostics
+          name: ElmosWorld-Diagnostics
           path: diagnostics/launcher.log
           if-no-files-found: warn
-          retention-days: 7
 
-      - name: Install Inno Setup compiler
+      - name: Install Inno Setup
         shell: pwsh
         run: |
           choco install innosetup -y --no-progress
           if ($LASTEXITCODE -ne 0) { throw 'Inno Setup installation failed.' }
 
-      - name: Compile Windows setup installer
+      - name: Compile Windows installer
         shell: pwsh
+        env:
+          VERSION: ${{ steps.release_version.outputs.version }}
         run: |
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
-          if (!(Test-Path $iscc)) { throw 'ISCC.exe not found.' }
+          if (!(Test-Path $iscc)) { throw 'Inno Setup compiler missing.' }
           & $iscc build\ElmosWorld.iss
-          if ($LASTEXITCODE -ne 0) { throw 'Installer compiler failed.' }
-          if (!(Test-Path dist_setup\ElmosWorld_Setup_3.1.1.exe)) { throw 'Setup artifact missing.' }
+          if ($LASTEXITCODE -ne 0) { throw 'Installer compilation failed.' }
+          $setup = "dist_setup/ElmosWorld_Setup_$env:VERSION.exe"
+          if (!(Test-Path $setup)) { throw "Installer missing: $setup" }
 
-      - name: Archive standalone portable application
+      - name: Package portable build and SHA-256 checksum
         shell: pwsh
+        env:
+          VERSION: ${{ steps.release_version.outputs.version }}
         run: |
-          Compress-Archive -Path 'dist/ElmosWorld/*' -DestinationPath 'dist_setup/ElmosWorld_Portable_3.1.1.zip' -Force
+          $setup = "dist_setup/ElmosWorld_Setup_$env:VERSION.exe"
+          $checksum = "$setup.sha256"
+          $sha = (Get-FileHash $setup -Algorithm SHA256).Hash.ToLowerInvariant()
+          Set-Content -Path $checksum -Value "$sha  ElmosWorld_Setup_$env:VERSION.exe" -Encoding ascii
+          Compress-Archive -Path 'dist/ElmosWorld/*' -DestinationPath "dist_setup/ElmosWorld_Portable_$env:VERSION.zip" -Force
+          $subject = git log -1 --format=%s
+          @("Elmos World v$env:VERSION", "", "Changes in this build:", "- $subject", "", "Windows installer, portable ZIP, and SHA-256 checksum are included.", "Run the installer or update through Settings > Update Center.") | Set-Content 'dist_setup/RELEASE_NOTES.md' -Encoding utf8
 
-      - name: Write installer checksum
-        shell: pwsh
-        run: |
-          $file = 'dist_setup/ElmosWorld_Setup_3.1.1.exe'
-          $hash = (Get-FileHash -Path $file -Algorithm SHA256).Hash.ToLowerInvariant()
-          Set-Content -Path "$file.sha256" -Value "$hash  ElmosWorld_Setup_3.1.1.exe" -Encoding ascii
-
-      - name: Upload Windows builds
+      - name: Upload downloadable build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ElmosWorld-v3.1.1-Windows
-          path: |
-            dist_setup/ElmosWorld_Setup_3.1.1.exe
-            dist_setup/ElmosWorld_Setup_3.1.1.exe.sha256
-            dist_setup/ElmosWorld_Portable_3.1.1.zip
+          name: ElmosWorld-Windows-Setup
+          path: dist_setup/
           if-no-files-found: error
           retention-days: 30
 
-      - name: Publish GitHub Release with installer and checksum
-        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+      - name: Publish next GitHub release
+        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        shell: pwsh
+          VERSION: ${{ steps.release_version.outputs.version }}
         run: |
-          gh release view v3.1.1 --repo "${{ github.repository }}" *> $null
-          if ($LASTEXITCODE -eq 0) {
-            Write-Host 'Release v3.1.1 already exists; leaving published assets unchanged.'
-            exit 0
-          }
-          gh release create v3.1.1 'dist_setup/ElmosWorld_Setup_3.1.1.exe' 'dist_setup/ElmosWorld_Setup_3.1.1.exe.sha256' 'dist_setup/ElmosWorld_Portable_3.1.1.zip' --target "${{ github.sha }}" --title 'Elmos World 3.1.1' --notes-file 'RELEASE_NOTES.txt' --repo "${{ github.repository }}"
+          $tag = "v$env:VERSION"
+          $setup = "dist_setup/ElmosWorld_Setup_$env:VERSION.exe"
+          $checksum = "$setup.sha256"
+          $portable = "dist_setup/ElmosWorld_Portable_$env:VERSION.zip"
+          gh release create "$tag" "$setup" "$checksum" "$portable" --target "${{ github.sha }}" --title "Elmos World $env:VERSION" --notes-file 'dist_setup/RELEASE_NOTES.md' --repo "${{ github.repository }}"
+          if ($LASTEXITCODE -ne 0) { throw 'GitHub release publication failed.' }
