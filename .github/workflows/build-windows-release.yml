@@ -128,6 +128,30 @@ jobs:
           $setup = "dist_setup/ElmosWorld_Setup_$env:VERSION.exe"
           if (!(Test-Path $setup)) { throw "Installer missing: $setup" }
 
+      - name: Test real installer through detached update worker
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.release_version.outputs.version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $setup = (Resolve-Path "dist_setup/ElmosWorld_Setup_$env:VERSION.exe").Path
+          $worker = (Resolve-Path 'app/apply_update.ps1').Path
+          $log = Join-Path $env:RUNNER_TEMP 'elmos-update-worker.log'
+          $status = Join-Path $env:RUNNER_TEMP 'elmos-update-status.json'
+          $testApp = Join-Path $env:WINDIR 'System32/whoami.exe'
+          # Simulate the race: Elmos World already exited before the worker checks its PID.
+          & powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $worker -Installer $setup -ParentId 2147483600 -AppExe $testApp -LogPath $log -StatusPath $status
+          if ($LASTEXITCODE -ne 0) {
+            if (Test-Path $log) { Get-Content $log }
+            throw 'Detached update worker failed to install the Windows release.'
+          }
+          $outcome = Get-Content -LiteralPath $status -Raw | ConvertFrom-Json
+          if ($outcome.state -ne 'complete') { throw "Update worker did not complete: $($outcome.detail)" }
+          $installedApp = Join-Path $env:LOCALAPPDATA 'Programs/Elmos World/ElmosWorld.exe'
+          if (-not (Test-Path -LiteralPath $installedApp)) { throw "Installer did not install the desktop app: $installedApp" }
+          $check = Start-Process -FilePath $installedApp -ArgumentList '--self-test' -Wait -PassThru
+          if ($check.ExitCode -ne 0) { throw 'Installed application failed its executable self-test.' }
+          Write-Host 'PASS: installer worker installed the update and completed.'
       - name: Package portable build and SHA-256 checksum
         shell: pwsh
         env:

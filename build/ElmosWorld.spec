@@ -6,7 +6,7 @@ from PyInstaller.utils.hooks import collect_all
 ROOT = Path(SPECPATH).resolve().parent
 APP = ROOT / 'app'
 ASSETS = [
-    'index.html', 'app.css', 'app.js', 'brand_emblem.svg', 'graphite_weave.svg',
+    'index.html', 'app.css', 'app.js', 'apply_update.ps1', 'brand_emblem.svg', 'graphite_weave.svg',
     'elmos_world.ico', 'grove.ico', 'premium_23.css', 'premium_24.css',
     'premium_25.css', 'premium_26.css', 'premium_27.css', 'premium_28.css',
     'premium_30.css', 'premium_31.css',

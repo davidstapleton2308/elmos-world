@@ -1077,6 +1077,7 @@ async function checkElmosUpdate(){
  try{const r=await api('/api/update-status');$('updateCurrent').textContent='v'+r.current;
   if(r.repository)$('updateRepository').value=r.repository;
   $('updateStatus').textContent=r.available?('Version '+r.latest+' available. '+r.message):r.message;
+  if(r.lastAttempt?.state==='failed')$('updateStatus').textContent='Previous update failed: '+r.lastAttempt.detail+' — You can install the latest release from GitHub manually.';
   $('updateNotes').textContent=r.available?(r.notes||'No release notes supplied.'):'';
   updateReady=!!r.installable;$('updateInstall').hidden=!updateReady;
  }catch(e){$('updateStatus').textContent=e.message;}

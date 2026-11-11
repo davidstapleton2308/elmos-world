@@ -65,7 +65,7 @@ class Handler(BaseHTTPRequestHandler):
   if u.path=='/api/update-status':
    try:
     info=update_center.latest()
-    return self.result({k:v for k,v in info.items() if not k.startswith('_')})
+    return self.result({**{k:v for k,v in info.items() if not k.startswith('_')}, 'lastAttempt':update_center.last_attempt()})
    except Exception as exc:return self.error(400,str(exc))
   if u.path=='/api/backups':return self.result(engine.backups())
   if u.path=='/api/platforms':return self.result(engine.platform_sources())

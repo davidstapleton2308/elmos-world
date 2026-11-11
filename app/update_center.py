@@ -111,32 +111,49 @@ def prepare():
             raise
 
 
+def last_attempt():
+    """Return last update outcome so the user can see installer errors."""
+    try:
+        data = json.loads((CFG.parent / 'update_last.json').read_text(encoding='utf-8-sig'))
+        if data.get('state') in ('prepared', 'waiting', 'installing', 'complete', 'failed'):
+            return {key: data.get(key, '') for key in ('state', 'detail', 'time')}
+    except (OSError, ValueError, TypeError):
+        pass
+    return None
+
+
 def launch_helper(installer, parent_pid):
-    """Start an independent Windows PowerShell installer worker in the temp folder."""
+    """Start a detached installer worker with persistent logging and recovery."""
     if not getattr(sys, 'frozen', False) or sys.platform != 'win32':
         raise RuntimeError('Automatic installation requires the installed Windows desktop executable.')
-    installer = Path(installer)
-    if not installer.is_file(): raise RuntimeError('Missing verified installer.')
-    # This script lives OUTSIDE the installed application so Windows can replace
-    # ElmosWorld.exe and its DLLs without locking the binaries used by the updater.
+    installer = Path(installer).resolve()
+    if not installer.is_file():
+        raise RuntimeError('Missing verified installer.')
+    resource = Path(__file__).resolve().parent / 'apply_update.ps1'
+    if not resource.is_file():
+        raise RuntimeError('Bundled update helper resource is missing.')
     helper = installer.parent / 'apply_update.ps1'
-    app_exe = str(Path(sys.executable).resolve())
-    # Values are supplied as arguments, never interpolated into PowerShell source.
-    helper.write_text(r'''param([string]$Installer, [int]$ParentId, [string]$AppExe)
-$ErrorActionPreference = 'Stop'
-try {
-  $p = Get-Process -Id $ParentId -ErrorAction Stop
-  if (-not $p.WaitForExit(120000)) { exit 3 }
-} catch [System.ArgumentException] { exit 3 }
-catch [Microsoft.PowerShell.Commands.ProcessCommandException] { exit 3 }
-Start-Sleep -Milliseconds 700
-$log = Join-Path (Split-Path -Parent $Installer) 'installer.log'
-$process = Start-Process -FilePath $Installer -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/CLOSEAPPLICATIONS',('/LOG="' + $log + '"')) -Wait -PassThru
-if ($process.ExitCode -ne 0) { exit $process.ExitCode }
-if (Test-Path -LiteralPath $AppExe) { Start-Process -FilePath $AppExe }
-''', encoding='utf-8')
+    helper.write_bytes(resource.read_bytes())
+    logfile = CFG.parent / 'logs' / 'update.log'
+    statefile = CFG.parent / 'update_last.json'
+    logfile.parent.mkdir(parents=True, exist_ok=True)
+    statefile.write_text(json.dumps({
+        'state': 'prepared',
+        'detail': 'Verified update downloaded. Starting background installer.'
+    }), encoding='utf-8')
     flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
-    subprocess.Popen(['powershell.exe', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
-                      '-File', str(helper), '-Installer', str(installer), '-ParentId', str(parent_pid),
-                      '-AppExe', app_exe], close_fds=True, creationflags=flags,
-                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    worker = subprocess.Popen(
+        ['powershell.exe', '-NoLogo', '-NoProfile', '-NonInteractive',
+         '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', str(helper),
+         '-Installer', str(installer), '-ParentId', str(parent_pid),
+         '-AppExe', str(Path(sys.executable).resolve()),
+         '-LogPath', str(logfile), '-StatusPath', str(statefile)],
+        close_fds=True, creationflags=flags,
+        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    # Verify the worker survived launch before the server exits.
+    import time
+    time.sleep(0.25)
+    if worker.poll() is not None:
+        raise RuntimeError('Update worker immediately exited. See ' + str(logfile))
+    return worker.pid
