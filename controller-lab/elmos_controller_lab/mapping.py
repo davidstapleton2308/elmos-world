@@ -7,6 +7,7 @@ from typing import Any
 
 from .actions import TemporalActionEngine, radial_action_frame
 from .model import AXES, BUTTONS, ControllerState, clamp
+from .mouse_motion import MouseDeltaAccumulator
 
 
 @dataclass
@@ -124,6 +125,7 @@ class Mapper:
         self._current_layer_active = False
         self._last_touchpad: tuple[int, float, float] | None = None
         self._last_timestamp: float | None = None
+        self._gyro_mouse_delta = MouseDeltaAccumulator()
         self.action_engine = TemporalActionEngine()
         self._active_action_bindings: dict[str, dict[str, Any]] = {}
         self._active_chord_map: dict[str, dict[str, Any]] = {}
@@ -281,13 +283,20 @@ class Mapper:
         if abs(gyro_yaw) < gyro_deadzone:
             gyro_yaw = 0.0
         if gyro_mode == "mouse":
-            mouse_dx += int(round(gyro_yaw * dt * gyro_sensitivity))
-            mouse_dy += int(round(-gyro_pitch * dt * gyro_sensitivity))
+            gx, gy = self._gyro_mouse_delta.consume(
+                gyro_yaw * dt * gyro_sensitivity,
+                -gyro_pitch * dt * gyro_sensitivity,
+            )
+            mouse_dx += gx
+            mouse_dy += gy
         elif gyro_mode == "right_stick":
+            self._gyro_mouse_delta.reset()
             gain = gyro_sensitivity / 10.0
             gx = clamp(gyro_yaw / 200.0 * gain, -1.0, 1.0)
             gy = clamp(-gyro_pitch / 200.0 * gain, -1.0, 1.0)
             gamepad.axes["right_x"], gamepad.axes["right_y"] = shape_stick(gx, gy, p.right_stick)
+        else:
+            self._gyro_mouse_delta.reset()
 
         temporal = self.action_engine.process(
             normalized.buttons, self._active_action_bindings,
