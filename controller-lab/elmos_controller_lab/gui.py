@@ -5,6 +5,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 
 from .bridge import BridgeClient, BridgeError
+from .actions import radial_requires
 from .mapping import ActionLayer, Mapper, MappingProfile, StickTuning
 from .model import neutral_state
 from .sdl_source import SDLInputSource
@@ -64,6 +65,12 @@ class ControllerLabApp:
         self.gyro_mode = tk.StringVar(value="off")
         self.gyro_sensitivity = tk.DoubleVar(value=10.0)
         self.gyro_deadzone = tk.DoubleVar(value=0.8)
+        self.radial_enabled = tk.BooleanVar(value=False)
+        self.radial_stick = tk.StringVar(value="right_stick")
+        self.radial_sectors_count = tk.StringVar(value="8")
+        self.radial_deadzone = tk.DoubleVar(value=0.35)
+        self.radial_suppress = tk.BooleanVar(value=True)
+        self.radial_sector_entries = {}
         self.layer_enabled = tk.BooleanVar(value=False)
         self.layer_activator = tk.StringVar(value="left_paddle")
         self.layer_mode = tk.StringVar(value="hold")
@@ -164,6 +171,25 @@ class ControllerLabApp:
                      state="readonly", width=20).grid(row=0, column=1, sticky="w", padx=5)
         self._scale_row(gyro, 1, "Gyro sensitivity", self.gyro_sensitivity, 0.1, 40.0)
         self._scale_row(gyro, 2, "Gyro deadzone (degrees/sec)", self.gyro_deadzone, 0.0, 10.0)
+        radial = ttk.LabelFrame(analog_tab, text="8-way radial menu", padding=10)
+        radial.pack(fill="x", pady=8)
+        ttk.Checkbutton(radial, text="Enable radial menu", variable=self.radial_enabled).grid(row=0, column=0, sticky="w", padx=5)
+        ttk.Label(radial, text="Stick").grid(row=0, column=1, sticky="e", padx=5)
+        ttk.Combobox(radial, textvariable=self.radial_stick, values=["left_stick", "right_stick"],
+                     state="readonly", width=14).grid(row=0, column=2, sticky="w", padx=5)
+        ttk.Label(radial, text="Sectors").grid(row=0, column=3, sticky="e", padx=5)
+        ttk.Combobox(radial, textvariable=self.radial_sectors_count, values=["4", "8"],
+                     state="readonly", width=6).grid(row=0, column=4, sticky="w", padx=5)
+        self._scale_row(radial, 1, "Radial deadzone", self.radial_deadzone, 0.1, 0.9)
+        ttk.Checkbutton(radial, text="Suppress physical stick while radial menu is active",
+                        variable=self.radial_suppress).grid(row=2, column=0, columnspan=3, sticky="w", padx=5, pady=5)
+        directions = ("right", "up_right", "up", "up_left", "left", "down_left", "down", "down_right")
+        for idx, direction in enumerate(directions):
+            row, col = 3 + idx // 2, (idx % 2) * 2
+            ttk.Label(radial, text=direction.replace("_", " ").title()).grid(row=row, column=col, sticky="e", padx=5, pady=3)
+            var = tk.StringVar()
+            self.radial_sector_entries[direction] = var
+            ttk.Entry(radial, textvariable=var, width=24).grid(row=row, column=col + 1, sticky="w", padx=5, pady=3)
 
         layer = ttk.LabelFrame(layer_tab, text="Hold / toggle action layer", padding=12)
         layer.pack(fill="x", pady=6)
@@ -280,6 +306,21 @@ class ControllerLabApp:
 
     def _collect_mapping(self):
         device, target = self._current_key()
+        radial_menus = dict(self.mapping.radial_menus)
+        if self.radial_enabled.get():
+            sectors = {}
+            for direction, variable in self.radial_sector_entries.items():
+                keys = [x.strip() for x in variable.get().split(",") if x.strip()]
+                if keys:
+                    sectors[direction] = {"keyboard": keys}
+            radial_menus[self.radial_stick.get()] = {
+                "sectors_count": int(self.radial_sectors_count.get()),
+                "deadzone": float(self.radial_deadzone.get()),
+                "suppress": bool(self.radial_suppress.get()),
+                "sectors": sectors,
+            }
+        else:
+            radial_menus.pop(self.radial_stick.get(), None)
         mapping = MappingProfile(
             name=f'{device["name"]} → {target.get("name")}',
             button_map={k: v.get() for k, v in self.button_targets.items() if v.get() not in ("default", k)},
@@ -303,6 +344,7 @@ class ControllerLabApp:
             gyro_mode=self.gyro_mode.get(),
             gyro_sensitivity=float(self.gyro_sensitivity.get()),
             gyro_deadzone=float(self.gyro_deadzone.get()),
+            radial_menus=radial_menus,
         )
         if self.layer_enabled.get():
             mapping.layer = ActionLayer(
@@ -324,6 +366,7 @@ class ControllerLabApp:
                 gyro_mode=self.mapping.layer.gyro_mode if self.mapping.layer else None,
                 gyro_sensitivity=self.mapping.layer.gyro_sensitivity if self.mapping.layer else None,
                 gyro_deadzone=self.mapping.layer.gyro_deadzone if self.mapping.layer else None,
+                radial_menus=dict(self.mapping.layer.radial_menus) if self.mapping.layer else {},
             )
         return mapping
 
@@ -362,6 +405,19 @@ class ControllerLabApp:
             self.gyro_mode.set(p.gyro_mode)
             self.gyro_sensitivity.set(p.gyro_sensitivity)
             self.gyro_deadzone.set(p.gyro_deadzone)
+            menu = next(iter(p.radial_menus.items()), None)
+            self.radial_enabled.set(menu is not None)
+            if menu:
+                stick, config = menu
+                self.radial_stick.set(stick)
+                self.radial_sectors_count.set(str(config.get("sectors_count", 8)))
+                self.radial_deadzone.set(config.get("deadzone", 0.35))
+                self.radial_suppress.set(config.get("suppress", True))
+                sectors = config.get("sectors", {})
+            else:
+                sectors = {}
+            for direction, variable in self.radial_sector_entries.items():
+                variable.set(", ".join(sectors.get(direction, {}).get("keyboard", [])))
             self.layer_enabled.set(p.layer is not None)
             for key, var in self.layer_button_targets.items():
                 var.set(p.layer.button_map.get(key, key) if p.layer else key)
@@ -397,12 +453,16 @@ class ControllerLabApp:
             self.bridge.request("create", slot=slot, profile_id=target["id"])
             self.active_slots.append(slot)
             need_keyboard = bool(self.mapping.keyboard_map or self.mapping.trigger_keyboard_map or self.mapping.left_stick_as_wasd or
-                                 (self.mapping.layer and (self.mapping.layer.keyboard_map or self.mapping.layer.left_stick_as_wasd)))
+                                 radial_requires(self.mapping.radial_menus, "keyboard") or
+                                 (self.mapping.layer and (self.mapping.layer.keyboard_map or self.mapping.layer.left_stick_as_wasd or
+                                                          radial_requires(self.mapping.layer.radial_menus, "keyboard"))))
             need_mouse = bool(self.mapping.mouse_map or self.mapping.right_stick_mouse or
                               self.mapping.touchpad_mode == "mouse" or self.mapping.gyro_mode == "mouse" or
+                              radial_requires(self.mapping.radial_menus, "mouse") or
                               (self.mapping.layer and (self.mapping.layer.mouse_map or self.mapping.layer.right_stick_mouse or
                                                        self.mapping.layer.touchpad_mode == "mouse" or
-                                                       self.mapping.layer.gyro_mode == "mouse")))
+                                                       self.mapping.layer.gyro_mode == "mouse" or
+                                                       radial_requires(self.mapping.layer.radial_menus, "mouse"))))
             if need_keyboard:
                 self.bridge.request("create", slot="gui-keyboard", profile_id="microsoft-wired-keyboard-600")
                 self.active_slots.append("gui-keyboard")
