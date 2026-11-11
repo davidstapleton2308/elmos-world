@@ -1091,6 +1091,46 @@ $('updateInstall').onclick=async()=>{if(!updateReady)return;
  catch(e){notify(e.message,true);$('updateStatus').textContent=e.message;}
  b.disabled=false;b.textContent='Update & Restart';
 };
+
+let smartScanBusy=false;
+async function smartRefresh(show=true){
+ if(smartScanBusy)return;
+ smartScanBusy=true;
+ try{
+  if(show)$('smartStatus').textContent='Scanning Downloads safely…';
+  const data=await api('/api/smart-preview');
+  $('smartAuto').checked=!!data.autoEnabled;
+  const icons={game:'🎮',emulator:'🕹️',rom:'💿',archive:'📦',installer:'⚠️'};
+  const rows=(data.items||[]).filter(x=>x.kind!=='other').slice(0,80);
+  $('smartResults').innerHTML=rows.map(x=>'<div class="smart-row"><strong>'+icons[x.kind]+' '+esc(x.title)+'</strong><span>'+esc(x.kind.toUpperCase())+' · '+x.confidence+'/100 · '+esc(x.action.toUpperCase())+'</span><small>'+esc(x.reason)+' — '+esc(x.path)+'</small></div>').join('')||'<p class="muted">No game-related folders or archives in Downloads.</p>';
+  $('smartStatus').textContent=data.counts.ready+' verified folder(s) ready; '+data.counts.review+' need review. Automatic sorting: '+(data.autoEnabled?'ON':'OFF')+'.';
+ }catch(e){$('smartStatus').textContent=e.message;}
+ finally{smartScanBusy=false;}
+}
+$('smartScan').onclick=()=>smartRefresh(true);
+$('smartAuto').onchange=async()=>{
+ const enabled=$('smartAuto').checked;
+ if(enabled&&!confirm('Allow automatic sorting of verified, completed game and emulator folders? Uncertain folders and loose executable files remain untouched.')){$('smartAuto').checked=false;return;}
+ const result=await safe(()=>api('/api/smart-mode',{enabled}));
+ if(!result){$('smartAuto').checked=!enabled;return;}
+ notify(result.autoEnabled?'Safe auto-organization enabled.':'Auto-organization disabled.');
+ smartRefresh(false);
+};
+$('smartOrganize').onclick=async()=>{
+ if(!confirm('Organize only high-confidence, completed game and emulator folders? Existing destination folders will never be overwritten.'))return;
+ const result=await safe(()=>api('/api/smart-organize',{}));
+ if(!result)return;
+ notify(result.message);await reload(true);smartRefresh(true);
+};
+setTimeout(()=>smartRefresh(false),6000);
+setInterval(async()=>{
+ if(!$('smartAuto').checked||smartScanBusy)return;
+ try{
+  const result=await api('/api/smart-auto',{});
+  if(result.moved?.length){notify('Organized '+result.moved.length+' verified new folders.');await reload(true);smartRefresh(false);}
+ }catch(e){console.warn('Smart Discovery:',e.message);}
+},60000);
+
 setTimeout(checkElmosUpdate,2600);
 $('saveSettings').onclick=async()=>{const changes={games_folder:$('gamesRoot').value};if($('artKey').value.trim())changes.api_key=$('artKey').value.trim();const r=await safe(()=>api('/api/settings',changes));if(r){$('artKey').value='';await reload();notify('Settings saved.')}};
 $('resumeLibrary').onclick=resumeTrackedGame;

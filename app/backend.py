@@ -1071,3 +1071,91 @@ class Engine:
  def note(self,gameid,note):
   self.extra.setdefault('notes',{})[gameid]=str(note)[:5000];self.save()
 
+ def smart_preview(self):
+  """Inspect Downloads and installed emulator folders without changing files."""
+  from smart_discovery import scan_downloads, discover_emulators
+  downloads=Path(os.environ.get('USERPROFILE',str(Path.home())))/'Downloads'
+  found=scan_downloads(downloads)
+  installed=discover_emulators(DEFAULT_EMULATORS)
+  return {'downloads':str(downloads),'gamesFolder':str(self.games_root),
+          'emulatorsFolder':str(DEFAULT_EMULATORS),
+          'autoEnabled':bool(self.cfg.get('smart_auto_enabled',False)),
+          'artEnabled':bool(self.cfg.get('api_key','').strip()),
+          'items':found,'installedEmulators':installed,
+          'counts':{'ready':sum(i['action']=='ready' for i in found),
+                    'review':sum(i['action']=='review' for i in found),
+                    'ignored':sum(i['action']=='ignore' for i in found)}}
+
+ def smart_mode(self,enabled):
+  """An explicit opt-in is required before background file moves."""
+  with self.lock:
+   self.cfg['smart_auto_enabled']=bool(enabled)
+   self.save()
+  return {'autoEnabled':bool(enabled)}
+
+ def _smart_register_emulator(self,item):
+  """Register a distinct, known emulator without launching or configuring it."""
+  em=item.get('emulator') or {}
+  if item.get('kind')!='emulator' or item.get('action')!='ready' or not em:return False
+  path=Path(item['exe'])
+  if not path.is_file():return False
+  eid=norm(em.get('name','')).replace(' ','-')
+  if not eid or eid in self.extra['emulators']:return False
+  if any(normpath(x.get('exe',''))==normpath(path) for x in self.extra['emulators'].values()):return False
+  self.extra['emulators'][eid]={'name':em['name'],'platform':em['platform'],'exe':str(path)}
+  self.save()
+  return True
+
+ def _smart_exact_art(self,folder):
+  """Only a unique exact SteamGridDB title may supply artwork."""
+  from game_discovery import words
+  try:
+   key=self.cfg.get('api_key','').strip()
+   if not key:return
+   matches=steamgrid('search/autocomplete/'+urllib.parse.quote(folder.name,safe=''),key)
+   ids={int(x['id']) for x in matches if x.get('id') and
+        words(x.get('name',''))==words(folder.name) and
+        'software' not in x.get('types',[])}
+   if len(ids)!=1:return
+   with self.lock:
+    uid='pc:'+str(folder).casefold()
+    game=self.find(uid)
+    if not game or game['uncertain'] or game.get('localMatch'):return
+    self.set_local_match(uid,next(iter(ids)),folder.name)
+  except Exception as exc:
+   try:
+    with (APP/'smart_discovery_errors.log').open('a',encoding='utf8') as fh:
+     fh.write('Artwork: '+str(exc)[:180]+'\n')
+   except OSError:pass
+
+ def smart_organize(self,manual=False):
+  """Move only completed high-confidence folders, atomically and without overwriting."""
+  from smart_discovery import scan_downloads, discover_emulators, move_verified
+  if not manual and not self.cfg.get('smart_auto_enabled',False):
+   return {'moved':[],'emulatorsRegistered':[],'skipped':[],
+           'message':'Automatic organizing disabled.'}
+  if active_game_process():
+   return {'moved':[],'emulatorsRegistered':[],'skipped':[],
+           'message':'A game is active. Organization deferred.'}
+  downloads=Path(os.environ.get('USERPROFILE',str(Path.home())))/'Downloads'
+  moved=[];registered=[];skipped=[];art_targets=[]
+  with self.lock:
+   for item in scan_downloads(downloads):
+    if item['action']!='ready':continue
+    try:
+     result=move_verified(item,downloads,self.games_root,DEFAULT_EMULATORS)
+     moved.append(result)
+     if result['kind']=='emulator':
+      entry={'kind':'emulator','action':'ready','emulator':result['emulator'],'exe':result['exe']}
+      if self._smart_register_emulator(entry):registered.append(result['name'])
+     else:
+      art_targets.append(Path(result['path']))
+    except (OSError,ValueError) as exc:
+     skipped.append({'name':item['filename'],'reason':str(exc)[:180]})
+   for item in discover_emulators(DEFAULT_EMULATORS):
+    if self._smart_register_emulator(item):registered.append(item['title'])
+   if moved:self._cache=None;self._cache_time=0
+  for folder in art_targets:
+   threading.Thread(target=self._smart_exact_art,args=(folder,),daemon=True,name='smart-art').start()
+  return {'moved':moved,'emulatorsRegistered':registered,'skipped':skipped,
+          'message':f'Organized {len(moved)} verified folder(s).'}

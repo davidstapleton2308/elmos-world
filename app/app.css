@@ -679,3 +679,10 @@ html[data-screen="library"] .add-btn{padding:9px 14px;border-radius:9px;backgrou
 #libraryView #gameCards.cards[data-layout="deck"] .game-card:hover .poster{
  transform:none!important;border-color:rgba(202,215,209,.21)!important;
 }
+
+/* Smart Discovery: compact decision/review rows */
+.smart-discovery-results{display:grid;gap:8px;max-height:330px;overflow-y:auto;margin:10px 0}
+.smart-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;padding:10px 12px;border:1px solid rgba(155,180,160,.25);border-radius:10px;background:rgba(255,255,255,.02)}
+.smart-row strong{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.smart-row span{font-size:11px;opacity:.8}.smart-row small{grid-column:1 / -1;opacity:.7;line-height:1.4;overflow-wrap:anywhere}
+@media(max-width:750px){.smart-row{grid-template-columns:1fr}.smart-row small{grid-column:1}}

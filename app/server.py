@@ -67,6 +67,7 @@ class Handler(BaseHTTPRequestHandler):
     info=update_center.latest()
     return self.result({**{k:v for k,v in info.items() if not k.startswith('_')}, 'lastAttempt':update_center.last_attempt()})
    except Exception as exc:return self.error(400,str(exc))
+  if u.path=='/api/smart-preview':return self.result(engine.smart_preview())
   if u.path=='/api/backups':return self.result(engine.backups())
   if u.path=='/api/platforms':return self.result(engine.platform_sources())
   if u.path=='/api/gfn-shortcuts':
@@ -136,7 +137,10 @@ class Handler(BaseHTTPRequestHandler):
   try:
    body=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0'))) or b'{}')
    action=urlsplit(self.path).path
-   if action=='/api/update-config':
+   if action=='/api/smart-mode':out=engine.smart_mode(body.get('enabled') is True)
+   elif action=='/api/smart-organize':out=engine.smart_organize(manual=True)
+   elif action=='/api/smart-auto':out=engine.smart_organize(manual=False)
+   elif action=='/api/update-config':
     out={'repository':update_center.configure(body.get('repository',''))}
    elif action=='/api/update-install':
     if active_game_process():raise RuntimeError('Finish your running game before updating.')
