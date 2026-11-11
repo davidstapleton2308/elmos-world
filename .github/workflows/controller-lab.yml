@@ -1,0 +1,87 @@
+name: Elmo's Controller Lab
+
+on:
+  push:
+    branches:
+      - main
+      - feature/elmos-controller-lab
+    paths:
+      - 'controller-lab/**'
+      - '.github/workflows/controller-lab.yml'
+  pull_request:
+    paths:
+      - 'controller-lab/**'
+      - '.github/workflows/controller-lab.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  python-regression:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: \${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package and test dependencies
+        working-directory: controller-lab
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[test]"
+      - name: Run mapping and state regression tests
+        working-directory: controller-lab
+        run: python -m pytest
+
+  windows-virtual-bridge-build:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Download and verify pinned HIDMaestro SDK
+        shell: pwsh
+        run: |
+          $url = 'https://github.com/hifihedgehog/HIDMaestro/releases/download/v2.1.0/HIDMaestro-v2.1.0.zip'
+          $expected = '7FE349F163864B8DFC36117AF260D51BAC94A2263B6CDFA719CB364A808397B4'
+          $zip = Join-Path $env:RUNNER_TEMP 'HIDMaestro-v2.1.0.zip'
+          Invoke-WebRequest -Uri $url -OutFile $zip
+          $actual = (Get-FileHash -Path $zip -Algorithm SHA256).Hash.ToUpperInvariant()
+          if ($actual -ne $expected) { throw "HIDMaestro SDK SHA-256 mismatch: $actual" }
+          $extract = Join-Path $env:RUNNER_TEMP 'HIDMaestro'
+          Expand-Archive -Path $zip -DestinationPath $extract -Force
+          $sdk = Get-ChildItem -Path $extract -Filter 'HIDMaestro.Core.dll' -File -Recurse | Select-Object -First 1
+          if (!$sdk) { throw 'HIDMaestro.Core.dll missing from verified release.' }
+          New-Item -ItemType Directory -Force -Path 'controller-lab/runtime' | Out-Null
+          Copy-Item $sdk.FullName 'controller-lab/runtime/HIDMaestro.Core.dll' -Force
+          foreach ($notice in @('LICENSE','THIRD-PARTY-NOTICES.txt')) {
+            $file = Get-ChildItem -Path $extract -Filter $notice -File -Recurse | Select-Object -First 1
+            if ($file) { Copy-Item $file.FullName "controller-lab/runtime/$notice" -Force }
+          }
+      - name: Publish standalone Windows bridge
+        shell: pwsh
+        run: |
+          dotnet publish controller-lab/bridge/Elmos.ControllerLab.Bridge.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o controller-lab/bridge/publish
+          if ($LASTEXITCODE -ne 0) { throw 'Bridge publish failed.' }
+          foreach ($notice in @('LICENSE','THIRD-PARTY-NOTICES.txt')) {
+            $file = "controller-lab/runtime/$notice"
+            if (Test-Path $file) { Copy-Item $file 'controller-lab/bridge/publish/' -Force }
+          }
+      - name: Run driver-free embedded profile catalog smoke test
+        shell: pwsh
+        run: |
+          & 'controller-lab/bridge/publish/Elmos.ControllerLab.Bridge.exe' --catalog-check
+          if ($LASTEXITCODE -ne 0) { throw 'Embedded profile catalogue failed.' }
+      - name: Upload Windows bridge preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: Elmos-Controller-Lab-Windows-Preview
+          path: controller-lab/bridge/publish/
+          retention-days: 14
+          if-no-files-found: error
