@@ -61,6 +61,9 @@ class ControllerLabApp:
         self.mouse_sensitivity = tk.DoubleVar(value=14.0)
         self.touchpad_mode = tk.StringVar(value="off")
         self.touchpad_sensitivity = tk.DoubleVar(value=1.0)
+        self.gyro_mode = tk.StringVar(value="off")
+        self.gyro_sensitivity = tk.DoubleVar(value=10.0)
+        self.gyro_deadzone = tk.DoubleVar(value=0.8)
         self.layer_enabled = tk.BooleanVar(value=False)
         self.layer_activator = tk.StringVar(value="left_paddle")
         self.layer_mode = tk.StringVar(value="hold")
@@ -154,6 +157,13 @@ class ControllerLabApp:
         ttk.Combobox(touch, textvariable=self.touchpad_mode, values=["off", "mouse", "right_stick"],
                      state="readonly", width=20).grid(row=0, column=1, sticky="w", padx=5)
         self._scale_row(touch, 1, "Touchpad sensitivity", self.touchpad_sensitivity, 0.1, 4.0)
+        gyro = ttk.LabelFrame(analog_tab, text="Gyro aiming", padding=10)
+        gyro.pack(fill="x", pady=8)
+        ttk.Label(gyro, text="Gyro output").grid(row=0, column=0, sticky="w", padx=5)
+        ttk.Combobox(gyro, textvariable=self.gyro_mode, values=["off", "mouse", "right_stick"],
+                     state="readonly", width=20).grid(row=0, column=1, sticky="w", padx=5)
+        self._scale_row(gyro, 1, "Gyro sensitivity", self.gyro_sensitivity, 0.1, 40.0)
+        self._scale_row(gyro, 2, "Gyro deadzone (degrees/sec)", self.gyro_deadzone, 0.0, 10.0)
 
         layer = ttk.LabelFrame(layer_tab, text="Hold / toggle action layer", padding=12)
         layer.pack(fill="x", pady=6)
@@ -290,6 +300,9 @@ class ControllerLabApp:
             mouse_sensitivity=float(self.mouse_sensitivity.get()),
             touchpad_mode=self.touchpad_mode.get(),
             touchpad_sensitivity=float(self.touchpad_sensitivity.get()),
+            gyro_mode=self.gyro_mode.get(),
+            gyro_sensitivity=float(self.gyro_sensitivity.get()),
+            gyro_deadzone=float(self.gyro_deadzone.get()),
         )
         if self.layer_enabled.get():
             mapping.layer = ActionLayer(
@@ -308,6 +321,9 @@ class ControllerLabApp:
                 mouse_sensitivity=self.mapping.layer.mouse_sensitivity if self.mapping.layer else None,
                 touchpad_mode=self.mapping.layer.touchpad_mode if self.mapping.layer else None,
                 touchpad_sensitivity=self.mapping.layer.touchpad_sensitivity if self.mapping.layer else None,
+                gyro_mode=self.mapping.layer.gyro_mode if self.mapping.layer else None,
+                gyro_sensitivity=self.mapping.layer.gyro_sensitivity if self.mapping.layer else None,
+                gyro_deadzone=self.mapping.layer.gyro_deadzone if self.mapping.layer else None,
             )
         return mapping
 
@@ -343,6 +359,9 @@ class ControllerLabApp:
             self.mouse_sensitivity.set(p.mouse_sensitivity)
             self.touchpad_mode.set(p.touchpad_mode)
             self.touchpad_sensitivity.set(p.touchpad_sensitivity)
+            self.gyro_mode.set(p.gyro_mode)
+            self.gyro_sensitivity.set(p.gyro_sensitivity)
+            self.gyro_deadzone.set(p.gyro_deadzone)
             self.layer_enabled.set(p.layer is not None)
             for key, var in self.layer_button_targets.items():
                 var.set(p.layer.button_map.get(key, key) if p.layer else key)
@@ -379,9 +398,11 @@ class ControllerLabApp:
             self.active_slots.append(slot)
             need_keyboard = bool(self.mapping.keyboard_map or self.mapping.trigger_keyboard_map or self.mapping.left_stick_as_wasd or
                                  (self.mapping.layer and (self.mapping.layer.keyboard_map or self.mapping.layer.left_stick_as_wasd)))
-            need_mouse = bool(self.mapping.mouse_map or self.mapping.right_stick_mouse or self.mapping.touchpad_mode == "mouse" or
+            need_mouse = bool(self.mapping.mouse_map or self.mapping.right_stick_mouse or
+                              self.mapping.touchpad_mode == "mouse" or self.mapping.gyro_mode == "mouse" or
                               (self.mapping.layer and (self.mapping.layer.mouse_map or self.mapping.layer.right_stick_mouse or
-                                                       self.mapping.layer.touchpad_mode == "mouse")))
+                                                       self.mapping.layer.touchpad_mode == "mouse" or
+                                                       self.mapping.layer.gyro_mode == "mouse")))
             if need_keyboard:
                 self.bridge.request("create", slot="gui-keyboard", profile_id="microsoft-wired-keyboard-600")
                 self.active_slots.append("gui-keyboard")
