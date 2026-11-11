@@ -364,9 +364,10 @@ class ControllerLabApp:
             self.bridge.request("create", slot=slot, profile_id=target["id"])
             self.active_slots.append(slot)
             need_keyboard = bool(self.mapping.keyboard_map or self.mapping.trigger_keyboard_map or self.mapping.left_stick_as_wasd or
-                                 (self.mapping.layer and self.mapping.layer.keyboard_map))
+                                 (self.mapping.layer and (self.mapping.layer.keyboard_map or self.mapping.layer.left_stick_as_wasd)))
             need_mouse = bool(self.mapping.mouse_map or self.mapping.right_stick_mouse or self.mapping.touchpad_mode == "mouse" or
-                              (self.mapping.layer and self.mapping.layer.mouse_map))
+                              (self.mapping.layer and (self.mapping.layer.mouse_map or self.mapping.layer.right_stick_mouse or
+                                                       self.mapping.layer.touchpad_mode == "mouse")))
             if need_keyboard:
                 self.bridge.request("create", slot="gui-keyboard", profile_id="microsoft-wired-keyboard-600")
                 self.active_slots.append("gui-keyboard")
