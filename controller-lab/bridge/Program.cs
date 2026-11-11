@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Threading;
 using System.Linq;
 using System.Security.Principal;
 using System.Text.Json;
@@ -10,6 +12,35 @@ using Windows.Gaming.Input;
 internal static class Program
 {
     private static readonly object OutputLock = new();
+    private static readonly object DeviceLock = new();
+    private static readonly Dictionary<string, long> LastInputTick = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly TimeSpan InputTimeout = TimeSpan.FromSeconds(3);
+    private static Timer? Watchdog;
+
+    // Monotonic timing prevents wall-clock adjustments from extending a lease.
+    private static void RenewLease(string slot) => LastInputTick[slot] = Stopwatch.GetTimestamp();
+
+    private static void CheckInputLeases(object? _)
+    {
+        lock (DeviceLock)
+        {
+            foreach (var entry in LastInputTick.ToArray())
+            {
+                if (Stopwatch.GetElapsedTime(entry.Value) < InputTimeout) continue;
+                LastInputTick.Remove(entry.Key);
+                if (!Controllers.Remove(entry.Key, out var device)) continue;
+                try { device.Dispose(); }
+                catch (Exception ex)
+                {
+                    Emit(new { event_name = "watchdog_error", slot = entry.Key,
+                        error = ex.GetType().Name, message = ex.Message });
+                }
+                Emit(new { event_name = "watchdog_expired", slot = entry.Key,
+                    timeout_ms = (int)InputTimeout.TotalMilliseconds });
+            }
+        }
+    }
+
     private const string BackendSdkVersion = "2.1.0";
     private static HMContext? Context;
     private static readonly string DriverStampPath = Path.Combine(
@@ -410,6 +441,7 @@ internal static class Program
                 controller.OutputDecoded += (_, e) => Emit(new { event_name = "output_decoded", slot, fields = e.Fields });
                 controller.OutputReceived += (_, e) => Emit(new { event_name = "output_raw", slot, report_id = e.ReportId, data = Convert.ToBase64String(e.Data.ToArray()) });
                 Controllers.Add(slot, controller);
+                RenewLease(slot);
                 return new { created = true, slot, profile = ProfileInfo(profile), identity = controller.IdentityKey };
             }
             case "sweep":
@@ -422,6 +454,7 @@ internal static class Program
                 var state = root.TryGetProperty("state", out var stateNode) ? stateNode : root;
                 var frame = BuildState(controller.Profile, state);
                 controller.SubmitState(in frame);
+                RenewLease(slot);
                 return new { submitted = true, slot };
             }
             case "keyboard":
@@ -452,6 +485,7 @@ internal static class Program
                     }
                 }
                 controller.SubmitKeyboard(modifiers, keys.ToArray());
+                RenewLease(slot);
                 return new { submitted = true, slot, keyCount = keys.Count };
             }
             case "mouse":
@@ -480,11 +514,13 @@ internal static class Program
                     Pan = (int)Clamp(Number(root, "pan"), -127, 127)
                 };
                 controller.SubmitMouse(in frame);
+                RenewLease(slot);
                 return new { submitted = true, slot };
             }
             case "destroy":
             {
                 var slot = Text(root, "slot", "virtual-0") ?? "virtual-0";
+                LastInputTick.Remove(slot);
                 if (Controllers.Remove(slot, out var controller))
                 {
                     controller.Dispose();
@@ -496,6 +532,7 @@ internal static class Program
                 foreach (var controller in Controllers.Values.ToArray())
                     try { controller.Dispose(); } catch { }
                 Controllers.Clear();
+                LastInputTick.Clear();
                 return new { shutdown = true };
             default:
                 throw new ArgumentException("Unknown bridge operation: " + op);
@@ -530,6 +567,7 @@ internal static class Program
 
         try
         {
+            Watchdog = new Timer(CheckInputLeases, null, 250, 250);
             string? line;
             while ((line = Console.ReadLine()) != null)
             {
@@ -542,7 +580,8 @@ internal static class Program
                     var root = document.RootElement;
                     id = Text(root, "id");
                     var op = Text(root, "op", "") ?? "";
-                    var result = Execute(root);
+                    object result;
+                    lock (DeviceLock) result = Execute(root);
                     if (id != null) Emit(new { id, ok = true, result });
                     shouldExit = op == "shutdown";
                 }
@@ -556,10 +595,15 @@ internal static class Program
         }
         finally
         {
+            Watchdog?.Dispose();
+            lock (DeviceLock)
+            {
             foreach (var controller in Controllers.Values.ToArray())
                 try { controller.Dispose(); } catch { }
             Controllers.Clear();
+            LastInputTick.Clear();
             Context?.Dispose();
+            }
         }
         return 0;
     }
