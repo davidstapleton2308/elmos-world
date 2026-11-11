@@ -88,7 +88,12 @@ jobs:
           Copy-Item 'controller-lab/requirements.txt' $stage -Force
           Copy-Item 'controller-lab/elmos_controller_lab' $stage -Recurse -Force
           Copy-Item 'controller-lab/scripts' $stage -Recurse -Force
-          Copy-Item 'controller-lab/bridge' $stage -Recurse -Force
+          Copy-Item 'controller-lab/tests' $stage -Recurse -Force
+          $bridgeStage = Join-Path $stage 'bridge'
+          New-Item -ItemType Directory -Force -Path $bridgeStage | Out-Null
+          Copy-Item 'controller-lab/bridge/Elmos.ControllerLab.Bridge.csproj' $bridgeStage -Force
+          Copy-Item 'controller-lab/bridge/Program.cs' $bridgeStage -Force
+          Copy-Item 'controller-lab/bridge/publish' $bridgeStage -Recurse -Force
           $archive = 'controller-lab/ElmosControllerLab-Windows.zip'
           Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $archive -Force
       - name: Upload Windows Controller Lab preview
