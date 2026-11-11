@@ -7,8 +7,16 @@ def test_mapping_profiles_are_saved_per_controller_game_and_target(tmp_path):
     profile = MappingProfile(
         name="PS4 to Xbox test",
         button_map={"south": "east"},
+        keyboard_map={"south": ["Space", "LeftShift"]},
+        trigger_keyboard_map={"left_trigger": ["LeftControl"]},
+        mouse_map={"right_trigger": "left"},
+        left_stick_as_wasd=True,
+        right_stick_mouse=True,
+        mouse_sensitivity=22,
         left_stick=StickTuning(deadzone=0.18, exponent=1.4, invert_y=True),
-        layer=ActionLayer(activator="left_paddle", mode="hold", button_map={"south": "north"}),
+        layer=ActionLayer(activator="left_paddle", mode="hold",
+                          button_map={"south": "north"}, keyboard_map={"south": ["Q"]},
+                          mouse_map={"south": "right"}),
     )
     store.save("ps4-guid", "game-123", "xbox-360-wired", profile)
     loaded = store.get("ps4-guid", "game-123", "xbox-360-wired")
@@ -18,6 +26,14 @@ def test_mapping_profiles_are_saved_per_controller_game_and_target(tmp_path):
     assert loaded.left_stick.invert_y is True
     assert loaded.layer is not None
     assert loaded.layer.button_map == {"south": "north"}
+    assert loaded.keyboard_map == {"south": ["Space", "LeftShift"]}
+    assert loaded.trigger_keyboard_map == {"left_trigger": ["LeftControl"]}
+    assert loaded.mouse_map == {"right_trigger": "left"}
+    assert loaded.left_stick_as_wasd is True
+    assert loaded.right_stick_mouse is True
+    assert loaded.mouse_sensitivity == 22
+    assert loaded.layer.keyboard_map == {"south": ["Q"]}
+    assert loaded.layer.mouse_map == {"south": "right"}
 
 
 def test_mapping_profiles_are_isolated_between_devices_and_games(tmp_path):
