@@ -64,6 +64,14 @@ jobs:
           python -m unittest discover -s tests -p 'test_*.py'
           if ($LASTEXITCODE -ne 0) { throw 'Project tests failed.' }
 
+      - name: Validate frontend JavaScript syntax and discovery UI wiring
+        shell: pwsh
+        run: |
+          node --check app/app.js
+          if ($LASTEXITCODE -ne 0) { throw 'Frontend JavaScript contains a syntax error.' }
+          python -m unittest discover -s tests -p 'test_smart_discovery*.py' -v
+          if ($LASTEXITCODE -ne 0) { throw 'Smart Discovery regression tests failed.' }
+
       - name: Install Windows build dependencies
         shell: pwsh
         run: |
