@@ -3,6 +3,8 @@ name: Build Elmos World Windows Setup
 on:
   workflow_dispatch:
   push:
+    branches:
+      - main
     tags:
       - "v*"
 
