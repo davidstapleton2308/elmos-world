@@ -46,6 +46,9 @@ def test_sony_hid_reader_opens_shared_handle_and_reads_latest_report():
         frame = reader.poll()
         assert frame is not None
         assert frame.motion.gyro_x == 1.0
+        assert reader.fresh is True
+        reader.poll()
+        assert reader.fresh is False
         reader.close()
         assert handle.closed is True
 
