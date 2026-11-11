@@ -266,7 +266,7 @@ def command_emulate(args):
             raise BridgeError("Virtual device creation requires an elevated session. Run Run-ControllerLab-Elevated.ps1 and approve UAC.")
 
         source = None
-        created = False
+        created_slots: list[str] = []
         try:
             device_guid = "synthetic"
             if not args.demo:
@@ -281,29 +281,61 @@ def command_emulate(args):
                 device_guid = selected["guid"] or selected["name"]
 
             mapping = MappingStore().get(device_guid, args.game, args.profile)
+            if args.actions_demo:
+                mapping.keyboard_map.update({"south": ["Space"], "east": ["E"]})
+                mapping.trigger_keyboard_map.update({"left_trigger": ["LeftShift"]})
+                mapping.mouse_map.update({"right_trigger": "left"})
+                mapping.left_stick_as_wasd = True
+                mapping.right_stick_mouse = True
             mapper = Mapper(mapping)
-            created_result = bridge.request("create", slot=args.slot, profile_id=args.profile)
-            created = True
-            print("Created virtual device:", created_result["profile"]["name"], flush=True)
-            print(f"Input: {device_guid} | Game: {args.game} | Mapping: {mapping.name}", flush=True)
 
+            gamepad_result = bridge.request("create", slot=args.slot, profile_id=args.profile)
+            created_slots.append(args.slot)
+            print("Created virtual gamepad:", gamepad_result["profile"]["name"], flush=True)
+
+            keyboard_slot = args.slot + "-keyboard"
+            mouse_slot = args.slot + "-mouse"
+            need_keyboard = bool(mapping.keyboard_map or mapping.trigger_keyboard_map or mapping.left_stick_as_wasd or
+                                 (mapping.layer and (mapping.layer.keyboard_map or mapping.layer.left_stick_as_wasd)))
+            need_mouse = bool(mapping.mouse_map or mapping.right_stick_mouse or
+                              (mapping.layer and (mapping.layer.mouse_map or mapping.layer.right_stick_mouse)))
+            if need_keyboard:
+                result = bridge.request("create", slot=keyboard_slot, profile_id="microsoft-wired-keyboard-600")
+                created_slots.append(keyboard_slot)
+                print("Created virtual keyboard:", result["profile"]["name"], flush=True)
+            if need_mouse:
+                result = bridge.request("create", slot=mouse_slot, profile_id="microsoft-optical-mouse-tilt-wheel")
+                created_slots.append(mouse_slot)
+                print("Created virtual mouse:", result["profile"]["name"], flush=True)
+
+            print(f"Input: {device_guid} | Game: {args.game} | Mapping: {mapping.name}", flush=True)
             start = time.monotonic()
             while True:
                 now = time.monotonic()
                 physical = _demo_state(now - start) if args.demo else source.read(args.device)
-                mapped = mapper.map(physical)
-                bridge.send_state(args.slot, mapped.to_wire())
+                output = mapper.map_actions(physical)
+                bridge.send_state(args.slot, output.gamepad.to_wire())
+                if need_keyboard:
+                    bridge.send_keyboard(keyboard_slot, sorted(output.keyboard_keys), sorted(output.keyboard_modifiers))
+                if need_mouse:
+                    bridge.send_mouse(mouse_slot, sorted(output.mouse_buttons), output.mouse_dx,
+                                      output.mouse_dy, output.mouse_wheel, output.mouse_pan)
                 time.sleep(1.0 / max(30, min(250, args.rate)))
         except KeyboardInterrupt:
-            print("\nStopping virtual controller…", flush=True)
+            print("\nStopping virtual controller outputs…", flush=True)
         finally:
-            if created:
+            for slot in reversed(created_slots):
                 try:
-                    bridge.send_state(args.slot, neutral_state().to_wire())
+                    if slot.endswith("-keyboard"):
+                        bridge.send_keyboard(slot, [], [])
+                    elif slot.endswith("-mouse"):
+                        bridge.send_mouse(slot, [], 0, 0, 0, 0)
+                    else:
+                        bridge.send_state(slot, neutral_state().to_wire())
                     time.sleep(0.03)
-                    bridge.request("destroy", slot=args.slot, timeout=15)
+                    bridge.request("destroy", slot=slot, timeout=15)
                 except Exception as exc:
-                    print("Cleanup warning:", exc, file=sys.stderr)
+                    print(f"Cleanup warning for {slot}:", exc, file=sys.stderr)
             if source:
                 source.close()
 
@@ -342,6 +374,7 @@ def build_parser():
     emulate.add_argument("--demo", action="store_true", help="Use a synthetic input stream instead of a physical controller")
     emulate.add_argument("--rate", type=int, default=120)
     emulate.add_argument("--game", default="default", help="Game identity used to load a device-specific mapping profile")
+    emulate.add_argument("--actions-demo", action="store_true", help="Also test virtual keyboard/mouse output with a built-in WASD/mouse layout")
     emulate.set_defaults(func=command_emulate)
     return parser
 
