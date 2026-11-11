@@ -93,7 +93,7 @@ def probe_hidapi(vendor_id: int | None = None, product_id: int | None = None) ->
         return {"available": False, "reason": str(exc), "devices": []}
 
 
-def run_probe(target_profile: dict[str, Any] | None = None, sdl_devices: list[dict[str, Any]] | None = None, bridge=None) -> dict[str, Any]:
+def run_probe(target_profile: dict[str, Any] | None = None, sdl_devices: list[dict[str, Any]] | None = None, bridge=None, browser_probe=None) -> dict[str, Any]:
     vendor_id = target_profile.get("vendorId") if target_profile else None
     product_id = target_profile.get("productId") if target_profile else None
     xinput = probe_xinput()
@@ -108,6 +108,8 @@ def run_probe(target_profile: dict[str, Any] | None = None, sdl_devices: list[di
         wgi = {"available": False, "status": "not queried"}
     expected_xinput = bool(target_profile and target_profile.get("xinput"))
     expected_hid = bool(target_profile and target_profile.get("vendorId") and target_profile.get("productId"))
+    browser = browser_probe.snapshot() if browser_probe is not None else {"available": False, "status": "not started", "devices": []}
+    browser["available"] = browser_probe is not None
     return {
         "target": target_profile,
         "apis": {
@@ -117,7 +119,7 @@ def run_probe(target_profile: dict[str, Any] | None = None, sdl_devices: list[di
             "directinput": {"available": sdl["available"], "note": "SDL/joystick visibility is a useful signal, not a full DirectInput conformance test."},
             "windows_gaming_input": wgi,
             "gameinput": {"available": False, "status": "not implemented in this probe"},
-            "browser_gamepad": {"available": False, "status": "not implemented in this probe"},
+            "browser_gamepad": browser,
         },
         "expectations": {
             "xinput_expected": expected_xinput,
