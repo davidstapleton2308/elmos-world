@@ -104,6 +104,23 @@ The script downloads the pinned SDK release, verifies its SHA-256, stages
 HIDMaestro.Core.dll, and publishes the bridge. It also runs a driver-free
 catalog smoke test.
 
+## Open the graphical Controller Lab
+
+The GUI provides physical-device selection, virtual-profile selection, face-button
+remapping, keyboard/mouse actions, stick tuning, touchpad modes and a hold/toggle
+action layer. Profiles are saved per physical GUID, game and virtual target.
+
+~~~powershell
+# Browse devices and edit profiles without administrator access
+.\scripts\Run-ControllerLab.ps1 gui
+
+# Create real virtual devices after the driver is installed
+.\scripts\Run-ControllerLab-Elevated.ps1 gui
+~~~
+
+The elevated launch asks Windows for UAC approval. It does not install or upgrade
+the driver; driver setup remains a separate explicit action.
+
 ## Inspect devices and profiles
 
 ~~~powershell
