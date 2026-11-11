@@ -44,7 +44,7 @@ def test_ds4_usb_sensor_and_touchpad_parse():
     assert frame.touchpad_packet_counter == 77
     assert frame.touchpads[0].active is True
     assert frame.touchpads[0].x == 500
-    assert frame.touchpads[0].y == 200
+    assert frame.touchpads[0].y == 229
     assert frame.touchpads[1].active is False
 
 
@@ -65,6 +65,7 @@ def test_ds4_bluetooth_header_offsets():
     assert frame.motion.accel_x == 0.5
     assert frame.charging is True
     assert frame.touchpads[0].x == 1000
+    assert frame.touchpads[0].y == 459
 
 
 def test_dualsense_usb_sensor_touchpad_and_status_parse():
