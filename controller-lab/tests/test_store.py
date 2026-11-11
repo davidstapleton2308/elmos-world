@@ -15,6 +15,8 @@ def test_mapping_profiles_are_saved_per_controller_game_and_target(tmp_path):
         mouse_sensitivity=22,
         touchpad_mode="mouse",
         touchpad_sensitivity=0.6,
+        action_bindings={"south": {"tap": {"keyboard": ["Space"]}, "hold_ms": 300}},
+        chord_map={"left_shoulder+south": {"action": {"gamepad": ["north"]}, "suppress": True}},
         left_stick=StickTuning(deadzone=0.18, exponent=1.4, invert_y=True),
         layer=ActionLayer(activator="left_paddle", mode="hold",
                           button_map={"south": "north"}, keyboard_map={"south": ["Q"]},
@@ -36,6 +38,8 @@ def test_mapping_profiles_are_saved_per_controller_game_and_target(tmp_path):
     assert loaded.mouse_sensitivity == 22
     assert loaded.touchpad_mode == "mouse"
     assert loaded.touchpad_sensitivity == 0.6
+    assert loaded.action_bindings["south"]["tap"]["keyboard"] == ["Space"]
+    assert loaded.chord_map["left_shoulder+south"]["suppress"] is True
     assert loaded.layer.keyboard_map == {"south": ["Q"]}
     assert loaded.layer.mouse_map == {"south": "right"}
 
