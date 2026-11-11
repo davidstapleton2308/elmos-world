@@ -211,8 +211,9 @@ fallback layout; that fallback is not a claim of correct button identity.
   The optional HIDAPI reader currently adds raw IMU, touchpad and battery data
   for supported DualShock 4 and DualSense USB/Bluetooth report layouts. Other
   vendors' motion protocols still need dedicated adapters.
-- The read-only probe currently checks SDL visibility, XInput slots and HIDAPI;
-  WGI, GameInput and browser Gamepad probes remain future work.
+- The read-only probe checks SDL visibility, XInput slots, optional HIDAPI and
+  Windows Gaming Input RawGameController enumeration. Native GameInput and
+  browser Gamepad API probes remain future work.
 - The bridge can submit standard buttons, axes, triggers, d-pad, motion and
   touch contacts to profiles. Exact raw Sony motion calibration and vendor
   feature reports still need dedicated physical-device adapters.
