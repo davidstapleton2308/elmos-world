@@ -3,8 +3,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import math
-from typing import Mapping
+from typing import Any
 
+from .actions import TemporalActionEngine
 from .model import AXES, BUTTONS, ControllerState, clamp
 
 
@@ -40,6 +41,8 @@ class ActionLayer:
     mouse_sensitivity: float | None = None
     touchpad_mode: str | None = None
     touchpad_sensitivity: float | None = None
+    action_bindings: dict[str, dict[str, Any]] = field(default_factory=dict)
+    chord_map: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 @dataclass
@@ -61,6 +64,8 @@ class MappingProfile:
     mouse_deadzone: float = 0.15
     touchpad_mode: str = "off"  # off | mouse | right_stick
     touchpad_sensitivity: float = 1.0
+    action_bindings: dict[str, dict[str, Any]] = field(default_factory=dict)
+    chord_map: dict[str, dict[str, Any]] = field(default_factory=dict)
     layer: ActionLayer | None = None
 
 
@@ -110,6 +115,19 @@ class Mapper:
         self._last_activator = False
         self._current_layer_active = False
         self._last_touchpad: tuple[int, float, float] | None = None
+        self.action_engine = TemporalActionEngine()
+        self._active_action_bindings: dict[str, dict[str, Any]] = {}
+        self._active_chord_map: dict[str, dict[str, Any]] = {}
+
+    def _is_suppressed(self, button: str) -> bool:
+        binding = self._active_action_bindings.get(button)
+        if isinstance(binding, dict) and binding.get("suppress", True):
+            return True
+        for chord, raw in self._active_chord_map.items():
+            if isinstance(raw, dict) and raw.get("suppress", True):
+                if button in {x.strip() for x in str(chord).split("+") if x.strip()}:
+                    return True
+        return False
 
     def map_actions(self, source: ControllerState) -> MappedOutput:
         """Map a physical snapshot to gamepad, virtual keyboard and virtual mouse outputs."""
@@ -146,6 +164,8 @@ class Mapper:
 
         for button in normalized.buttons:
             if layer and button == layer.activator:
+                continue
+            if self._is_suppressed(button):
                 continue
             add_keys(keyboard_map.get(button, []))
             mouse_button = mouse_map.get(button)
@@ -228,6 +248,15 @@ class Mapper:
         else:
             self._last_touchpad = None
 
+        temporal = self.action_engine.process(
+            normalized.buttons, self._active_action_bindings,
+            self._active_chord_map, normalized.timestamp
+        )
+        gamepad.buttons.update(temporal.gamepad_buttons)
+        keys.update(temporal.keyboard_keys)
+        modifiers.update(temporal.keyboard_modifiers)
+        mouse_buttons.update(temporal.mouse_buttons)
+
         return MappedOutput(
             gamepad=gamepad,
             keyboard_keys=keys,
@@ -249,6 +278,11 @@ class Mapper:
             layer_active = self._layer_toggle if layer.mode == "toggle" else pressed
             self._last_activator = pressed
         self._current_layer_active = layer_active
+        self._active_action_bindings = dict(p.action_bindings)
+        self._active_chord_map = dict(p.chord_map)
+        if layer and layer_active:
+            self._active_action_bindings.update(layer.action_bindings)
+            self._active_chord_map.update(layer.chord_map)
 
         active_button_map = dict(p.button_map)
         if layer and layer_active:
@@ -257,6 +291,8 @@ class Mapper:
         output_buttons: set[str] = set()
         for source_button in source.buttons:
             if layer and source_button == layer.activator:
+                continue
+            if self._is_suppressed(source_button):
                 continue
             target = active_button_map.get(source_button, source_button)
             if target in BUTTONS:
