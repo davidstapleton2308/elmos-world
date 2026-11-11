@@ -28,3 +28,38 @@ jobs:
         run: python -m unittest discover -s tests -p "test_elmos_input.py" -v
       - name: Check launcher JavaScript syntax
         run: node --check app/app.js
+
+  windows-preview-build:
+    runs-on: windows-2022
+    timeout-minutes: 35
+    needs: input-regression
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          architecture: x64
+      - name: Install bundled runtime dependencies (no controller driver changes)
+        shell: pwsh
+        run: |
+          $env:VGAMEPAD_SKIP_VIGEMBUS_INSTALL = 'true'
+          python -m pip install --disable-pip-version-check -r build/requirements-windows.txt
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot install build requirements.' }
+      - name: Build a preview portable executable
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --distpath dist --workpath build/work build/ElmosWorld.spec
+          if ($LASTEXITCODE -ne 0) { throw 'PyInstaller build failed.' }
+          if (!(Test-Path dist/ElmosWorld/ElmosWorld.exe)) { throw 'Executable missing.' }
+      - name: Launch packaged self-test without a gamepad driver
+        shell: pwsh
+        run: |
+          & .\dist\ElmosWorld\ElmosWorld.exe --self-test
+          if ($LASTEXITCODE -ne 0) { throw 'Portable executable failed its smoke test.' }
+      - name: Upload preview build for manual PS4 testing
+        uses: actions/upload-artifact@v4
+        with:
+          name: ElmosWorld-Input-Preview
+          path: dist/ElmosWorld/
+          retention-days: 14
+          if-no-files-found: error
