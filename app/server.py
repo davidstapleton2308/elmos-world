@@ -5,10 +5,12 @@ from pathlib import Path
 from backend import Engine, Path as FilePath, APP, active_game_process
 from game_media import ScreenshotLibrary
 from controller_input import monitor
+from controller_runtime import ControllerRuntime
 from native_game_menu import NativeGameMenu
 import update_center
 HERE=Path(__file__).parent
 engine=Engine()
+controller_runtime=ControllerRuntime(app_dir=HERE)
 media=ScreenshotLibrary(APP/'game_screenshots', pause_while_playing=lambda:bool(active_game_process()))
 token=secrets.token_urlsafe(28)
 _menu_lock=threading.Lock()
@@ -67,6 +69,16 @@ class Handler(BaseHTTPRequestHandler):
     info=update_center.latest()
     return self.result({**{k:v for k,v in info.items() if not k.startswith('_')}, 'lastAttempt':update_center.last_attempt()})
    except Exception as exc:return self.error(400,str(exc))
+  if u.path=='/api/controller-lab/profiles':
+   try:return self.result(controller_runtime.catalog())
+   except Exception as exc:return self.error(400,str(exc))
+  if u.path=='/api/controller-lab/config':
+   try:
+    gameid=parse_qs(u.query).get('id',[''])[0]
+    if not engine.find(gameid):return self.error(404,'Game not found')
+    return self.result(controller_runtime.get_game_profile(gameid))
+   except Exception as exc:return self.error(400,str(exc))
+  if u.path=='/api/controller-lab/status':return self.result(controller_runtime.status())
   if u.path=='/api/smart-preview':return self.result(engine.smart_preview())
   if u.path=='/api/backups':return self.result(engine.backups())
   if u.path=='/api/platforms':return self.result(engine.platform_sources())
@@ -137,7 +149,28 @@ class Handler(BaseHTTPRequestHandler):
   try:
    body=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0'))) or b'{}')
    action=urlsplit(self.path).path
-   if action=='/api/smart-mode':out=engine.smart_mode(body.get('enabled') is True)
+   if action=='/api/controller-lab/config':
+    gameid=body.get('id','')
+    if not engine.find(gameid):raise ValueError('Game not found')
+    out=controller_runtime.save_game_profile(gameid,body.get('profileId',''),body.get('deviceIndex',0),body.get('autoStart') is True)
+   elif action=='/api/controller-lab/open':
+    gameid=body.get('id','')
+    if not engine.find(gameid):raise ValueError('Game not found')
+    config=controller_runtime.get_game_profile(gameid)
+    out=controller_runtime.open_gui(gameid,config['profileId'])
+   elif action=='/api/controller-lab/install-driver':
+    if not body.get('confirmed') is True:raise ValueError('Explicit driver-install confirmation required')
+    out=controller_runtime.install_driver()
+   elif action=='/api/controller-lab/start':
+    gameid=body.get('id','')
+    if not engine.find(gameid):raise ValueError('Game not found')
+    session=active_game_process()
+    if not session or engine.active_session_status().get('gameId')!=gameid:
+     raise ValueError('Launch this game first, then start its virtual controller.')
+    out=controller_runtime.start(gameid)
+    if out.get('started'):controller_runtime.attach_game_process(session.pid)
+   elif action=='/api/controller-lab/stop':out=controller_runtime.stop()
+   elif action=='/api/smart-mode':out=engine.smart_mode(body.get('enabled') is True)
    elif action=='/api/smart-organize':out=engine.smart_organize(manual=True)
    elif action=='/api/smart-auto':out=engine.smart_organize(manual=False)
    elif action=='/api/smart-undo':out=engine.smart_undo()

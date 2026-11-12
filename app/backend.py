@@ -5,6 +5,7 @@ import os, re, json, time, secrets, random, shutil, tempfile, hashlib, difflib, 
 from pathlib import Path
 from game_discovery import detect as detect_pc_game, blocked_exe, JUNK_ROOT, clean_game_title
 import steam_core as vdf
+from controller_runtime import ControllerRuntime
 
 _active_game_lock=threading.RLock()
 _active_game=None
@@ -227,6 +228,7 @@ def request_game_close():
 APP=Path(os.environ.get('LOCALAPPDATA',str(Path.home())))/'SteamMatch'
 LAUNCH_PROFILES=APP/'launch_profiles.json'; SETTINGS=APP/'settings.json'; REGISTRY=APP/'registry_v2.json'; ARCADE=APP/'arcade.json'; BACKUP=APP/'backups'; GROVE=APP/'grove_state.json'; GROVE_ART=APP/'grove_art'
 DEFAULT_GAMES=Path('C:/Gaming/Games'); DEFAULT_EMULATORS=Path('C:/Gaming/Emulators')
+controller_runtime=ControllerRuntime(app_dir=Path(__file__).resolve().parent)
 BAD=('redist','_commonredist','setup','unins','crash','easyanticheat','eac','dxweb','vcredist','dotnet','oalinst','prereq','benchmark','updater','artwork_minisoundtrack','crashreport','anticheat','uninstall','redistributable','vc_redist')
 PREFERRED={
  '7 days to die':'7DaysToDie.exe','buckshot roulette':'Buckshot Roulette.exe','control':'Control.exe',
@@ -653,6 +655,8 @@ class Engine:
  def record_finished_session(self,gameid,started,process):
   try:process.wait()
   except Exception:return
+  try:controller_runtime.stop()
+  except Exception:pass
   seconds=max(0,int(time.monotonic()-started))
   session_event('process_exited',f'{gameid[-55:]} · {seconds}s')
   with self.lock:
@@ -841,6 +845,19 @@ class Engine:
     if not gamefile.is_file():raise RuntimeError('Game file is missing.')
     args=[str(gamefile)]
    if sys.platform!='win32':return {'message':'Windows only: launch verified but not executed here.','command':[str(exe)]+args}
+   # If this title has an explicitly enabled virtual-input profile, request
+   # Windows UAC before the game starts so the virtual device can enumerate
+   # before the game polls XInput/Windows Gaming Input. Failure never blocks
+   # the ordinary game launch.
+   controller_start = None
+   try:
+    controller_start = controller_runtime.start_for_game(gameid)
+    if controller_start and controller_start.get('started'):
+     controller_status = controller_runtime.wait_ready(4.5)
+     if controller_status.get('state') != 'running':
+      session_event('controller_input_not_ready',str(controller_status.get('message','Controller helper did not become ready'))[:150])
+   except Exception as exc:
+    session_event('controller_input_unavailable',str(exc)[:150])
    # Lock check and process creation as ONE operation. A second launch must
    # never orphan a live game or overwrite the tracked session.
    global _active_game,_active_game_type,_active_launch_profile,_active_game_id,_active_game_name
@@ -852,6 +869,9 @@ class Engine:
     # No shell, elevation or changes to emulator configuration.
     process=subprocess.Popen([str(exe)]+args,cwd=str(exe.parent),close_fds=True)
     _active_game=process
+    if controller_start and controller_start.get('started'):
+     try:controller_runtime.attach_game_process(process.pid)
+     except Exception as exc:session_event('controller_watch_attach_failed',str(exc)[:140])
     _active_game_type=g['type']
     _active_game_id=gameid
     _active_game_name=g['name']
@@ -865,7 +885,8 @@ class Engine:
    # Window handoff is initiated only after the loading transition is ready.
    entry=self.local_entry(gameid);entry['lastPlayed']=int(time.time());entry['playCount']=entry.get('playCount',0)+1;self.save_local()
    threading.Thread(target=self.record_finished_session,args=(gameid,time.monotonic(),process),daemon=True,name='game-playtime').start()
-   return {'message':'Launching '+g['name']+' directly.','command':[str(exe)]+args}
+   return {'message':'Launching '+g['name']+' directly.','command':[str(exe)]+args,
+           'controllerInput':controller_start or {'started':False,'state':'disabled'}}
  def xenia_controller(self,emulatorid):
   with self.lock:
    em=self.extra.get('emulators',{}).get(emulatorid)
