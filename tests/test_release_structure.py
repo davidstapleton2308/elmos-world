@@ -84,8 +84,10 @@ class ControllerPrerequisiteInstallerTests(unittest.TestCase):
     def test_unified_preset_exposes_prerequisite_health_without_mutating_classic(self):
         unified_html = (APP / 'presets/unified-3.2/index.html').read_text(encoding='utf-8')
         unified_js = (APP / 'presets/unified-3.2/app.js').read_text(encoding='utf-8')
-        classic_html = (APP / 'presets/classic-3.1.1/index.html').read_text(encoding='utf-8')
-        classic_js = (APP / 'presets/classic-3.1.1/app.js').read_text(encoding='utf-8')
+        classic_dirs = sorted((APP / 'presets').glob('classic-*'))
+        self.assertTrue(classic_dirs, 'The preserved Classic appearance preset must remain available.')
+        classic_html = (classic_dirs[-1] / 'index.html').read_text(encoding='utf-8')
+        classic_js = (classic_dirs[-1] / 'app.js').read_text(encoding='utf-8')
         self.assertIn('controllerPrerequisites', unified_html)
         self.assertIn('refreshControllerPrerequisites', unified_js)
         self.assertNotIn('controllerPrerequisites', classic_html)
