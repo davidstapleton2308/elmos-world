@@ -158,8 +158,6 @@ def command_matrix(args):
         elif event.get("event_name") == "error":
             print("[bridge error]", event.get("message"), file=sys.stderr, flush=True)
 
-    _write_runtime_status(args, "starting", message="Opening the virtual-device bridge.")
-    _write_runtime_status(args, "starting", message="Opening the virtual-device bridge.")
     with BridgeClient(args.bridge, on_event=on_event) as bridge:
         status = bridge.request("status")
         if not status.get("driverInstalled") or not status.get("driverPrepared"):
@@ -361,6 +359,7 @@ def command_emulate(args):
         elif event.get("event_name") == "error":
             print("[bridge error]", event.get("message"), file=sys.stderr, flush=True)
 
+    _write_runtime_status(args, "starting", message="Opening the virtual-device bridge.")
     with BridgeClient(args.bridge, on_event=on_event) as bridge:
         status = bridge.request("status")
         if not status.get("driverInstalled"):

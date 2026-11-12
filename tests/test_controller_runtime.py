@@ -36,9 +36,10 @@ class ControllerRuntimeTests(unittest.TestCase):
         self.assertFalse(profile["autoStart"])
 
     def test_save_and_reload_per_game_profile(self):
-        saved = self.runtime.save_game_profile("pc:outer-wilds", "dualsense", 1, True)
+        saved = self.runtime.save_game_profile("pc:outer-wilds", "dualsense", 1, True, "030000004c050000c405000000010000")
         self.assertEqual(saved["profileId"], "dualsense")
         self.assertEqual(saved["deviceIndex"], 1)
+        self.assertEqual(saved["deviceGuid"], "030000004c050000c405000000010000")
         self.assertTrue(saved["autoStart"])
         data = json.loads(self.runtime.profiles_file.read_text(encoding="utf-8"))
         self.assertIn("pc:outer-wilds", data["games"])
@@ -63,6 +64,7 @@ class ControllerRuntimeTests(unittest.TestCase):
         self.assertEqual(status["state"], "starting")
         self.assertIn("--stop-file", self.calls[0][1])
         self.assertIn("--watch-file", self.calls[0][1])
+        self.assertIn("--device-guid", self.calls[0][1])
 
     def test_attach_game_process_writes_watch_file(self):
         self.runtime.save_game_profile("game", "xbox-360-wired", 0, True)
