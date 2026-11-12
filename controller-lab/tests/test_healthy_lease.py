@@ -98,3 +98,40 @@ def test_changed_state_is_acknowledged_not_fire_and_forget():
     bridge = RejectingBridge()
     lease = HealthyFrameLease(bridge, "slot", clock=Clock())
     assert lease.submit({"buttons": []}) == "state"
+
+
+def test_state_acknowledgement_time_starts_idle_lease():
+    """A slow acknowledged request must not trigger an early heartbeat."""
+    clock = Clock()
+
+    class SlowBridge(Bridge):
+        def request(self, op, *, timeout, slot, state):
+            clock.now += 0.8
+            return super().request(op, timeout=timeout, slot=slot, state=state)
+
+    bridge = SlowBridge()
+    lease = HealthyFrameLease(bridge, "slot", clock=clock)
+    assert lease.submit({"buttons": []}) == "state"
+    clock.now = 1.0  # only 0.2s after the acknowledged state
+    assert lease.submit({"buttons": []}) == "idle"
+    clock.now = 1.8
+    assert lease.submit({"buttons": []}) == "heartbeat"
+    assert [call[0] for call in bridge.calls] == ["state", "heartbeat"]
+
+
+def test_failed_delayed_ack_does_not_cache_state():
+    clock = Clock()
+
+    class SlowBridge(Bridge):
+        def request(self, op, *, timeout, slot, state):
+            clock.now += 0.8
+            return super().request(op, timeout=timeout, slot=slot, state=state)
+
+    bridge = SlowBridge()
+    lease = HealthyFrameLease(bridge, "slot", clock=clock)
+    bridge.fail = True
+    with pytest.raises(RuntimeError):
+        lease.submit({"buttons": ["A"]})
+    bridge.fail = False
+    assert lease.submit({"buttons": ["A"]}) == "state"
+    assert [call[0] for call in bridge.calls] == ["state"]
