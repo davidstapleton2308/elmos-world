@@ -24,8 +24,8 @@ class StoreInventoryTests(unittest.TestCase):
 
     def test_keyvalues_parser_handles_nested_libraryfolders_and_comments(self):
         parsed = parse_keyvalues('''// comment
-        "libraryfolders" { "0" { "path" "C:\\Steam" "apps" { "480" "1" } } }''')
-        self.assertEqual(parsed["libraryfolders"]["0"]["path"], "C:\Steam")
+        "libraryfolders" { "0" { "path" "C:\\\\Steam" "apps" { "480" "1" } } }''')
+        self.assertEqual(parsed["libraryfolders"]["0"]["path"], r"C:\Steam")
         self.assertEqual(parsed["libraryfolders"]["0"]["apps"]["480"], "1")
 
     def test_steam_inventory_requires_matching_id_installed_flags_and_real_path(self):

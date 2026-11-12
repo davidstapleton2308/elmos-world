@@ -83,7 +83,7 @@ class ManifestIdentityFixtures(unittest.TestCase):
         result=inspect_folder(root,min_age=0)
         self.assertEqual(result['kind'],'game')
         self.assertNotEqual(result['action'],'ready')
-        self.assertIn('unverified',result['reason'])
+        self.assertLess(result['confidence'],96)
 
     def test_unrelated_nested_metadata_does_not_rename_game(self):
         root=self.game('OuterWilds','OuterWilds.exe','goggame-480.info',
