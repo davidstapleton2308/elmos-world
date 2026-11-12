@@ -11,6 +11,32 @@ import update_center
 HERE=Path(__file__).parent
 engine=Engine()
 controller_runtime=ControllerRuntime(app_dir=HERE)
+
+PRESETS = {
+ 'classic-3.1.1': 'Classic 3.1.1 · Original',
+ 'unified-3.2': 'Unified 3.2 · Input + Discovery',
+}
+
+def active_preset_id():
+ value=str(engine.cfg.get('appearance_preset','unified-3.2'))
+ return value if value in PRESETS else 'unified-3.2'
+
+def asset_path(name):
+ root=HERE/'presets'/active_preset_id()
+ candidate=root/name
+ return candidate if candidate.is_file() else HERE/name
+
+def inject_preset_switcher(html):
+ block = '''<div class="setting-note" id="appearancePresetSwitcher"><strong>Design preset</strong><p>Switch between your saved original Elmos World appearance and the expanded Unified experience. Your game library and settings stay intact.</p><div class="field"><label for="elmosPresetChoice">Active appearance</label><select id="elmosPresetChoice"><option value="classic-3.1.1">Classic 3.1.1 · Original</option><option value="unified-3.2">Unified 3.2 · Input + Discovery</option></select></div><small id="elmosPresetStatus" class="muted">The current design is preserved as a separate preset.</small></div>'''
+ marker='<div class="settings-pad">'
+ if marker in html and 'appearancePresetSwitcher' not in html:
+  html=html.replace(marker,marker+block,1)
+ script = r"""<script>
+ (()=>{const start=()=>{const select=document.getElementById('elmosPresetChoice');if(!select)return;const token=new URLSearchParams(location.hash.slice(1)).get('token')||'';const status=document.getElementById('elmosPresetStatus');fetch('/api/preset-status',{headers:{'X-SteamMatch-Token':token}}).then(r=>r.json()).then(d=>{select.value=d.active||'unified-3.2'}).catch(()=>{});select.addEventListener('change',async()=>{select.disabled=true;if(status)status.textContent='Saving preset and reloading…';try{const r=await fetch('/api/appearance-preset',{method:'POST',headers:{'Content-Type':'application/json','X-SteamMatch-Token':token},body:JSON.stringify({preset:select.value})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not switch preset');location.reload()}catch(e){if(status)status.textContent=e.message;select.disabled=false}})};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start()})();
+ </script>"""
+ if '</body>' in html and 'api/preset-status' not in html:
+  html=html.replace('</body>',script+'</body>',1)
+ return html
 media=ScreenshotLibrary(APP/'game_screenshots', pause_while_playing=lambda:bool(active_game_process()))
 token=secrets.token_urlsafe(28)
 _menu_lock=threading.Lock()
@@ -44,18 +70,21 @@ class Handler(BaseHTTPRequestHandler):
  def do_GET(self):
   u=urlsplit(self.path)
   if u.path=='/':
-   return self.send_file(HERE/'index.html','text/html; charset=utf-8')
-  if u.path=='/app.css':return self.send_file(HERE/'app.css','text/css; charset=utf-8')
-  if u.path=='/premium_23.css':return self.send_file(HERE/'premium_23.css','text/css; charset=utf-8')
-  if u.path=='/premium_24.css':return self.send_file(HERE/'premium_24.css','text/css; charset=utf-8')
-  if u.path=='/premium_25.css':return self.send_file(HERE/'premium_25.css','text/css; charset=utf-8')
-  if u.path=='/premium_26.css':return self.send_file(HERE/'premium_26.css','text/css; charset=utf-8')
-  if u.path=='/premium_27.css':return self.send_file(HERE/'premium_27.css','text/css; charset=utf-8')
-  if u.path=='/premium_28.css':return self.send_file(HERE/'premium_28.css','text/css; charset=utf-8')
-  if u.path=='/premium_30.css':return self.send_file(HERE/'premium_30.css','text/css; charset=utf-8')
-  if u.path=='/premium_31.css':return self.send_file(HERE/'premium_31.css','text/css; charset=utf-8')
-  if u.path=='/app.js':return self.send_file(HERE/'app.js','text/javascript; charset=utf-8')
-  if u.path=='/graphite_weave.svg':return self.send_file(HERE/'graphite_weave.svg','image/svg+xml',cache=True)
+   try:
+    html=inject_preset_switcher(asset_path('index.html').read_text(encoding='utf-8'))
+    return self.send_bytes(html.encode('utf-8'),'text/html; charset=utf-8')
+   except Exception as exc:return self.error(500,'Unable to load appearance preset: '+str(exc))
+  if u.path=='/app.css':return self.send_file(asset_path('app.css'),'text/css; charset=utf-8')
+  if u.path=='/premium_23.css':return self.send_file(asset_path('premium_23.css'),'text/css; charset=utf-8')
+  if u.path=='/premium_24.css':return self.send_file(asset_path('premium_24.css'),'text/css; charset=utf-8')
+  if u.path=='/premium_25.css':return self.send_file(asset_path('premium_25.css'),'text/css; charset=utf-8')
+  if u.path=='/premium_26.css':return self.send_file(asset_path('premium_26.css'),'text/css; charset=utf-8')
+  if u.path=='/premium_27.css':return self.send_file(asset_path('premium_27.css'),'text/css; charset=utf-8')
+  if u.path=='/premium_28.css':return self.send_file(asset_path('premium_28.css'),'text/css; charset=utf-8')
+  if u.path=='/premium_30.css':return self.send_file(asset_path('premium_30.css'),'text/css; charset=utf-8')
+  if u.path=='/premium_31.css':return self.send_file(asset_path('premium_31.css'),'text/css; charset=utf-8')
+  if u.path=='/app.js':return self.send_file(asset_path('app.js'),'text/javascript; charset=utf-8')
+  if u.path=='/graphite_weave.svg':return self.send_file(asset_path('graphite_weave.svg'),'image/svg+xml',cache=True)
   if not self.valid():return self.error(403,'Unauthorized local request')
   if u.path=='/api/controller':
    with _menu_lock:
@@ -79,6 +108,8 @@ class Handler(BaseHTTPRequestHandler):
     return self.result(controller_runtime.get_game_profile(gameid))
    except Exception as exc:return self.error(400,str(exc))
   if u.path=='/api/controller-lab/status':return self.result(controller_runtime.status())
+  if u.path=='/api/preset-status':
+   return self.result({'active':active_preset_id(),'presets':[{'id':k,'name':v} for k,v in PRESETS.items()]})
   if u.path=='/api/smart-preview':return self.result(engine.smart_preview())
   if u.path=='/api/backups':return self.result(engine.backups())
   if u.path=='/api/platforms':return self.result(engine.platform_sources())
@@ -149,7 +180,13 @@ class Handler(BaseHTTPRequestHandler):
   try:
    body=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0'))) or b'{}')
    action=urlsplit(self.path).path
-   if action=='/api/controller-lab/config':
+   if action=='/api/appearance-preset':
+    preset=str(body.get('preset',''))
+    if preset not in PRESETS:raise ValueError('Unknown appearance preset')
+    engine.cfg['appearance_preset']=preset
+    engine.save()
+    out={'ok':True,'preset':preset,'restartRequired':True}
+   elif action=='/api/controller-lab/config':
     gameid=body.get('id','')
     if not engine.find(gameid):raise ValueError('Game not found')
     out=controller_runtime.save_game_profile(gameid,body.get('profileId',''),body.get('deviceIndex',0),body.get('autoStart') is True)
@@ -165,7 +202,8 @@ class Handler(BaseHTTPRequestHandler):
     gameid=body.get('id','')
     if not engine.find(gameid):raise ValueError('Game not found')
     session=active_game_process()
-    if not session or engine.active_session_status().get('gameId')!=gameid:
+    from backend import active_session_status
+    if not session or active_session_status().get('gameId')!=gameid:
      raise ValueError('Launch this game first, then start its virtual controller.')
     out=controller_runtime.start(gameid)
     if out.get('started'):controller_runtime.attach_game_process(session.pid)
@@ -279,6 +317,13 @@ class Handler(BaseHTTPRequestHandler):
    return self.result(out)
   except Exception as exc:return self.error(400,str(exc))
  def valid(self):return self.headers.get('X-SteamMatch-Token')==token or (urlsplit(self.path).path in ('/api/art','/api/local-art','/api/game-shot') and parse_qs(urlsplit(self.path).query).get('token',[''])[0]==token)
+ def send_bytes(self,raw,content_type):
+  self.send_response(200)
+  self.send_header('Content-Type',content_type)
+  self.send_header('Content-Length',str(len(raw)))
+  self.send_header('Cache-Control','no-store')
+  self.end_headers()
+  self.wfile.write(raw)
  def send_file(self,path,content_type,cache=False):
   try:raw=path.read_bytes()
   except OSError:return self.error(404,'Not found')

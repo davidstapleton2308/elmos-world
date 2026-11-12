@@ -483,6 +483,7 @@ class Engine:
  def __init__(self):
   APP.mkdir(parents=True,exist_ok=True);BACKUP.mkdir(exist_ok=True)
   self.cfg=read_json(SETTINGS,{})
+  self.cfg.setdefault('appearance_preset','unified-3.2')
   self.reg=read_json(REGISTRY,{})
   self.extra=read_json(ARCADE,{'emulators':{},'roms':{},'notes':{}})
   self.steam=Path(self.cfg.get('steam_path') or steam_root())
