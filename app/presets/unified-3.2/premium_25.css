@@ -1,0 +1,150 @@
+/* Elmos World 2.5 — Game-intelligence page and configuration studio.
+   No launch-screen, controller reader, carousel or session timing modifications. */
+html[data-screen="detail"] .main>.topbar{display:none!important}
+html[data-screen="detail"] body{overflow:hidden}
+#detailView{
+  display:grid!important;
+  grid-template-rows:minmax(0,48%) minmax(0,52%)!important;
+  height:calc(100dvh - 76px)!important;
+  min-height:0!important;
+  overflow:hidden!important;
+  background:#090e10!important;
+}
+#detailView.hidden{display:none!important}
+#detailView .detail-hero{
+  height:100%!important;min-height:0!important;max-height:none!important;
+  background-position:center 43%!important;
+}
+#detailView .detail-content{
+  min-height:0!important;height:100%!important;
+  padding:38px clamp(26px,4vw,68px) 25px!important;
+  justify-content:flex-end!important;
+  overflow:hidden!important;
+}
+#detailView .back-btn{
+  position:absolute!important;top:14px!important;left:clamp(26px,4vw,68px)!important;
+  padding:8px 15px!important;z-index:5!important;
+}
+#detailView .detail-platform{
+  font-size:10px!important;line-height:1.1!important;
+}
+#detailView .detail-content h1{
+  font-size:clamp(37px,4.45vw,68px)!important;
+  max-width:78vw!important;line-height:1.03!important;
+  margin:8px 0!important;
+}
+#detailView .detail-description{
+  font-size:clamp(12px,1.06vw,15px)!important;
+  line-height:1.46!important;
+  max-width:680px!important;
+  margin:2px 0 0!important;
+  display:-webkit-box!important;-webkit-line-clamp:2!important;-webkit-box-orient:vertical!important;
+  overflow:hidden!important;
+}
+#detailView .detail-primary{margin-top:12px!important;gap:10px!important}
+#detailView .detail-primary .btn-primary,#detailView .detail-primary .btn-quiet{
+  padding:11px 20px!important;min-height:45px!important;font-size:13px!important;
+}
+#detailView .detail-primary .round-btn{height:44px;width:44px;font-size:20px!important}
+#detailView .detail-bottom{
+  display:grid!important;grid-template-columns:minmax(0,1.7fr) minmax(245px,.82fr)!important;
+  height:100%!important;min-height:0!important;max-height:100%!important;
+  padding:12px clamp(26px,4vw,68px) 14px!important;
+  gap:clamp(14px,2.8vw,40px)!important;
+  background:linear-gradient(180deg,rgba(17,25,26,.97),rgba(9,14,16,.99))!important;
+  overflow:hidden!important;
+}
+#detailView .detail-bottom::before{opacity:.23!important}
+#detailView .detail-main{
+  min-height:0!important;max-height:100%!important;
+  padding:clamp(12px,1.45vw,22px)!important;
+  display:flex!important;flex-direction:column!important;gap:7px!important;
+  overflow:hidden!important;
+}
+#detailView .detail-main .overline,#detailView .detail-aside .overline{font-size:10px!important}
+#detailView .about-body{
+  flex:0 0 auto!important;
+  font-size:clamp(12px,1.04vw,15px)!important;
+  line-height:1.48!important;
+  margin:2px 0 3px!important;
+  max-height:calc(1.48em * 4)!important;
+  display:-webkit-box!important;-webkit-line-clamp:4!important;-webkit-box-orient:vertical!important;
+  overflow:hidden!important;
+}
+#detailView .detail-shots-head{display:flex;align-items:center;justify-content:space-between;margin-top:auto;gap:12px;flex:0 0 auto}
+#detailView .detail-shots-head>span:last-child{font-size:10px;color:#879D96}
+#detailView .screenshots{
+  display:flex!important;flex:0 0 clamp(72px,12dvh,124px)!important;
+  min-height:0!important;margin:0!important;gap:10px!important;
+  overflow-x:auto!important;overflow-y:hidden!important;scrollbar-width:thin!important;
+}
+#detailView .screenshots:empty{display:none!important}
+#detailView .shot-tile{
+  display:block;min-width:0;flex:0 0 auto;
+  height:100%;width:clamp(125px,19vw,215px);
+  border:1px solid rgba(224,218,201,.18);border-radius:10px;
+  background:rgba(0,0,0,.2);padding:0;overflow:hidden;
+}
+#detailView .shot-tile img{width:100%!important;height:100%!important;object-fit:contain!important;border-radius:0!important}
+#detailView .shot-tile:focus-visible{outline:2px solid #DBB38A!important;outline-offset:-3px!important}
+#detailView .detail-aside{
+  min-height:0!important;max-height:100%!important;
+  overflow:hidden!important;border-left:1px solid rgba(235,229,208,.11)!important;
+  border-top:0!important;padding:clamp(11px,1.4vw,20px) 0 5px clamp(14px,1.8vw,26px)!important;
+  display:flex!important;flex-direction:column!important;gap:8px;
+}
+#detailView .detail-info{
+  display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  gap:8px!important;max-height:100%!important;overflow:hidden!important;
+}
+#detailView .detail-info span{
+  min-width:0!important;padding:8px 10px!important;
+  font-size:9px!important;line-height:1.45!important;
+  overflow:hidden!important;
+}
+#detailView .detail-info span b{
+  font-size:11px!important;line-height:1.25!important;
+  display:-webkit-box!important;-webkit-box-orient:vertical!important;
+  -webkit-line-clamp:2!important;overflow:hidden!important;
+  overflow-wrap:anywhere!important;
+}
+#detailView #detailConfigShortcut{margin-top:auto!important;flex:0 0 auto!important;font-size:11px!important;padding:10px 12px!important}
+/* A clean, scrollable configuration popup only; the game page itself does not scroll. */
+#dialogBackdrop .dialog{max-height:min(88dvh,830px)!important;width:min(760px,94vw)!important;
+  display:flex!important;flex-direction:column!important;overflow:hidden!important;
+  border:1px solid rgba(232,214,182,.22)!important;
+  background:linear-gradient(146deg,#1C2A2A,#0B1214 82%)!important;
+  box-shadow:0 25px 100px rgba(0,0,0,.64),0 0 65px rgba(213,137,80,.07)!important;
+}
+#dialogBackdrop .dialog-head{flex:0 0 auto!important;margin-bottom:15px!important}
+#dialogBackdrop #dialogBody{flex:1 1 auto!important;min-height:0!important;overflow-y:auto!important;scrollbar-width:thin!important}
+#dialogBackdrop .config-scroll{display:flex;flex-direction:column;gap:12px;padding-right:6px;padding-bottom:8px}
+#dialogBackdrop .config-block{
+  border-radius:14px;background:rgba(255,255,255,.025);border:1px solid rgba(232,214,182,.09);
+  padding:15px;display:flex;flex-direction:column;gap:8px;
+}
+#dialogBackdrop .config-block>label{font-size:13px;color:#F0E5DC;font-weight:750}
+#dialogBackdrop .config-block small{font-size:11px;color:#ABBEB3;line-height:1.5;overflow-wrap:anywhere}
+#dialogBackdrop .config-inline,#dialogBackdrop .config-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+#dialogBackdrop .config-inline input{flex:1 1 210px;min-width:0;width:auto!important}
+#dialogBackdrop .config-block textarea{width:100%;max-height:90px;padding:10px;border-radius:9px;color:#E6EFE8;background:#1A2526;border:1px solid rgba(229,236,223,.17)}
+#dialogBackdrop .config-block .option{min-height:52px;margin:1px 0!important;background:rgba(255,255,255,.035)!important}
+#dialogBackdrop .config-block .option.active{border-color:rgba(222,167,108,.45)!important;background:rgba(212,145,89,.08)!important}
+#dialogBackdrop .config-block .option small{max-width:480px}
+#dialogBackdrop .config-block p{margin:0!important;font-size:12px;line-height:1.5!important}
+#dialogBackdrop .config-path{font-size:12px;overflow-wrap:anywhere;color:#CEE2D5}
+#dialogBackdrop .config-steam{border-color:rgba(228,157,98,.20)}
+@media(max-width:970px){
+  #detailView .detail-bottom{grid-template-columns:minmax(0,1.4fr) minmax(220px,.85fr)!important;gap:16px!important}
+  #detailView .detail-content h1{font-size:clamp(31px,4.4vw,50px)!important}
+}
+@media(max-width:720px){
+  html[data-screen="detail"] body{overflow:auto}
+  #detailView{height:auto!important;min-height:calc(100dvh - 76px)!important;overflow:visible!important;grid-template-rows:300px auto!important}
+  #detailView .detail-bottom{height:auto!important;overflow:visible!important;grid-template-columns:1fr!important;padding:16px!important}
+  #detailView .detail-aside{border:0!important;border-top:1px solid rgba(235,229,208,.11)!important;padding:12px 0!important}
+  #detailView .detail-main{min-height:255px!important}
+  #detailView .detail-content{padding:35px 20px 20px!important}
+  #detailView .detail-description{max-width:90vw!important}
+}
+@media(prefers-reduced-motion:reduce){#detailView .shot-tile{scroll-behavior:auto!important}}
