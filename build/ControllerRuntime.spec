@@ -9,6 +9,7 @@ datas = []
 binaries = []
 hiddenimports = [
     "elmos_controller_lab.lab", "elmos_controller_lab.bridge",
+    "elmos_controller_lab.prerequisites",
     "elmos_controller_lab.healthy_lease", "elmos_controller_lab.mapping",
     "elmos_controller_lab.actions", "elmos_controller_lab.model",
     "elmos_controller_lab.sdl_source", "elmos_controller_lab.sony_hid",
@@ -33,7 +34,7 @@ analysis = Analysis(
     datas=datas,
     hiddenimports=sorted(set(hiddenimports)),
     hookspath=[],
-    runtime_hooks=[],
+    runtime_hooks=[str(ROOT / "build" / "pyi_stdio.py")],
     excludes=[],
     noarchive=False,
 )
