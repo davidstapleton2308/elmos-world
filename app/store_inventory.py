@@ -54,7 +54,7 @@ def parse_keyvalues(text: str) -> dict[str, Any]:
                 if i >= len(text):
                     raise ValueError("Truncated VDF escape")
                 escaped = text[i]
-                value.append({"n": "\n", "r": "\r", "t": "\t"}.get(escaped, escaped))
+                value.append({"n": "\n", "r": "\r", "t": "\t", "\\": "\\", '"': '"'} .get(escaped, "\\" + escaped))
                 i += 1
             else:
                 value.append(ch)

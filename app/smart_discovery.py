@@ -339,6 +339,8 @@ def inspect_folder(folder, *, min_age=120, now=None):
         reason += '; independent '+str(store_identity.get('source','store')).upper()+' installed inventory confirms product ID '+str(store_identity.get('productId',''))
     elif meta['title']:
         reason += '; local manifest title is unverified against installed-store inventory ('+meta['source']+')'
+    if not store_identity.get('matched') and (_steam_manifest(files) or any(p.suffix.casefold() == '.item' for p in files)) and 'unverified' not in reason:
+        reason += '; unverified local store manifest is not independent evidence'
     if not stable:
         reason += '; files are recent or download is incomplete'
     return _result(folder, 'game', score, reason, title, exe, stable=stable)

@@ -2,7 +2,7 @@ name: Unified Elmos World Integration
 
 on:
   push:
-    branches: [integration/elmos-world-unified]
+    branches: [integration/elmos-world-unified, build/unified-preview-2026-11-12]
     paths: ['app/**', 'build/**', 'controller-lab/**', 'tests/**', '.github/workflows/unified-integration.yml']
   pull_request:
     branches: [main]
@@ -11,7 +11,7 @@ permissions:
   contents: read
 concurrency:
   group: elmos-unified-validation-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
   windows-integrated-build:
     runs-on: windows-2022
