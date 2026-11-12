@@ -375,7 +375,7 @@ function open(name){
   // Restore deck position after the library becomes visible; never reset to item one.
   requestAnimationFrame(()=>syncSelectedCard(true));
  }
- syncBrowsePreviewVisibility();if(name==='activity'){renderActivity();refreshLaunchTimeline();}
+ syncBrowsePreviewVisibility();if(name==='activity'){renderActivity();refreshLaunchTimeline();}if(name==='settings')refreshControllerPrerequisites();
 }
 function revealModalControl(target){
  // The controller deliberately uses preventScroll to avoid moving the full page.
@@ -1116,6 +1116,38 @@ function setupControllerEditor(){syncNativeMenuButtons();const options=Array.fro
  $('saveControllerMap').onclick=()=>{for(const [key,id] of Object.entries({a:'mapA',b:'mapB',start:'mapStart',lb:'mapLb',rb:'mapRb',guide:'mapGuide'}))controllerMap[key]=Number($(id).value);localStorage.setItem('elmo-controller-map',JSON.stringify(controllerMap));syncNativeMenuButtons();api('/api/guide-index',{index:controllerMap.guide}).then(()=>notify('Controller mapping saved. PS button will open the game menu.')).catch(e=>notify('PS mapping could not be saved: '+e.message,true));};
  $('resetControllerMap').onclick=()=>{controllerMap={...controllerMapDefault};localStorage.removeItem('elmo-controller-map');setupControllerEditor();api('/api/guide-index',{index:10}).then(()=>notify('PS4 button mapping restored.')).catch(e=>notify(e.message,true));};
  $('controllerRefresh').onclick=()=>pollController();
+ $('controllerPrereqRefresh').onclick=()=>refreshControllerPrerequisites();
+ $('controllerInstallDriver').onclick=async()=>{
+  if(!window.confirm('Elmos World needs to install its Windows virtual-controller driver. This requires administrator approval and installs a machine-wide driver plus its preparation record. It does not change Windows security settings or run games as administrator. Continue?'))return;
+  const button=$('controllerInstallDriver');button.disabled=true;
+  try{
+   const result=await api('/api/controller-lab/install-driver',{confirmed:true});
+   notify(result.message||'Windows administrator approval requested. Approve the prompt, then check readiness again.');
+   setTimeout(()=>refreshControllerPrerequisites(),1800);
+  }catch(e){notify(e.message,true);}
+  finally{button.disabled=false;}
+ };
+ refreshControllerPrerequisites();
+}
+async function refreshControllerPrerequisites(){
+ const badge=$('controllerPrereqBadge'),status=$('controllerPrereqStatus'),button=$('controllerInstallDriver');
+ if(!badge||!status||!button)return null;
+ badge.textContent='CHECKING';
+ try{
+  const result=await api('/api/controller-lab/prerequisites');
+  badge.textContent=result.ready?'READY':(result.state||'NEEDS ATTENTION').replaceAll('_',' ').toUpperCase();
+  badge.dataset.state=result.state||'unknown';
+  status.textContent=result.message||'Controller prerequisite status is unknown.';
+  button.hidden=result.ready===true;
+  button.disabled=!['driver_missing','driver_unprepared'].includes(result.state);
+  button.textContent=result.state==='driver_unprepared'?'Repair controller driver':'Install controller driver';
+  return result;
+ }catch(e){
+  badge.textContent='CHECK FAILED';badge.dataset.state='error';
+  status.textContent=e.message||'Could not check controller prerequisites.';
+  button.hidden=false;button.disabled=true;button.textContent='Controller setup unavailable';
+  return null;
+ }
 }
 function applyVisualPreferences(){document.documentElement.dataset.theme=elmoTheme;document.documentElement.dataset.motion=elmoMotion;applyAtmosphere();$('themeChoice').value=elmoTheme;$('motionChoice').value=elmoMotion}
 function fullscreenToggle(){if(window.pywebview?.api?.toggle_fullscreen)window.pywebview.api.toggle_fullscreen().catch(()=>{});else if(document.fullscreenElement)document.exitFullscreen?.();else document.documentElement.requestFullscreen?.().catch(()=>{});}
