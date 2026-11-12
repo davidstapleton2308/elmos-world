@@ -3,7 +3,7 @@ $Root = Split-Path -Parent $PSScriptRoot
 $RuntimeDll = Join-Path $Root 'runtime/HIDMaestro.Core.dll'
 if (!(Test-Path $RuntimeDll)) {
     & (Join-Path $PSScriptRoot 'Setup-ControllerLab.ps1')
-    if ($LASTEXITCODE -ne 0) { throw 'SDK setup failed.' }
+    if (!(Test-Path $RuntimeDll)) { throw 'SDK setup completed without staging HIDMaestro.Core.dll.' }
 }
 $Project = Join-Path $Root 'bridge/Elmos.ControllerLab.Bridge.csproj'
 $Output = Join-Path $Root 'bridge/publish'
