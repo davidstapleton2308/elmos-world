@@ -1,0 +1,242 @@
+/*
+ * Elmos World 2.3 — Premium Art Direction
+ * App logic, Windows/Xenia handoff, session tracking and controller mapping
+ * remain unchanged. Designed as a final override to legacy carousel CSS.
+ */
+:root{
+  --elmo-nav:72px;
+  --ember-rgb:202,122,65;
+  --deck-width:clamp(147px, min(16vw, calc(32dvh - 60px)), 235px);
+  --obsidian-base:#080c0e;
+  --obsidian-panel:#10171a;
+}
+html,body{background:var(--obsidian-base)}
+/* Brand: precision E mark, no hexagon, badge, or neon frame. */
+.rail{position:sticky!important;top:0!important;z-index:95!important;
+  height:var(--elmo-nav)!important;
+  display:flex!important;align-items:center!important;gap:clamp(8px,1.1vw,18px)!important;
+  padding:0 clamp(14px,2vw,38px)!important;overflow:hidden;
+  isolation:isolate;background:linear-gradient(180deg,#151d20,#0b1012)!important;
+  border-bottom:1px solid rgba(235,242,239,.12)!important;
+  box-shadow:0 9px 32px rgba(0,0,0,.30)!important;
+}
+.rail::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:0;
+  background:url('/graphite_weave.svg') repeat 0 0/128px 128px;
+  opacity:.75;mix-blend-mode:screen;
+}
+.rail::after{content:"";position:absolute;left:2%;right:2%;bottom:0;height:1px;z-index:0;pointer-events:none;
+  background:linear-gradient(90deg,transparent,rgba(191,220,205,.14) 22%,rgba(var(--ember-rgb),.25) 63%,transparent)}
+.rail>*{position:relative;z-index:1}
+.rail .logo{margin:0!important;padding:0!important;min-width:190px!important;gap:12px!important}
+.rail .logo .elmo-emblem{width:40px!important;height:40px!important;filter:drop-shadow(0 2px 12px rgba(0,0,0,.4))!important}
+.rail .logo span{font-family:'Segoe UI Variable','Segoe UI',sans-serif!important;
+  font-size:14px!important;font-weight:780!important;line-height:1.05!important;
+  letter-spacing:.078em!important;color:#F1F6F3!important;text-shadow:none!important;white-space:nowrap!important}
+.rail .logo small{font-size:8px!important;letter-spacing:.125em!important;
+  font-weight:600!important;color:#A2B1AB!important;margin-top:6px!important}
+.rail nav{display:flex!important;align-items:center!important;justify-content:center!important;
+  flex:1 1 auto!important;min-width:0!important;gap:clamp(0px,.35vw,7px)!important}
+.rail-link{font-size:clamp(10px,.9vw,12px)!important;padding:10px clamp(7px,.85vw,14px)!important;
+  color:#BECAC5!important;white-space:nowrap!important}
+.rail-link.active{border:1px solid rgba(226,236,230,.17)!important;
+  background:linear-gradient(145deg,rgba(228,239,232,.10),rgba(28,39,40,.38))!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.09),0 7px 17px rgba(0,0,0,.20)!important}
+.rail-link:focus-visible{outline:1px solid #CFD9D3!important;outline-offset:2px!important;
+  box-shadow:0 0 0 3px rgba(var(--ember-rgb),.12)!important}
+.rail-tools{display:flex;align-items:center;justify-content:flex-end;flex:0 0 auto}
+.rail-tools .top-right{gap:7px!important;display:flex;align-items:center}
+.rail-tools .search-wrap{height:37px;min-width:0;display:flex;align-items:center;gap:7px;
+  border-radius:10px!important;padding:6px 11px!important;background:rgba(1,5,7,.46)!important;
+  border:1px solid rgba(218,232,222,.14)!important;color:#A7BAB1!important;font-size:17px!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.025)}
+.rail-tools .search-wrap input{width:clamp(120px,12vw,207px)!important;color:#EDF5F0;font-size:12px}
+.rail-tools .icon-btn{width:37px!important;height:37px!important;border-radius:9px!important;
+  font-size:23px!important;background:rgba(232,241,234,.06)!important;
+  border:1px solid rgba(220,232,225,.13)!important}
+.rail-tools .add-btn{height:37px;padding:6px 12px!important;font-size:11px!important;
+  color:#E3F2E8!important;border:1px solid rgba(129,181,144,.31)!important;
+  background:linear-gradient(135deg,#304B3B,#20352C)!important;border-radius:9px!important}
+.rail-tools .add-btn:hover{border-color:rgba(210,233,217,.55)!important}
+.rail-bottom{margin:0!important;padding:0!important;width:auto!important;flex:0 0 auto!important}
+.rail-bottom .controller-line{max-width:165px!important;height:36px!important;
+  background:rgba(255,255,255,.035)!important;border-color:rgba(225,240,228,.10)!important}
+.splash-brand .elmo-emblem{filter:drop-shadow(0 8px 30px rgba(213,133,69,.12))}
+/* No control or search overlay within the hero; the global rail owns them. */
+html[data-screen="library"] .main>.topbar{display:none!important}
+.main>.topbar{background:linear-gradient(180deg,#11191a,#0c1113)!important}
+#libraryView{height:calc(100dvh - var(--elmo-nav))!important;
+  max-height:calc(100dvh - var(--elmo-nav))!important;min-height:0!important;
+  background:var(--obsidian-base)!important;overflow:hidden!important}
+/* Big game art is allowed to breathe. Dark only under the title and at the edge of the tray.
+   No brightness/saturation filters on the hero image itself. */
+#libraryView>.hero.has-backdrop{
+  background-size:cover!important;background-position:center center!important;
+  background-color:#182225!important;
+}
+#libraryView>.hero::before{
+  background:linear-gradient(90deg,rgba(4,8,10,.83) 0%,rgba(5,9,11,.63) 20%,rgba(5,9,11,.29) 46%,rgba(5,9,11,.02) 76%),
+    linear-gradient(0deg,rgba(6,10,12,.78) 0%,rgba(6,10,12,.08) 24%,transparent 53%)!important;
+}
+#libraryView>.hero .hero-sheen{
+  background:linear-gradient(0deg,rgba(8,12,14,.68),transparent 23%)!important;
+}
+#libraryView .hero-body{left:clamp(26px,5vw,84px)!important;bottom:clamp(28px,4.2vh,56px)!important;
+  max-width:min(750px,65vw)!important}
+#libraryView .hero-title{font-size:clamp(39px,min(5.4vw,9.4vh),86px)!important;
+  text-shadow:0 5px 24px rgba(0,0,0,.54)!important;letter-spacing:-.06em}
+#libraryView .hero-body p{color:#E6ECE8!important;text-shadow:0 2px 13px rgba(0,0,0,.65)!important}
+#libraryView .hero-counter{bottom:clamp(27px,4vh,52px)!important;right:78px!important}
+#libraryView .hero-next{bottom:clamp(19px,3.2vh,45px)!important;right:30px!important;
+  background:linear-gradient(160deg,#3B4140AA,#141B1CC9)!important;
+  border:1px solid rgba(230,238,230,.24)!important}
+#libraryView .btn-primary{box-shadow:0 4px 21px rgba(7,41,20,.22)}
+/* Richer graphite tray with real locally generated woven artwork, visible only on black.
+   Amber is a reflection (never orange buttons or all-orange typography). */
+#libraryView>.library-pad{
+  flex:0 0 clamp(318px,50dvh,472px)!important;
+  height:clamp(318px,50dvh,472px)!important;
+  margin-top:-16px!important;
+  padding:10px clamp(22px,4.2vw,70px) 11px!important;
+  border:0!important;
+  background:linear-gradient(180deg,rgba(9,15,17,.88) 0%,#11191b 17%,#101719 62%,#0A1012 100%)!important;
+  box-shadow:0 -10px 36px rgba(10,15,16,.06)!important;
+  isolation:isolate;
+}
+#libraryView>.library-pad::before{
+  background:url('/graphite_weave.svg') repeat 0 0/128px 128px!important;
+  opacity:.77!important;mix-blend-mode:screen!important;z-index:0!important;
+}
+#libraryView>.library-pad::after{
+  content:"";position:absolute;inset:0;pointer-events:none;z-index:0;
+  background:radial-gradient(ellipse 31% 36% at 51% 100%,rgba(var(--ember-rgb),.13),transparent 83%),
+    radial-gradient(ellipse 50% 50% at 10% 20%,rgba(72,128,93,.055),transparent 75%);
+}
+#libraryView>.library-pad>*{position:relative;z-index:2}
+#libraryView .section-head{min-height:40px!important;margin:0 0 5px!important;gap:10px}
+#libraryView .section-head h2{font-size:clamp(17px,1.9vw,24px)!important;color:#F3F6F2!important}
+#libraryView .section-head h2 span{color:#B0BCB6!important}
+#libraryView .sort-btn{background:rgba(234,241,236,.045)!important;border-color:rgba(234,241,236,.09)!important;
+  color:#C5D1C9!important}
+#libraryView .sort-btn.active{background:rgba(194,209,198,.12)!important;
+  border-color:rgba(231,239,233,.23)!important;color:#F0F5F2!important}
+#libraryView #gameCards.cards[data-layout="deck"]{
+  gap:clamp(15px,2.1vw,30px)!important;
+  padding:10px max(12px,calc((100% - var(--deck-width))/2)) 13px!important;
+  align-items:center!important;
+  overflow-x:auto!important;overflow-y:hidden!important;scroll-snap-type:x mandatory!important;
+}
+#libraryView #gameCards.cards[data-layout="deck"] .game-card{
+  flex:0 0 var(--deck-width)!important;
+  height:100%!important;align-self:center!important;
+  display:flex!important;flex-direction:column!important;justify-content:center!important;
+  /* Intentionally preserve v2.2's distinctly dimmer non-selected cards. */
+  opacity:.48!important;filter:brightness(.76) saturate(.73)!important;
+  transform:scale(.936)!important;transform-origin:center center!important;
+  border:0!important;outline:0!important;box-shadow:none!important;
+}
+#libraryView #gameCards.cards[data-layout="deck"] .game-card .poster{
+  width:100%!important;height:auto!important;
+  aspect-ratio:2/3!important;
+  max-height:calc(100% - 39px)!important;
+  min-height:0!important;
+  flex:0 1 auto!important;
+  border-radius:12px!important;
+  border:1px solid rgba(183,202,192,.15)!important;
+  background:linear-gradient(145deg,#1A2123,#0B1012)!important;
+  box-shadow:0 13px 32px rgba(0,0,0,.46)!important;
+  overflow:hidden!important;
+}
+#libraryView #gameCards.cards[data-layout="deck"] .game-card .poster img,
+#libraryView #gameCards.cards[data-layout="deck"] .game-card .poster img.cover-image{
+  display:block!important;width:100%!important;height:100%!important;
+  object-fit:contain!important;object-position:center center!important;
+  filter:none!important;
+}
+#libraryView #gameCards.cards[data-layout="deck"] .game-card.selected,
+#libraryView #gameCards.cards[data-layout="deck"] .game-card:focus-visible{
+  opacity:1!important;filter:none!important;
+  transform:translateY(-3px) scale(1.085)!important;z-index:5!important;
+  outline:0!important;border:0!important;box-shadow:none!important;
+}
+/* Prevent ancient button:focus-visible outlines from reviving the bright green frame. */
+#libraryView #gameCards.cards[data-layout="deck"] .game-card.selected:focus,
+#libraryView #gameCards.cards[data-layout="deck"] .game-card:focus{
+  outline:0!important;border:0!important;box-shadow:none!important;
+}
+#libraryView #gameCards.cards[data-layout="deck"] .game-card.selected .poster,
+#libraryView #gameCards.cards[data-layout="deck"] .game-card:focus-visible .poster,
+#libraryView #gameCards.cards[data-layout="deck"] .game-card.selected:focus-visible .poster{
+  border:1px solid rgba(234,226,208,.39)!important;
+  outline:0!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.23),inset 0 -2px rgba(var(--ember-rgb),.18),
+    0 0 0 1px rgba(165,165,156,.16),0 12px 36px rgba(0,0,0,.76),
+    0 28px 40px rgba(var(--ember-rgb),.18)!important;
+}
+#libraryView #gameCards.cards[data-layout="deck"] .game-card:hover:not(.selected){
+  opacity:.48!important;filter:brightness(.76) saturate(.73)!important;transform:scale(.936)!important;
+}
+#libraryView #gameCards.cards[data-layout="deck"] .game-card:hover:not(.selected) .poster{
+  border:1px solid rgba(183,202,192,.15)!important;
+}
+#libraryView #gameCards.cards[data-layout="deck"] .game-card .card-meta{
+  min-height:39px!important;max-height:39px!important;flex:0 0 39px!important;
+  padding-top:7px!important;overflow:hidden!important;
+}
+#libraryView #gameCards.cards[data-layout="deck"] .game-card strong{font-size:clamp(11px,1.05vw,15px)!important;color:#EEF3EF!important}
+#libraryView #gameCards.cards[data-layout="deck"] .game-card.selected small{color:#BEC9C0!important}
+#libraryView .carousel-actions{top:48px!important;right:clamp(18px,3vw,45px)!important}
+/* The menu and Settings remain the same material family. */
+.game-menu-card,.settings-pad .setting-note{
+  background-color:#11191B;
+  background-image:linear-gradient(140deg,rgba(26,36,36,.92),rgba(9,14,16,.96)),url('/graphite_weave.svg');
+  border-color:rgba(216,232,219,.13)!important;
+}
+.game-menu-card .overline{color:#E2AF85!important}
+@media(max-width:1580px){.rail-bottom{display:none!important}.rail .logo{min-width:176px!important}}
+@media(max-width:1110px){
+ .rail{gap:7px!important;padding:0 12px!important}
+ .rail .logo{min-width:134px!important;gap:8px!important}
+ .rail .logo span{font-size:11px!important}
+ .rail .logo .elmo-emblem{width:30px!important;height:30px!important}
+ .rail-link{font-size:10px!important;padding:8px 6px!important;gap:5px!important}
+ .rail-tools .search-wrap input{width:105px!important}
+ .rail-tools .add-btn{font-size:0!important;width:36px!important;padding:0!important}
+ .rail-tools .add-btn::after{content:"+";font-size:21px;font-weight:400}
+}
+@media(max-width:770px){
+ .rail nav{gap:0!important}
+ .rail-link{font-size:0!important;padding:8px!important}
+ .rail-link .rail-ico{font-size:16px!important}
+ .rail .logo{min-width:90px!important}
+ .rail .logo span{display:none!important}
+ .rail-tools .search-wrap input{width:86px!important}
+ #libraryView>.library-pad{flex-basis:clamp(285px,50dvh,390px)!important;height:clamp(285px,50dvh,390px)!important}
+ #libraryView .hero-body{max-width:80vw!important;left:22px!important;bottom:35px!important}
+ #libraryView .hero-title{font-size:clamp(30px,6vw,49px)!important}
+ #libraryView .sort-buttons{gap:3px!important}
+ #libraryView .sort-btn{font-size:9px!important;padding:5px 7px!important}
+}
+@media(max-height:680px){
+ :root{--deck-width:clamp(126px,min(14vw,calc(33dvh - 77px)),200px)}
+ #libraryView>.library-pad{flex-basis:51dvh!important;height:51dvh!important}
+ #libraryView .hero-body{bottom:23px!important}
+ #libraryView .hero-title{font-size:clamp(30px,4.2vw,57px)!important;margin:6px 0 8px!important}
+ #libraryView .hero-actions{margin-top:9px!important}
+}
+@media(prefers-reduced-motion:reduce){
+ #libraryView #gameCards.cards[data-layout="deck"] .game-card{transition:none!important}
+}
+/* Final visual calibration from Chromium screenshots: low-key weave,
+   correctly proportioned poster frames with no side letterboxing. */
+:root{--deck-width:clamp(145px, min(15vw,calc(31dvh - 65px)),226px)}
+.rail::before{opacity:.28!important}
+#libraryView>.library-pad::before{opacity:.28!important}
+#libraryView .section-head{min-height:31px!important;height:31px!important;margin:0 0 2px!important}
+#libraryView #gameCards.cards[data-layout="deck"]{padding-top:3px!important;padding-bottom:5px!important}
+#libraryView #gameCards.cards[data-layout="deck"] .game-card .poster{aspect-ratio:2/3!important;height:auto!important;max-height:calc(100% - 39px)!important}
+/* A raised card must rise inward, not magnify its caption below the viewport. */
+#libraryView #gameCards.cards[data-layout="deck"] .game-card.selected,
+#libraryView #gameCards.cards[data-layout="deck"] .game-card:focus-visible{
+  transform-origin:center bottom!important;
+  transform:translateY(-7px) scale(1.085)!important;
+}

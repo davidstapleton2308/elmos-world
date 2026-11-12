@@ -1,0 +1,18 @@
+/* Elmos World 2.6 — ember-scroll configuration, without changing game displays. */
+#dialogBackdrop #dialogBody{
+  scrollbar-width:thin!important;
+  scrollbar-color:#d48b4f rgba(13,19,19,.88)!important;
+  scroll-behavior:auto!important;
+  scroll-padding-block:18px;
+  overscroll-behavior:contain;
+}
+#dialogBackdrop #dialogBody::-webkit-scrollbar{display:block!important;width:9px!important}
+#dialogBackdrop #dialogBody::-webkit-scrollbar-track{
+  background:rgba(16,23,25,.84)!important;border-radius:100px!important
+}
+#dialogBackdrop #dialogBody::-webkit-scrollbar-thumb{
+  background:linear-gradient(180deg,#ebb077,#bb7241)!important;
+  border:2px solid #11191a!important;border-radius:100px!important;
+}
+#dialogBackdrop #dialogBody::-webkit-scrollbar-thumb:hover{background:#f0b582!important}
+#dialogBackdrop .dialog{scrollbar-color:#d48b4f transparent!important}

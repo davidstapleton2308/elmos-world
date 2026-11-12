@@ -1,0 +1,64 @@
+/* 2.8 — Cinematic Media. Retains all v2.7 design and game launch behavior. */
+:root{--elmo-ember:#da9866}
+#detailView .detail-shots-head{display:flex!important;justify-content:space-between;align-items:center;gap:12px}
+#detailView .gallery-toolbar{display:flex;align-items:center;gap:8px}
+#detailView .gallery-toolbar #detailShotsStatus{margin-right:8px;font-size:10px;white-space:nowrap}
+#detailView .gallery-arrow{
+ width:33px;height:31px;flex-shrink:0;border-radius:10px;
+ background:linear-gradient(135deg,#27322e,#131b1d);
+ border:1px solid rgba(221,164,114,.30);color:#e9d3be;
+ font-size:18px;line-height:1;box-shadow:0 7px 20px #0004;
+}
+#detailView .gallery-arrow:focus-visible{outline:2px solid #dfa775;outline-offset:2px}
+#detailView .gallery-arrow:disabled{opacity:.24}
+#detailView #detailShots.screenshots{
+ display:flex!important;gap:12px!important;align-items:stretch;
+ overflow-x:auto!important;overflow-y:hidden!important;
+ overscroll-behavior-x:contain;scroll-snap-type:x proximity;
+ scroll-padding-inline:9px;padding:3px 8px 8px 2px;
+ scrollbar-width:thin!important;scrollbar-color:#c48c63 transparent!important;
+}
+#detailView #detailShots .shot-tile{display:flex;flex-shrink:0;overflow:hidden;
+ min-width:clamp(135px,16vw,225px);max-width:clamp(135px,16vw,225px);
+ height:100%;border:1px solid rgba(209,187,164,.19);border-radius:11px;
+ background:#101819;cursor:pointer;scroll-snap-align:start;
+ transition:border-color .12s,transform .12s;
+}
+#detailView #detailShots .shot-tile img{width:100%;height:100%;object-fit:cover}
+#detailView #detailShots .shot-tile:hover,#detailView #detailShots .shot-tile:focus-visible{
+ outline:0!important;border-color:#e2b186!important;
+ box-shadow:0 0 0 2px rgba(218,152,102,.28),0 14px 32px #0008!important;
+}
+#detailView #detailShots .trailer-tile{flex-direction:column;align-items:center;justify-content:center;gap:6px;
+ background:radial-gradient(ellipse at 70% 20%,rgba(193,120,73,.3),transparent 70%),
+ linear-gradient(135deg,#202d2b,#0b1215);text-align:center;color:#f3dbc7;padding:9px;}
+#detailView .trailer-tile .trailer-play{display:grid;place-items:center;border-radius:50%;height:38px;width:38px;
+ background:linear-gradient(140deg,#e4b081,#b16d48);color:#1b1411;font-size:18px}
+#detailView .trailer-tile strong{font-size:11px;letter-spacing:1.4px}
+#detailView .trailer-tile small{font-size:9px;color:#b9bdb6;line-height:1.2;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.media-viewer[hidden]{display:none!important}
+.media-viewer{position:fixed;inset:0;z-index:12050;background:rgba(4,8,9,.985);
+ display:flex;flex-direction:column;align-items:stretch;padding:18px clamp(16px,3vw,45px) 14px;
+ background-image:radial-gradient(ellipse at 50% 30%,rgba(44,73,65,.28),transparent 65%);
+}
+.media-viewer-top{display:flex;align-items:center;gap:14px;min-height:46px;color:#dde8e0;
+ font-weight:750;font-size:clamp(12px,1.2vw,17px)}
+#viewerTitle{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#viewerCounter{color:#cc9e78;font-size:12px;font-variant-numeric:tabular-nums}
+.media-viewer-close,.media-viewer-arrow{background:#1c2626;color:#e9efe7;
+ border:1px solid rgba(233,211,188,.3);border-radius:11px}
+.media-viewer-close{font-size:20px;width:42px;height:42px}
+.media-viewer-stage{display:flex;align-items:center;justify-content:center;flex:1;min-height:0;gap:clamp(4px,1.3vw,18px)}
+.media-viewer-arrow{font-size:clamp(23px,3vw,36px);width:clamp(33px,4.4vw,56px);height:clamp(50px,7vw,72px);
+ flex-shrink:0;cursor:pointer}
+.media-viewer img,.media-viewer video{object-fit:contain;max-width:calc(100% - 110px);max-height:100%;
+ width:auto;height:auto;flex:0 1 auto;border-radius:8px;box-shadow:0 18px 80px #000a}
+.media-viewer video{width:min(80vw,1450px);aspect-ratio:16/9;background:black}
+.media-viewer-hint{height:34px;display:grid;place-items:center;color:#9caaa3;font-size:11px;letter-spacing:.08em}
+.media-viewer button:focus-visible{outline:2px solid #e0a675;outline-offset:3px}
+/* Keep the selected card complete, especially at the outer ends of the shelf. */
+#libraryView #gameCards.cards[data-layout="deck"]{
+ scroll-padding-inline:calc((100% - var(--deck-width) * 1.14)/2)!important;
+ padding-inline:max(16px,calc((100% - var(--deck-width) * 1.14)/2))!important;
+}
+@media(max-height:700px){.media-viewer-hint{height:24px}}

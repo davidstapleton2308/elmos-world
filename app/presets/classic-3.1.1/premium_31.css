@@ -1,0 +1,49 @@
+/* v3.1 Cloud Lounge — isolated from the existing local-game home screen. */
+#gfnView{min-height:calc(100dvh - 76px);max-height:calc(100dvh - 76px);display:flex;flex-direction:column;overflow:hidden;background:linear-gradient(160deg,#121c1d 0%,#0c1112 46%,#0a0f10 100%);position:relative}
+#gfnView::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.14;background-image:url('/graphite_weave.svg');background-size:350px;mix-blend-mode:screen}
+#gfnView>.gfn-hero{flex:1 1 53%;min-height:215px;position:relative;isolation:isolate;background:radial-gradient(circle at 76% 35%,rgba(107,155,114,.17),transparent 43%),radial-gradient(circle at 68% 90%,rgba(205,123,69,.09),transparent 29%),#101a19;background-size:cover;background-position:center 35%;display:flex;align-items:flex-end;padding:18px clamp(22px,4vw,70px) clamp(22px,4vh,55px);overflow:hidden;transition:background-image .32s ease}
+#gfnView .gfn-shade{position:absolute;inset:0;background:linear-gradient(0deg,#0c1112 0%,rgba(9,15,15,.24) 38%,rgba(9,15,15,.08) 100%);pointer-events:none}
+#gfnView .gfn-hero-content{position:relative;z-index:1;max-width:min(760px,76%)}
+#gfnHeroTitle{font-weight:850;font-size:clamp(31px,4.5vw,70px);line-height:1.04;letter-spacing:-.055em;margin:10px 0;color:#f4faf7;text-shadow:0 9px 26px #020507a0;max-width:15ch}
+#gfnHeroText{font-size:14px;color:#c5d0c9;line-height:1.5;margin:8px 0 20px;max-width:50ch}
+#gfnView .gfn-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+#gfnView .gfn-actions>button{min-height:42px;padding:11px 17px;font-size:12px;white-space:nowrap}
+#gfnView>.gfn-bottom{z-index:1;flex:0 0 clamp(260px,42vh,400px);min-height:220px;padding:12px clamp(22px,4vw,65px) 18px;background:linear-gradient(180deg,rgba(15,22,23,.35),rgba(8,12,13,.85)),url('/graphite_weave.svg') center/460px;border-top:1px solid rgba(218,177,135,.09);display:flex;flex-direction:column;min-height:0}
+#gfnView .gfn-shelf-head{display:flex;align-items:end;justify-content:space-between;flex:0 0 auto;gap:15px}
+#gfnView .gfn-shelf-head h2{font-size:clamp(20px,2.3vw,29px);letter-spacing:-.045em;margin:2px 0}
+#gfnView .gfn-shelf-head h2 span{font-size:12px;font-weight:500;letter-spacing:0;color:#acb8b2;margin-left:10px}
+#gfnView .gfn-shelf-controls{display:flex;gap:8px}
+#gfnView .gfn-cards{flex:1 1 auto;min-height:0;display:flex;align-items:center;gap:20px;padding:7px clamp(18px,14vw,180px) 10px;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scrollbar-width:none}
+#gfnView .gfn-cards::-webkit-scrollbar{display:none}
+#gfnView .gfn-card{flex:0 0 clamp(100px,12vw,150px);height:90%;min-height:0;border:0;outline:0!important;background:none!important;display:flex;align-items:center;flex-direction:column;justify-content:center;text-align:center;scroll-snap-align:center;opacity:.57;filter:saturate(.8);transition:transform .18s,opacity .18s,filter .18s}
+#gfnView .gfn-card.active,#gfnView .gfn-card:focus-visible{opacity:1;filter:none;transform:scale(1.075);z-index:3}
+#gfnView .gfn-poster{display:block;position:relative;flex:0 1 auto;min-height:0;max-height:calc(100% - 43px);aspect-ratio:2/3;width:100%;background:linear-gradient(160deg,#294a40,#111b21 60%,#362a23);border:1px solid rgba(255,255,255,.045);border-radius:13px;overflow:hidden;box-shadow:0 13px 31px rgba(0,0,0,.43)}
+#gfnView .gfn-card.active .gfn-poster{border-color:rgba(227,169,114,.2);box-shadow:0 17px 35px #0008,0 12px 30px rgba(198,117,63,.08)}
+#gfnView .gfn-poster img{display:block;position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#0c1415;z-index:2}
+#gfnView .gfn-monogram{display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:38px;font-weight:900;color:#d9eee4;text-shadow:0 3px 20px #000a}
+#gfnView .gfn-card strong{width:130%;max-width:190px;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:7px;color:#e4eee8}
+#gfnView .gfn-card small{font-size:9px;color:#9fb4a7;white-space:nowrap;margin-top:3px}
+#gfnView .gfn-empty{margin:auto;color:#b2c2b7;font-size:14px;max-width:46ch;text-align:center}
+#gfnView .gfn-foot{display:flex;justify-content:space-between;gap:10px;align-items:center;flex:0 0 auto;font-size:10px;color:#94a79d;min-height:30px}
+#gfnView .gfn-foot button{padding:7px 11px;font-size:11px}
+.hidden-select-actions{display:flex;gap:8px;margin:12px 0}
+.hidden-selection{display:flex;flex-direction:column;gap:7px;max-height:min(42vh,380px);overflow:auto;padding:5px 3px;margin:10px 0 16px;scrollbar-color:#d49a66 #132122}
+.hidden-select-row{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid #53605d66;border-radius:10px;background:rgba(26,38,38,.75);font-size:13px;cursor:pointer}
+.hidden-select-row input{width:18px;height:18px;accent-color:#da9e70;flex:0 0 auto}
+.hidden-select-row span{min-width:0;overflow-wrap:anywhere}
+.hidden-select-row small,.cloud-manage-row small{display:block;font-size:10px;color:#9caca6;overflow-wrap:anywhere;margin-top:4px}
+.cloud-manage-row{display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid #ffffff19}
+.cloud-manage-row>span{flex:1;min-width:0}
+.cloud-manage-row>button{padding:8px 10px;font-size:11px;flex-shrink:0}
+#hiddenGames .list-row{gap:12px}
+@media(max-height:770px){
+ #gfnView>.gfn-bottom{flex-basis:39vh;padding-bottom:9px}
+ #gfnView .gfn-actions>button{padding:8px 11px;min-height:38px}
+ #gfnView .gfn-cards{gap:13px}
+}
+@media(max-width:950px){
+ #gfnView .gfn-hero-content{max-width:95%}
+ #gfnHeroTitle{font-size:clamp(27px,4vw,50px)}
+ #gfnView>.gfn-bottom{padding-left:24px;padding-right:24px}
+ #gfnView .gfn-cards{padding-left:40px;padding-right:40px}
+}
