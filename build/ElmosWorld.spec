@@ -24,6 +24,7 @@ hiddenimports = [
     'webview.platforms.winforms', 'webview.platforms.edgechromium',
     'pygame._sdl2.controller', 'clr',
     'elmos_controller_lab.lab', 'elmos_controller_lab.bridge',
+    'elmos_controller_lab.prerequisites',
     'elmos_controller_lab.healthy_lease', 'elmos_controller_lab.mapping',
     'elmos_controller_lab.actions', 'elmos_controller_lab.model',
     'elmos_controller_lab.sdl_source', 'elmos_controller_lab.sony_hid',
