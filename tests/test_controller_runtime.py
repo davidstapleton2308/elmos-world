@@ -56,7 +56,7 @@ class ControllerRuntimeTests(unittest.TestCase):
         result = self.runtime.start_for_game("game")
         self.assertIsNone(result)
         self.assertEqual(self.calls, [])
-        self.runtime.save_game_profile("game", "xbox-360-wired", 0, True)
+        self.runtime.save_game_profile("game", "xbox-360-wired", 0, True, "030000004c050000c405000000010000")
         result = self.runtime.start_for_game("game")
         self.assertTrue(result["started"])
         self.assertEqual(len(self.calls), 1)

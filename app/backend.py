@@ -484,6 +484,9 @@ class Engine:
   APP.mkdir(parents=True,exist_ok=True);BACKUP.mkdir(exist_ok=True)
   self.cfg=read_json(SETTINGS,{})
   self.cfg.setdefault('appearance_preset','unified-3.2')
+  # Disable any legacy persisted background organizer setting until the
+  # Windows move/journal race gates are fully validated on real NTFS.
+  self.cfg['smart_auto_enabled']=False
   self.reg=read_json(REGISTRY,{})
   self.extra=read_json(ARCADE,{'emulators':{},'roms':{},'notes':{}})
   self.steam=Path(self.cfg.get('steam_path') or steam_root())
