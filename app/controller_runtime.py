@@ -392,7 +392,7 @@ class ControllerRuntime:
                 "message": "Elmos Controller Lab opened in a separate window."}
 
     def install_driver(self) -> dict[str, Any]:
-        readiness = self.prerequisites()
+        readiness = self._check_prerequisites()
         if readiness.get("ready") is True:
             return {"requested": False, "alreadyReady": True,
                     "message": "The virtual-controller driver is already installed and prepared."}
