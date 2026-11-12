@@ -29,7 +29,7 @@ class HealthyFrameLease:
         """
         now = self.clock()
         if self._last_state is None or state != self._last_state:
-            self.bridge.send_state(self.slot, state)
+            self.bridge.request("state", timeout=2.0, slot=self.slot, state=state)
             self._last_state = deepcopy(state)
             self._last_contact = now
             return "state"
