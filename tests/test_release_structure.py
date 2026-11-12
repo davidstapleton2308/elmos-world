@@ -56,6 +56,49 @@ class ReleasePackagingTests(unittest.TestCase):
             self.assertFalse((APP / forbidden).exists(), forbidden)
 
 
+
+class ControllerPrerequisiteInstallerTests(unittest.TestCase):
+    def test_installer_checks_driver_and_requests_elevation_only_for_helper(self):
+        installer = (ROOT / 'build/ElmosWorld.iss').read_text(encoding='utf-8')
+        self.assertIn('CurStepChanged(CurStep)', installer)
+        self.assertIn('check-prerequisites', installer)
+        self.assertIn("ShellExec('runas', ControllerHelperPath", installer)
+        self.assertIn('User approved driver setup', installer)
+        self.assertIn('PrivilegesRequired=lowest', installer)
+        self.assertIn('controller-runtime', installer)
+        self.assertIn('controller-lab', installer)
+
+    def test_silent_update_keeps_explicit_driver_consent_dialog_available(self):
+        updater = (APP / 'apply_update.ps1').read_text(encoding='utf-8')
+        self.assertIn("'/SILENT'", updater)
+        self.assertNotIn("'/SUPPRESSMSGBOXES'", updater)
+
+    def test_unified_preset_exposes_prerequisite_health_without_mutating_classic(self):
+        unified_html = (APP / 'presets/unified-3.2/index.html').read_text(encoding='utf-8')
+        unified_js = (APP / 'presets/unified-3.2/app.js').read_text(encoding='utf-8')
+        classic_html = (APP / 'presets/classic-3.1.1/index.html').read_text(encoding='utf-8')
+        classic_js = (APP / 'presets/classic-3.1.1/app.js').read_text(encoding='utf-8')
+        self.assertIn('controllerPrerequisites', unified_html)
+        self.assertIn('refreshControllerPrerequisites', unified_js)
+        self.assertNotIn('controllerPrerequisites', classic_html)
+        self.assertNotIn('refreshControllerPrerequisites', classic_js)
+
+    def test_game_translation_checks_prerequisites_before_elevating(self):
+        runtime = (APP / 'controller_runtime.py').read_text(encoding='utf-8')
+        start = runtime.index('    def start(self, game_id:')
+        end = runtime.index('    def start_for_game', start)
+        method = runtime[start:end]
+        self.assertIn('readiness = self._check_prerequisites()', method)
+        self.assertLess(method.index('readiness = self._check_prerequisites()'),
+                        method.index('self._elevated(args)'))
+
+    def test_driver_stamp_is_machine_wide_and_reads_legacy_user_stamp(self):
+        source = (ROOT / 'controller-lab/bridge/Program.cs').read_text(encoding='utf-8')
+        self.assertIn('Environment.SpecialFolder.CommonApplicationData', source)
+        self.assertIn('LegacyDriverStampPath', source)
+        self.assertIn('WriteDriverStamp()', source)
+
+
 if __name__ == '__main__':
     unittest.main()
 
