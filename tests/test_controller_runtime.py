@@ -35,11 +35,11 @@ class ControllerRuntimeTests(unittest.TestCase):
         profile = self.runtime.get_game_profile("pc:outer-wilds")
         self.assertEqual(profile["profileId"], "xbox-360-wired")
         self.assertEqual(profile["deviceIndex"], 0)
-        self.assertFalse(profile["autoStart"])
+        self.assertTrue(profile["autoStart"])
 
-    def test_global_auto_support_has_explicit_one_time_consent(self):
+    def test_global_auto_support_enabled_for_game_launches(self):
         before = self.runtime.get_game_profile("new-game")
-        self.assertFalse(before["autoStart"])
+        self.assertTrue(before["autoStart"])
         prefs = self.runtime.set_automatic_preferences(True)
         self.assertTrue(prefs["enabled"])
         after = self.runtime.get_game_profile("new-game")

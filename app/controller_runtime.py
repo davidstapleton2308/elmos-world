@@ -103,7 +103,9 @@ class ControllerRuntime:
         if not isinstance(prefs, dict):
             prefs = {}
         return {
-            "enabled": prefs.get("enabled") is True,
+            # User requested launch-time controller support by default.
+            # Does not silently install or configure a Windows driver.
+            "enabled": prefs.get("enabled", True) is True,
             "defaultProfile": "xbox-360-wired",
             "driverApprovalRequired": True,
         }
