@@ -73,6 +73,12 @@ class ControllerPrerequisiteInstallerTests(unittest.TestCase):
         self.assertIn("'/SILENT'", updater)
         self.assertNotIn("'/SUPPRESSMSGBOXES'", updater)
 
+    def test_suppressed_installer_defaults_driver_consent_to_no(self):
+        installer = (ROOT / 'build/ElmosWorld.iss').read_text(encoding='utf-8')
+        self.assertIn('SuppressibleMsgBox', installer)
+        self.assertIn('mbConfirmation, MB_YESNO, IDNO', installer)
+        self.assertNotIn('if MsgBox(', installer)
+
     def test_unified_preset_exposes_prerequisite_health_without_mutating_classic(self):
         unified_html = (APP / 'presets/unified-3.2/index.html').read_text(encoding='utf-8')
         unified_js = (APP / 'presets/unified-3.2/app.js').read_text(encoding='utf-8')
