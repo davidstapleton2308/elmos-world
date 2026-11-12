@@ -861,7 +861,9 @@ class Engine:
      if controller_status.get('state') != 'running':
       session_event('controller_input_not_ready',str(controller_status.get('message','Controller helper did not become ready'))[:150])
    except Exception as exc:
-    session_event('controller_input_unavailable',str(exc)[:150])
+    reason=str(exc)[:240]
+    session_event('controller_input_unavailable',reason)
+    controller_start={'started':False,'state':'failed','message':reason}
    # Lock check and process creation as ONE operation. A second launch must
    # never orphan a live game or overwrite the tracked session.
    global _active_game,_active_game_type,_active_launch_profile,_active_game_id,_active_game_name

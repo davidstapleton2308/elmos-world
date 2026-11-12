@@ -352,6 +352,28 @@ def _demo_state(t: float) -> ControllerState:
     )
 
 
+
+def choose_physical_device(devices, device_guid="", device_index=0):
+    """Prefer an explicitly selected GUID; otherwise prefer a physical Sony pad.
+
+    This keeps the launcher's first-run default from accidentally selecting
+    its own new virtual Xbox controller after SDL enumerates it first.
+    """
+    if device_guid:
+        match = next((d for d in devices if d.get("guid") == device_guid), None)
+        if match is not None:
+            return match
+        # Never silently redirect a configured game to a different controller.
+        return None
+    if device_index == 0:
+        sony_terms = ("wireless controller", "dualshock", "dualsense", "sony")
+        match = next((d for d in devices if any(term in str(d.get("name", "")).casefold()
+                                                  for term in sony_terms)), None)
+        if match is not None:
+            return match
+    return next((d for d in devices if d.get("index") == device_index), None)
+
+
 def command_emulate(args):
     def on_event(event):
         if event.get("event_name", "").startswith("output"):
@@ -381,9 +403,7 @@ def command_emulate(args):
                 print_json({"physical_devices": devices})
                 if not devices:
                     raise BridgeError("No physical controller found. Connect one over USB/Bluetooth or use --demo.")
-                selected = next((d for d in devices if args.device_guid and d.get("guid") == args.device_guid), None)
-                if selected is None:
-                    selected = next((d for d in devices if d["index"] == args.device), None)
+                selected = choose_physical_device(devices, args.device_guid, args.device)
                 if selected is None:
                     raise BridgeError(f"No SDL device matching GUID {args.device_guid!r} or index {args.device}.")
                 device_guid = selected["guid"] or selected["name"]

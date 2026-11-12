@@ -22,6 +22,16 @@ class LauncherRuntimeArgumentsTests(unittest.TestCase):
         self.assertEqual(args.watch_file, "game.pid")
         self.assertEqual(args.status_file, "runtime.json")
 
+    def test_first_game_launch_prefers_physical_ps4_over_virtual_xbox(self):
+        from elmos_controller_lab.lab import choose_physical_device
+        devices = [
+            {"index": 0, "guid": "virtual", "name": "Xbox 360 Controller"},
+            {"index": 1, "guid": "ps4", "name": "Wireless Controller"},
+        ]
+        self.assertEqual(choose_physical_device(devices)["guid"], "ps4")
+        self.assertEqual(choose_physical_device(devices, "virtual", 0)["guid"], "virtual")
+        self.assertIsNone(choose_physical_device(devices, "missing", 0))
+
     def test_gui_accepts_initial_game_and_virtual_profile(self):
         args = build_parser().parse_args([
             "--bridge", "bridge.exe", "gui",

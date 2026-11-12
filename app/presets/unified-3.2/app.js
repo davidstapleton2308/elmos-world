@@ -502,6 +502,7 @@ async function play(g){
  if(sequence!==launchSequence)return;
  if(!result){sessionState='idle';setGameInputSuspended(false);hideLaunchStage();return}
  if(mode==='direct'){runningGameId=g.id;runningGameName=g.name;}
+ if(result.controllerInput?.state==='failed')notify('Game launched without Elmos Input: '+(result.controllerInput.message||'controller setup failed'),true);
  if(result.controllerInput?.started){const inputStatus=await api('/api/controller-lab/status').catch(()=>null);if(inputStatus?.state==='running')notify('Elmos Input is active · '+(inputStatus.deviceName||'Controller')+' → '+(inputStatus.profileId||'virtual gamepad'));else if(inputStatus?.state==='failed')notify('Game launched without virtual input: '+(inputStatus.message||'controller setup failed'),true);}
  let checks=0,polling=false;
  sessionPollTimer=setInterval(async()=>{
