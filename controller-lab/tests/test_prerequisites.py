@@ -34,6 +34,12 @@ class PrerequisiteEvaluationTests(unittest.TestCase):
         self.assertFalse(result["ready"])
         self.assertEqual(result["exitCode"], EXIT_DRIVER_VERSION_MISMATCH)
 
+    def test_missing_sdk_version_or_architecture_never_counts_as_ready(self):
+        missing_sdk = evaluate_prerequisites({**READY, "backendSdkVersion": ""})
+        missing_arch = evaluate_prerequisites({**READY, "architecture": ""})
+        self.assertEqual(missing_sdk["exitCode"], EXIT_DRIVER_VERSION_MISMATCH)
+        self.assertEqual(missing_arch["exitCode"], EXIT_UNSUPPORTED_PLATFORM)
+
     def test_missing_bridge_and_unavailable_bridge_fail_closed(self):
         self.assertEqual(evaluate_prerequisites(None, bridge_exists=False)["exitCode"], EXIT_BRIDGE_MISSING)
         self.assertEqual(evaluate_prerequisites(None)["exitCode"], EXIT_BRIDGE_UNAVAILABLE)
