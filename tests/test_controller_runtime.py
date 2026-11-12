@@ -71,6 +71,7 @@ class ControllerRuntimeTests(unittest.TestCase):
             self.runtime.save_game_profile("game", "dualsense", 0, 1)
 
     def test_start_requires_auto_opt_in_and_build_files(self):
+        self.runtime.set_automatic_preferences(False)
         result = self.runtime.start_for_game("game")
         self.assertIsNone(result)
         self.assertEqual(self.calls, [])
