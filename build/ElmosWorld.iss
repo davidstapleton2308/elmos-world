@@ -163,7 +163,8 @@ begin
 
   if SuppressibleMsgBox('Elmos World is installed, but its virtual-controller driver is missing or needs repair.' + #13#10 + #13#10 +
       'This driver is required for Elmos to translate your physical controller into a virtual Xbox controller for games that require XInput.' + #13#10 + #13#10 +
-      'Install or repair the driver now? Windows will show a separate administrator approval prompt. You can choose No and install it later from Elmos World Settings.',
+      'Driver setup registers the HIDMaestro driver and trusts its signing certificate on this PC. Windows will ask for administrator approval.' + #13#10 + #13#10 +
+      'Install or repair the driver now? You can choose No and install it later from Elmos World Settings.',
       mbConfirmation, MB_YESNO, IDNO) <> IDYES then
   begin
     LogControllerPrerequisite('User deferred virtual-controller driver installation.');

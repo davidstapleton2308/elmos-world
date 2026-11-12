@@ -105,6 +105,7 @@ jobs:
           python -m elmos_controller_lab.lab --bridge 'controller-lab/bridge/publish/Elmos.ControllerLab.Bridge.exe' check-prerequisites
           $probeCode = $LASTEXITCODE
           if ($probeCode -ne 10) { throw "Expected an unprivileged missing-driver result (10), got $probeCode." }
+          exit 0
 
       - name: Compile desktop application
         shell: pwsh
