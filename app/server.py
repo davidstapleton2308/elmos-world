@@ -98,6 +98,9 @@ class Handler(BaseHTTPRequestHandler):
     info=update_center.latest()
     return self.result({**{k:v for k,v in info.items() if not k.startswith('_')}, 'lastAttempt':update_center.last_attempt()})
    except Exception as exc:return self.error(400,str(exc))
+  if u.path=='/api/controller-lab/prerequisites':
+   try:return self.result(controller_runtime.prerequisites())
+   except Exception as exc:return self.error(400,str(exc))
   if u.path=='/api/controller-lab/profiles':
    try:return self.result(controller_runtime.catalog())
    except Exception as exc:return self.error(400,str(exc))
