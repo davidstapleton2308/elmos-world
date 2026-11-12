@@ -31,7 +31,9 @@ class HealthyFrameLease:
         if self._last_state is None or state != self._last_state:
             self.bridge.request("state", timeout=2.0, slot=self.slot, state=state)
             self._last_state = deepcopy(state)
-            self._last_contact = now
+            # Record successful bridge contact after the acknowledgement; a slow
+            # request must not make the next heartbeat prematurely due.
+            self._last_contact = self.clock()
             return "state"
         if self._last_contact is None or now - self._last_contact >= self.interval:
             self.bridge.heartbeat(self.slot)
