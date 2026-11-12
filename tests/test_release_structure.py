@@ -100,6 +100,12 @@ class ControllerPrerequisiteInstallerTests(unittest.TestCase):
         self.assertLess(method.index('readiness = self._check_prerequisites()'),
                         method.index('self._elevated(args)'))
 
+    def test_main_application_bundles_shared_prerequisite_evaluator(self):
+        spec = (ROOT / 'build/ElmosWorld.spec').read_text(encoding='utf-8')
+        runtime = (APP / 'controller_runtime.py').read_text(encoding='utf-8')
+        self.assertIn('elmos_controller_lab.prerequisites', spec)
+        self.assertIn('evaluate_prerequisites', runtime)
+
     def test_driver_stamp_is_machine_wide_and_reads_legacy_user_stamp(self):
         source = (ROOT / 'controller-lab/bridge/Program.cs').read_text(encoding='utf-8')
         self.assertIn('Environment.SpecialFolder.CommonApplicationData', source)
