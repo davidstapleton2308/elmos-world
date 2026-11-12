@@ -104,6 +104,13 @@ jobs:
           & 'controller-lab/scripts/Build-ControllerLab.ps1'
           if ($LASTEXITCODE -ne 0) { throw 'Controller Lab bridge build failed.' }
 
+      - name: Verify read-only installer prerequisite probe without a driver
+        shell: pwsh
+        run: |
+          python -m elmos_controller_lab.lab --bridge 'controller-lab/bridge/publish/Elmos.ControllerLab.Bridge.exe' check-prerequisites
+          $probeCode = $LASTEXITCODE
+          if ($probeCode -ne 10) { throw "Expected an unprivileged missing-driver result (10), got $probeCode." }
+
       - name: Build physical-to-virtual Controller Lab bridge
         shell: pwsh
         run: |
