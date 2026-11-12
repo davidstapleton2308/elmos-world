@@ -125,15 +125,15 @@ begin
   if not FileExists(ControllerHelperPath) then
   begin
     LogControllerPrerequisite('Controller helper missing: ' + ControllerHelperPath);
-    MsgBox('Elmos World was installed, but its controller helper is missing. Controller translation will remain unavailable until Elmos World is repaired or updated.',
-      mbError, MB_OK);
+    SuppressibleMsgBox('Elmos World was installed, but its controller helper is missing. Controller translation will remain unavailable until Elmos World is repaired or updated.',
+      mbError, MB_OK, IDOK);
     Exit;
   end;
   if not FileExists(ControllerBridgePath) then
   begin
     LogControllerPrerequisite('Controller bridge missing: ' + ControllerBridgePath);
-    MsgBox('Elmos World was installed, but its virtual-controller bridge is missing. Controller translation will remain unavailable until Elmos World is repaired or updated.',
-      mbError, MB_OK);
+    SuppressibleMsgBox('Elmos World was installed, but its virtual-controller bridge is missing. Controller translation will remain unavailable until Elmos World is repaired or updated.',
+      mbError, MB_OK, IDOK);
     Exit;
   end;
 
@@ -147,24 +147,24 @@ begin
   if not Started then
   begin
     LogControllerPrerequisite('Read-only prerequisite check could not start. Exec returned false.');
-    MsgBox('Elmos World was installed, but Windows could not run its controller readiness check. The rest of the application is installed. You can retry controller setup from Settings.',
-      mbInformation, MB_OK);
+    SuppressibleMsgBox('Elmos World was installed, but Windows could not run its controller readiness check. The rest of the application is installed. You can retry controller setup from Settings.',
+      mbInformation, MB_OK, IDOK);
     Exit;
   end;
 
   LogControllerPrerequisite('Read-only prerequisite check exit code: ' + IntToStr(ResultCode));
   if (ResultCode <> 10) and (ResultCode <> 11) and (ResultCode <> 12) then
   begin
-    MsgBox('Elmos World was installed, but the controller driver status could not be verified (check code ' +
+    SuppressibleMsgBox('Elmos World was installed, but the controller driver status could not be verified (check code ' +
       IntToStr(ResultCode) + '). The rest of the application is installed. You can retry from Settings.',
-      mbInformation, MB_OK);
+      mbInformation, MB_OK, IDOK);
     Exit;
   end;
 
-  if MsgBox('Elmos World is installed, but its virtual-controller driver is missing or needs repair.' + #13#10 + #13#10 +
+  if SuppressibleMsgBox('Elmos World is installed, but its virtual-controller driver is missing or needs repair.' + #13#10 + #13#10 +
       'This driver is required for Elmos to translate your physical controller into a virtual Xbox controller for games that require XInput.' + #13#10 + #13#10 +
       'Install or repair the driver now? Windows will show a separate administrator approval prompt. You can choose No and install it later from Elmos World Settings.',
-      mbConfirmation, MB_YESNO) <> IDYES then
+      mbConfirmation, MB_YESNO, IDNO) <> IDYES then
   begin
     LogControllerPrerequisite('User deferred virtual-controller driver installation.');
     Exit;
@@ -175,8 +175,8 @@ begin
   if not Started then
   begin
     LogControllerPrerequisite('Elevated driver helper could not start or UAC was cancelled.');
-    MsgBox('Elmos World is installed, but Windows did not allow the controller driver setup to start. No Windows security settings were changed. You can retry from Settings.',
-      mbInformation, MB_OK);
+    SuppressibleMsgBox('Elmos World is installed, but Windows did not allow the controller driver setup to start. No Windows security settings were changed. You can retry from Settings.',
+      mbInformation, MB_OK, IDOK);
     Exit;
   end;
 
@@ -184,13 +184,13 @@ begin
   if Started and (ResultCode = 0) then
   begin
     LogControllerPrerequisite('Driver installation completed and readiness was verified.');
-    MsgBox('Controller setup completed. Elmos World verified that the virtual-controller driver is installed and prepared.',
-      mbInformation, MB_OK);
+    SuppressibleMsgBox('Controller setup completed. Elmos World verified that the virtual-controller driver is installed and prepared.',
+      mbInformation, MB_OK, IDOK);
   end
   else
   begin
     LogControllerPrerequisite('Driver setup returned, but the readiness recheck failed with code ' + IntToStr(ResultCode));
-    MsgBox('Elmos World is installed, but controller setup could not be verified. The application will still work; controller translation may remain unavailable. Check the installer prerequisite log in %LOCALAPPDATA%\\ElmosWorld\\logs.',
-      mbInformation, MB_OK);
+    SuppressibleMsgBox('Elmos World is installed, but controller setup could not be verified. The application will still work; controller translation may remain unavailable. Check the installer prerequisite log in %LOCALAPPDATA%\\ElmosWorld\\logs.',
+      mbInformation, MB_OK, IDOK);
   end;
 end;
