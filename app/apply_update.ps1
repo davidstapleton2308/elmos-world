@@ -44,7 +44,7 @@ try {
   if (-not (Test-Path -LiteralPath $Installer -PathType Leaf)) { throw 'Verified installer file is missing' }
   Set-UpdateState 'installing' 'Installing the verified update'
   $installLog = Join-Path (Split-Path -Parent $Installer) 'installer.log'
-  $args = @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/CLOSEAPPLICATIONS',('/LOG="' + $installLog + '"'))
+  $args = @('/SILENT','/NORESTART','/CLOSEAPPLICATIONS',('/LOG="' + $installLog + '"'))
   $process = Start-Process -FilePath $Installer -ArgumentList $args -Wait -PassThru
   $code = [int]$process.ExitCode
   Write-UpdateLog ("Installer finished with exit code $code")
