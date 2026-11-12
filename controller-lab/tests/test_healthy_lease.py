@@ -15,10 +15,13 @@ class Bridge:
         self.calls = []
         self.fail = False
 
-    def send_state(self, slot, state):
+    def request(self, op, *, timeout, slot, state):
+        assert op == "state"
+        assert timeout == 2.0
         if self.fail:
             raise RuntimeError("state transport failed")
         self.calls.append(("state", slot, state))
+        return {"submitted": True, "slot": slot}
 
     def heartbeat(self, slot):
         if self.fail:
@@ -74,3 +77,24 @@ def test_interval_guard():
     for interval in (-1, 0, 3, 4):
         with pytest.raises(ValueError):
             HealthyFrameLease(Bridge(), "slot", interval=interval)
+
+
+def test_rejected_state_never_advances_lease():
+    clock, bridge = Clock(), Bridge()
+    lease = HealthyFrameLease(bridge, "slot", clock=clock)
+    bridge.fail = True
+    with pytest.raises(RuntimeError):
+        lease.submit({"buttons": ["A"]})
+    clock.now = 1.5
+    bridge.fail = False
+    assert lease.submit({"buttons": ["A"]}) == "state"
+    assert bridge.calls == [("state", "slot", {"buttons": ["A"]})]
+
+
+def test_changed_state_is_acknowledged_not_fire_and_forget():
+    class RejectingBridge(Bridge):
+        def send_state(self, *_args):
+            raise AssertionError("unacknowledged state path must not be used")
+    bridge = RejectingBridge()
+    lease = HealthyFrameLease(bridge, "slot", clock=Clock())
+    assert lease.submit({"buttons": []}) == "state"
