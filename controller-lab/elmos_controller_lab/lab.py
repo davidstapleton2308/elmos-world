@@ -8,6 +8,7 @@ import sys
 import time
 
 from .bridge import BridgeClient, BridgeError
+from .healthy_lease import HealthyFrameLease
 from .api_probe import probe_hidapi, probe_xinput, run_probe
 from .browser_probe import BrowserProbeServer
 from .mapping import Mapper, MappingProfile
@@ -385,13 +386,14 @@ def command_emulate(args):
                 created_slots.append(mouse_slot)
                 print("Created virtual mouse:", result["profile"]["name"], flush=True)
 
+            gamepad_lease = HealthyFrameLease(bridge, args.slot)
             print(f"Input: {device_guid} | Game: {args.game} | Mapping: {mapping.name}", flush=True)
             start = time.monotonic()
             while True:
                 now = time.monotonic()
                 physical = _demo_state(now - start) if args.demo else source.read_instance(physical_instance)
                 output = mapper.map_actions(physical)
-                bridge.send_state(args.slot, output.gamepad.to_wire())
+                gamepad_lease.submit(output.gamepad.to_wire())
                 if need_keyboard:
                     bridge.send_keyboard(keyboard_slot, sorted(output.keyboard_keys), sorted(output.keyboard_modifiers))
                 if need_mouse:
