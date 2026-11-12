@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - release/unified-auto-input-v3
   workflow_dispatch:
 
 permissions:
@@ -28,6 +29,11 @@ jobs:
           architecture: x64
 
       - name: Set up .NET 10 for the virtual-controller bridge
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Set up .NET 10 for Elmos Input bridge
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
@@ -64,9 +70,9 @@ jobs:
       - name: Validate source and release assets
         shell: pwsh
         run: |
-          python -m compileall -q app build/prepare_version.py
+          python -m compileall -q app build controller-lab/elmos_controller_lab
           if ($LASTEXITCODE -ne 0) { throw 'Python compilation failed.' }
-          python -m unittest discover -s tests -p 'test_*.py'
+          python -m unittest discover -s tests -p 'test_*.py' -v
           if ($LASTEXITCODE -ne 0) { throw 'Project tests failed.' }
 
       - name: Validate frontend JavaScript syntax and discovery UI wiring
@@ -74,20 +80,34 @@ jobs:
         run: |
           node --check app/app.js
           if ($LASTEXITCODE -ne 0) { throw 'Frontend JavaScript contains a syntax error.' }
+          node --check app/presets/classic-3.1.1/app.js
+          if ($LASTEXITCODE -ne 0) { throw 'Classic preset JavaScript contains a syntax error.' }
+          node --check app/presets/unified-3.2/app.js
+          if ($LASTEXITCODE -ne 0) { throw 'Unified preset JavaScript contains a syntax error.' }
           python -m unittest discover -s tests -p 'test_smart_discovery*.py' -v
           if ($LASTEXITCODE -ne 0) { throw 'Smart Discovery regression tests failed.' }
 
       - name: Install Windows build dependencies
         shell: pwsh
         run: |
-          python -m pip install --disable-pip-version-check -r build/requirements-windows.txt
+          python -m pip install --disable-pip-version-check -r build/requirements-windows.txt -r controller-lab/requirements.txt
           if ($LASTEXITCODE -ne 0) { throw 'Dependencies installation failed.' }
+          python -m pip install --disable-pip-version-check -e "controller-lab[test,sensors]"
+          if ($LASTEXITCODE -ne 0) { throw 'Controller Lab dependencies failed.' }
+          python -m pytest controller-lab/tests -q
+          if ($LASTEXITCODE -ne 0) { throw 'Controller Lab tests failed.' }
 
       - name: Build the verified Elmos Controller Lab bridge
         shell: pwsh
         run: |
           & 'controller-lab/scripts/Build-ControllerLab.ps1'
           if ($LASTEXITCODE -ne 0) { throw 'Controller Lab bridge build failed.' }
+
+      - name: Build physical-to-virtual Controller Lab bridge
+        shell: pwsh
+        run: |
+          & 'controller-lab/scripts/Build-ControllerLab.ps1'
+          if ($LASTEXITCODE -ne 0) { throw 'Controller Lab bridge failed to build.' }
 
       - name: Compile desktop application
         shell: pwsh
@@ -116,11 +136,41 @@ jobs:
             if (Test-Path $source) { Copy-Item $source $notices -Force }
           }
 
+      - name: Bundle separate virtual controller runtime
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --distpath dist/controller-runtime --workpath build/controller-runtime-work build/ControllerRuntime.spec
+          if ($LASTEXITCODE -ne 0) { throw 'Virtual controller runtime build failed.' }
+          $bundle = (Resolve-Path 'dist/ElmosWorld').Path
+          $internal = Join-Path $bundle '_internal'
+          if (!(Test-Path $internal)) { $internal = $bundle }
+          $runtime = Join-Path $internal 'controller-runtime'
+          $bridge = Join-Path $internal 'controller-lab/bridge/publish'
+          New-Item -ItemType Directory -Force -Path $runtime,$bridge | Out-Null
+          Copy-Item 'dist/controller-runtime/ElmosControllerRuntime.exe' $runtime -Force
+          Copy-Item 'controller-lab/bridge/publish/Elmos.ControllerLab.Bridge.exe' $bridge -Force
+          $notices = Join-Path $internal 'controller-lab'
+          New-Item -ItemType Directory -Force -Path $notices | Out-Null
+          foreach ($name in @('LICENSE','THIRD-PARTY-NOTICES.txt')) {
+            $source = Join-Path 'controller-lab/runtime' $name
+            if (Test-Path $source) { Copy-Item $source $notices -Force }
+          }
+
       - name: Verify executable is a genuine GUI application
         shell: pwsh
         run: |
           python build/verify_windows_gui.py dist/ElmosWorld/ElmosWorld.exe
           if ($LASTEXITCODE -ne 0) { throw 'Windows GUI subsystem verification failed.' }
+
+      - name: Verify bundled presets and virtual controller components
+        shell: pwsh
+        run: |
+          $internal = 'dist/ElmosWorld/_internal'
+          if (!(Test-Path $internal)) { $internal = 'dist/ElmosWorld' }
+          foreach ($path in @('presets/classic-3.1.1/index.html', 'presets/unified-3.2/app.js',
+            'controller-runtime/ElmosControllerRuntime.exe', 'controller-lab/bridge/publish/Elmos.ControllerLab.Bridge.exe')) {
+            if (!(Test-Path (Join-Path $internal $path))) { throw "Missing packaged component: $path" }
+          }
 
       - name: Smoke-test standalone GUI executable
         shell: pwsh
@@ -154,6 +204,19 @@ jobs:
         run: |
           choco install innosetup -y --no-progress
           if ($LASTEXITCODE -ne 0) { throw 'Inno Setup installation failed.' }
+
+      - name: Check backup script and snapshot manifest
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tempDir = Join-Path $env:RUNNER_TEMP 'preupdate-fixture'
+          New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
+          Set-Content (Join-Path $tempDir 'ElmosWorld.exe') 'dummy existing app' -Encoding ASCII
+          # The actual in-installer backup is exercised on the second pass
+          # of the detached install test below.
+          if (!(Test-Path 'build/preinstall_backup.ps1') -or !(Test-Path 'build/restore_previous.ps1')) {
+            throw 'Installer recovery resources missing.'
+          }
 
       - name: Compile Windows installer
         shell: pwsh
@@ -190,7 +253,15 @@ jobs:
           if (-not (Test-Path -LiteralPath $installedApp)) { throw "Installer did not install the desktop app: $installedApp" }
           $check = Start-Process -FilePath $installedApp -ArgumentList '--self-test' -Wait -PassThru
           if ($check.ExitCode -ne 0) { throw 'Installed application failed its executable self-test.' }
-          Write-Host 'PASS: installer worker installed the update and completed.'
+          # Reinstall the same build with an existing installed app to prove
+          # the installer-side backup gate and recovery manifest work.
+          $again = Start-Process -FilePath $setup -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/CLOSEAPPLICATIONS') -Wait -PassThru
+          if ($again.ExitCode -ne 0) { throw "Backup-enabled reinstall failed ($($again.ExitCode))." }
+          $backupRoot = Join-Path $env:LOCALAPPDATA 'ElmosWorldRollback'
+          $snapshots = @(Get-ChildItem -LiteralPath $backupRoot -Directory -ErrorAction SilentlyContinue)
+          $valid = @($snapshots | Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'backup-manifest.json') })
+          if ($valid.Count -eq 0) { throw 'Installer did not create a rollback backup before reinstalling.' }
+          Write-Host 'PASS: installer worker and backup-enabled upgrade both completed.'
       - name: Package portable build and SHA-256 checksum
         shell: pwsh
         env:
@@ -202,7 +273,7 @@ jobs:
           Set-Content -Path $checksum -Value "$sha  ElmosWorld_Setup_$env:VERSION.exe" -Encoding ascii
           Compress-Archive -Path 'dist/ElmosWorld/*' -DestinationPath "dist_setup/ElmosWorld_Portable_$env:VERSION.zip" -Force
           $subject = git log -1 --format=%s
-          @("Elmos World v$env:VERSION", "", "Changes in this build:", "- $subject", "", "Windows installer, portable ZIP, and SHA-256 checksum are included.", "Run the installer or update through Settings > Update Center.") | Set-Content 'dist_setup/RELEASE_NOTES.md' -Encoding utf8
+          @("Elmos World v$env:VERSION", "", "Changes in this build:", "- Integrated Game Intelligence and controller launch automation", "- Original Classic 3.1.1 appearance preserved as a selectable preset", "- Existing installation and settings backed up before files are replaced", "- Automatic controller profiles for supported games (virtual device driver requires one-time approval)", "- $subject", "", "Windows installer, portable ZIP, and SHA-256 checksum are included.", "Use Settings > Update Center to install after verification. Physical controller compatibility remains experimental.") | Set-Content 'dist_setup/RELEASE_NOTES.md' -Encoding utf8
 
       - name: Upload downloadable build artifact
         uses: actions/upload-artifact@v4
