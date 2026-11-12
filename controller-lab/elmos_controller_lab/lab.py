@@ -18,10 +18,13 @@ from .actions import radial_requires
 from .model import ControllerState, neutral_state
 from .sdl_source import SDLInputSource
 from .store import MappingStore
+from .prerequisites import evaluate_prerequisites
 
 
 def print_json(value):
-    print(json.dumps(value, indent=2, default=str))
+    # PyInstaller windowed helpers may have no attached console.
+    if sys.stdout is not None:
+        print(json.dumps(value, indent=2, default=str))
 
 
 def _write_runtime_status(args, state: str, **extra):
@@ -331,9 +334,51 @@ def command_matrix(args):
     print_json(report)
 
 
+def command_check_prerequisites(args):
+    """Read-only status probe used by the Windows installer and diagnostics."""
+    bridge_path = Path(args.bridge) if args.bridge else Path()
+    status = None
+    error = ""
+    bridge_exists = bool(args.bridge and bridge_path.is_file())
+    if bridge_exists:
+        try:
+            with BridgeClient(bridge_path) as bridge:
+                status = bridge.request("status", timeout=12)
+        except Exception as exc:
+            error = f"{type(exc).__name__}: {str(exc)[:240]}"
+    result = evaluate_prerequisites(
+        status, bridge_exists=bridge_exists, platform=sys.platform
+    )
+    report = {
+        **result,
+        "checkedAt": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "bridgePath": str(bridge_path) if args.bridge else "",
+        "detail": error,
+    }
+    root = Path(os.environ.get("LOCALAPPDATA", str(Path.home())))
+    report_path = root / "ElmosControllerLab" / "reports" / "installer-prerequisites.json"
+    try:
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = report_path.with_suffix(".tmp")
+        temporary.write_text(json.dumps(report, indent=2), encoding="utf-8")
+        os.replace(temporary, report_path)
+    except OSError as exc:
+        # A report-write failure must not convert an unknown driver state to ready.
+        report["reportWriteError"] = str(exc)[:200]
+    print_json(report)
+    return int(result["exitCode"])
+
+
 def command_install(args):
     with BridgeClient(args.bridge) as bridge:
+        status = bridge.request("status", timeout=12)
+        readiness = evaluate_prerequisites(status, bridge_exists=True, platform=sys.platform)
+        if readiness["ready"]:
+            print_json({"installed": True, "prepared": True, "skipped": True,
+                        "message": "The pinned virtual-controller driver is already ready."})
+            return 0
         print_json(bridge.request("install-driver", timeout=120))
+    return 0
 
 
 def _demo_state(t: float) -> ControllerState:
@@ -544,7 +589,9 @@ def build_parser():
     browser_probe = sub.add_parser("browser-probe", help="Open a local browser Gamepad API test page")
     browser_probe.add_argument("--no-open", action="store_true", help="Print the local URL without launching a browser")
     browser_probe.set_defaults(func=command_browser_probe)
-    install = sub.add_parser("install-driver", help="Explicitly install the Windows virtual-device driver")
+    check = sub.add_parser("check-prerequisites", help="Read-only installer readiness check; exit 0 only when the virtual driver is ready")
+    check.set_defaults(func=command_check_prerequisites)
+    install = sub.add_parser("install-driver", help="Explicitly install or repair the Windows virtual-device driver")
     install.set_defaults(func=command_install)
     sweep = sub.add_parser("sweep", help="Create, submit a test state to, and remove each supported virtual profile")
     sweep.set_defaults(func=command_sweep)
@@ -576,12 +623,12 @@ def build_parser():
 def main():
     args = build_parser().parse_args()
     try:
-        args.func(args)
+        result = args.func(args)
+        return result if type(result) is int else 0
     except (BridgeError, RuntimeError, OSError) as exc:
         _write_runtime_status(args, "failed", error=str(exc), message=str(exc))
         print(f"Controller Lab: {exc}", file=sys.stderr)
         return 2
-    return 0
 
 
 if __name__ == "__main__":
