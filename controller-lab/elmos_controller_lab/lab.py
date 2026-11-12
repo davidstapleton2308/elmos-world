@@ -159,6 +159,7 @@ def command_matrix(args):
             print("[bridge error]", event.get("message"), file=sys.stderr, flush=True)
 
     _write_runtime_status(args, "starting", message="Opening the virtual-device bridge.")
+    _write_runtime_status(args, "starting", message="Opening the virtual-device bridge.")
     with BridgeClient(args.bridge, on_event=on_event) as bridge:
         status = bridge.request("status")
         if not status.get("driverInstalled") or not status.get("driverPrepared"):
@@ -381,9 +382,11 @@ def command_emulate(args):
                 print_json({"physical_devices": devices})
                 if not devices:
                     raise BridgeError("No physical controller found. Connect one over USB/Bluetooth or use --demo.")
-                selected = next((d for d in devices if d["index"] == args.device), None)
+                selected = next((d for d in devices if args.device_guid and d.get("guid") == args.device_guid), None)
                 if selected is None:
-                    raise BridgeError(f"No SDL device at index {args.device}.")
+                    selected = next((d for d in devices if d["index"] == args.device), None)
+                if selected is None:
+                    raise BridgeError(f"No SDL device matching GUID {args.device_guid!r} or index {args.device}.")
                 device_guid = selected["guid"] or selected["name"]
                 device_name = selected["name"]
                 # SDL enumeration indices may change after hotplug; pin the physical instance.
@@ -431,24 +434,28 @@ def command_emulate(args):
             start = time.monotonic()
             frames = 0
             last_status_update = 0.0
+            last_control_check = 0.0
+            watch_pid = 0
             _write_runtime_status(args, "running", deviceGuid=device_guid, deviceName=device_name,
                                   mappingName=mapping.name, startedAt=time.time(), frames=0)
             while True:
-                if args.stop_file and Path(args.stop_file).exists():
-                    print("Graceful stop requested by Elmos World.", flush=True)
-                    break
-                if args.watch_file:
-                    try:
-                        watch_pid = int(Path(args.watch_file).read_text(encoding="ascii").strip())
-                    except (OSError, ValueError):
-                        watch_pid = 0
-                    if not watch_pid and time.monotonic() - start > 30:
-                        print("No game process was attached to this controller session; stopping safely.", flush=True)
-                        break
-                    if watch_pid and not _pid_alive(watch_pid):
-                        print("Tracked game process exited; releasing virtual devices.", flush=True)
-                        break
                 now = time.monotonic()
+                if now - last_control_check >= 0.25:
+                    if args.stop_file and Path(args.stop_file).exists():
+                        print("Graceful stop requested by Elmos World.", flush=True)
+                        break
+                    if args.watch_file:
+                        try:
+                            watch_pid = int(Path(args.watch_file).read_text(encoding="ascii").strip())
+                        except (OSError, ValueError):
+                            watch_pid = 0
+                        if not watch_pid and now - start > 30:
+                            print("No game process was attached to this controller session; stopping safely.", flush=True)
+                            break
+                        if watch_pid and not _pid_alive(watch_pid):
+                            print("Tracked game process exited; releasing virtual devices.", flush=True)
+                            break
+                    last_control_check = now
                 physical = _demo_state(now - start) if args.demo else source.read_instance(physical_instance)
                 output = mapper.map_actions(physical)
                 gamepad_lease.submit(output.gamepad.to_wire())
@@ -535,6 +542,7 @@ def build_parser():
     emulate.add_argument("--profile", required=True, help="HIDMaestro profile id, e.g. xbox-360-wired or dualsense")
     emulate.add_argument("--slot", default="virtual-0")
     emulate.add_argument("--device", type=int, default=0, help="Physical SDL controller index")
+    emulate.add_argument("--device-guid", default="", help="Stable physical SDL GUID (preferred over a changing index)")
     emulate.add_argument("--demo", action="store_true", help="Use a synthetic input stream instead of a physical controller")
     emulate.add_argument("--rate", type=int, default=120)
     emulate.add_argument("--game", default="default", help="Game identity used to load a device-specific mapping profile")

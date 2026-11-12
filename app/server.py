@@ -189,7 +189,7 @@ class Handler(BaseHTTPRequestHandler):
    elif action=='/api/controller-lab/config':
     gameid=body.get('id','')
     if not engine.find(gameid):raise ValueError('Game not found')
-    out=controller_runtime.save_game_profile(gameid,body.get('profileId',''),body.get('deviceIndex',0),body.get('autoStart') is True)
+    out=controller_runtime.save_game_profile(gameid,body.get('profileId',''),body.get('deviceIndex',0),body.get('autoStart') is True,body.get('deviceGuid',''))
    elif action=='/api/controller-lab/open':
     gameid=body.get('id','')
     if not engine.find(gameid):raise ValueError('Game not found')

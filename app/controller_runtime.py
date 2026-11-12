@@ -110,16 +110,21 @@ class ControllerRuntime:
         device_index = value.get("deviceIndex", 0)
         if type(device_index) is not int or not 0 <= device_index <= 63:
             device_index = 0
+        device_guid = value.get("deviceGuid", "")
+        if not isinstance(device_guid, str) or len(device_guid) > 128 or any(ord(ch) < 32 for ch in device_guid):
+            device_guid = ""
         return {
             "gameId": game_id,
             "profileId": profile_id,
             "deviceIndex": device_index,
+            "deviceGuid": device_guid,
             "autoStart": value.get("autoStart") is True,
             "rate": 120,
         }
 
     def save_game_profile(self, game_id: str, profile_id: str,
-                          device_index: int = 0, auto_start: bool = False) -> dict[str, Any]:
+                          device_index: int = 0, auto_start: bool = False,
+                          device_guid: str = "") -> dict[str, Any]:
         game_id = str(game_id or "")
         if not game_id or len(game_id) > _GAME_ID_MAX:
             raise ValueError("Invalid game identity.")
@@ -129,12 +134,15 @@ class ControllerRuntime:
             raise ValueError("Choose a valid physical controller index.")
         if type(auto_start) is not bool:
             raise ValueError("Automatic controller start must be enabled or disabled.")
+        if not isinstance(device_guid, str) or len(device_guid) > 128 or any(ord(ch) < 32 for ch in device_guid):
+            raise ValueError("Invalid physical controller identity.")
         with _LOCK:
             data = self._profiles()
             data["schema"] = 1
             data["games"][game_id] = {
                 "profileId": profile_id,
                 "deviceIndex": device_index,
+                "deviceGuid": device_guid,
                 "autoStart": auto_start,
                 "updatedAt": int(time.time()),
             }
@@ -232,6 +240,8 @@ class ControllerRuntime:
             "--stop-file", str(stop_file), "--watch-file", str(watch_file),
             "--status-file", str(self.status_file),
         ]
+        if config.get("deviceGuid"):
+            args += ["--device-guid", config["deviceGuid"]]
         try:
             result = self._elevated(args)
         except Exception as exc:

@@ -801,7 +801,7 @@ async function controllerProfileDialog(g){
  $('controllerDevice').value=String(saved.deviceIndex??0);
  $('controllerAutoStart').checked=!!saved.autoStart;
  const save=async()=>{
-  const result=await safe(()=>api('/api/controller-lab/config',{id:g.id,profileId:$('controllerProfile').value,deviceIndex:Number($('controllerDevice').value),autoStart:$('controllerAutoStart').checked}));
+  const result=await safe(()=>api('/api/controller-lab/config',{id:g.id,profileId:$('controllerProfile').value,deviceIndex:Number($('controllerDevice').value),deviceGuid:(devices.find(d=>Number(d.index)===Number($('controllerDevice').value))||{}).guid||saved.deviceGuid||'',autoStart:$('controllerAutoStart').checked}));
   if(result){notify('Controller profile saved for '+g.name+'.');return result;}
   return null;
  };
