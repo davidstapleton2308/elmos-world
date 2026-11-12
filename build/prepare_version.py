@@ -42,6 +42,11 @@ def apply_version(version: str) -> None:
             raise RuntimeError(f"Expected version {old} not found in {relative_path}")
         contents = contents.replace(old_tuple, new_tuple)
         contents = contents.replace(old, version)
+        # Classic is an immutable appearance preset identifier, not an app
+        # version. Do not change its directory name when releasing a patch.
+        if relative_path == "app/launcher_entry.py":
+            contents = contents.replace("presets/classic-" + version,
+                                        "presets/classic-3.1.1")
         path.write_text(contents, encoding="utf-8")
 
     updated = json.loads(manifest_file.read_text(encoding="utf-8"))
