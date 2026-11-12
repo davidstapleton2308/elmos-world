@@ -268,7 +268,10 @@ def inspect_folder(folder, *, min_age=120, now=None):
             return _result(folder, 'installer', 15, 'Contains an installer but no verified game executable')
         roms = [p for p in files if p.suffix.casefold() in ROMS]
         if roms:
-            return _result(folder, 'rom', 70, 'ROM/disc image: platform and emulator require review')
+            from rom_identity import summarize_roms
+            summary = summarize_roms(roms)
+            return _result(folder, 'rom', 70, summary['reason'],
+                           summary['platform'], '', summary)
         return _result(folder, 'other', 0, 'No verified game executable')
 
     title = display_title(folder.name)
@@ -351,7 +354,10 @@ def inspect_entry(entry, min_age=120, now=None):
     if ext in ARCHIVES:
         return _result(entry, 'archive', 0, 'Archive; inspect or extract manually, never auto-execute')
     if ext in ROMS:
-        return _result(entry, 'rom', 25, 'Disc image/ROM: emulator mapping requires review')
+        from rom_identity import identify_rom
+        identity=identify_rom(entry)
+        reason=(identity['platform']+' identified by '+identity['evidence']+'; suggested emulator(s): '+', '.join(identity['recommendedEmulators'])+'. Manual review required.') if identity['identified'] else identity['evidence']+'; platform and emulator mapping require review.'
+        return _result(entry, 'rom', 25, reason, identity.get('platform') or 'Unknown ROM', '', identity)
     if ext in {'.exe', '.msi', '.msix'}:
         return _result(entry, 'installer', 0, 'Loose executable/installer; never automatically move or run')
     return _result(entry, 'other', 0, 'Not a game folder')
