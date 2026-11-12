@@ -55,12 +55,46 @@ internal static class Program
 
     private const string BackendSdkVersion = "2.1.0";
     private static HMContext? Context;
+    // Driver state is machine-wide. The elevated installer may run under a
+    // different administrator account, so a per-user LocalAppData stamp is
+    // not a reliable readiness signal for the standard user who launches Elmos.
     private static readonly string DriverStampPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+        "ElmosControllerLab", "hidmaestro-driver-version.txt");
+    // Read the old per-user stamp for installations upgraded from earlier builds.
+    private static readonly string LegacyDriverStampPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "ElmosControllerLab", "hidmaestro-driver-version.txt");
+
+    private static bool HasCurrentDriverStamp(string path)
+    {
+        try
+        {
+            return File.Exists(path) &&
+                string.Equals(File.ReadAllText(path).Trim(), BackendSdkVersion, StringComparison.Ordinal);
+        }
+        catch { return false; }
+    }
+
     private static bool DriverPrepared => Context!.IsDriverInstalled &&
-        File.Exists(DriverStampPath) &&
-        string.Equals(File.ReadAllText(DriverStampPath).Trim(), BackendSdkVersion, StringComparison.Ordinal);
+        (HasCurrentDriverStamp(DriverStampPath) || HasCurrentDriverStamp(LegacyDriverStampPath));
+
+    private static void WriteDriverStamp()
+    {
+        var directory = Path.GetDirectoryName(DriverStampPath)!;
+        Directory.CreateDirectory(directory);
+        var temporary = DriverStampPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            File.WriteAllText(temporary, BackendSdkVersion);
+            File.Move(temporary, DriverStampPath, true);
+        }
+        finally
+        {
+            try { if (File.Exists(temporary)) File.Delete(temporary); }
+            catch { /* A leftover temp stamp is ignored by the readiness check. */ }
+        }
+    }
     private static readonly Dictionary<string, HMController> Controllers = new(StringComparer.OrdinalIgnoreCase);
     private static bool IsElevated()
     {
@@ -436,11 +470,14 @@ internal static class Program
                     profiles = Context.AllProfiles.Select(ProfileInfo).ToArray() };
             case "install-driver":
                 if (!IsElevated())
-                    throw new UnauthorizedAccessException("Driver installation requires administrator approval. Close the lab and run Install-ControllerLab-Driver.ps1, then approve the Windows UAC prompt.");
-                Context!.InstallDriver();
+                    throw new UnauthorizedAccessException("Driver installation requires administrator approval. Approve the Windows UAC prompt to install the Elmos virtual-controller driver.");
+                if (Context!.IsDriverInstalled && DriverPrepared)
+                    return new { installed = true, prepared = true, skipped = true,
+                        backendSdkVersion = BackendSdkVersion, outcome = "already-ready" };
+                Context.InstallDriver();
                 if (!Context.IsDriverInstalled) throw new InvalidOperationException("The SDK returned, but Windows does not report the virtual driver as installed.");
-                Directory.CreateDirectory(Path.GetDirectoryName(DriverStampPath)!);
-                File.WriteAllText(DriverStampPath, BackendSdkVersion);
+                WriteDriverStamp();
+                if (!DriverPrepared) throw new InvalidOperationException("The driver is installed, but its machine-wide preparation stamp could not be verified.");
                 return new { installed = Context.IsDriverInstalled, prepared = DriverPrepared,
                     backendSdkVersion = BackendSdkVersion, outcome = Context.LastDriverInstall?.ToString() ?? "checked" };
             case "create":
