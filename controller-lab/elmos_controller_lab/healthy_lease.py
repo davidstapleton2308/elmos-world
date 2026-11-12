@@ -5,6 +5,7 @@ No background timer: only a healthy physical read may call submit().
 from __future__ import annotations
 
 import time
+from copy import deepcopy
 from typing import Any, Callable
 
 
@@ -29,7 +30,7 @@ class HealthyFrameLease:
         now = self.clock()
         if self._last_state is None or state != self._last_state:
             self.bridge.send_state(self.slot, state)
-            self._last_state = state.copy()
+            self._last_state = deepcopy(state)
             self._last_contact = now
             return "state"
         if self._last_contact is None or now - self._last_contact >= self.interval:
