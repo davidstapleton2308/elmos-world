@@ -44,9 +44,7 @@ def apply_version(version: str) -> None:
         contents = contents.replace(old, version)
         # Classic is an immutable appearance preset identifier, not an app
         # version. Do not change its directory name when releasing a patch.
-        if relative_path == "app/launcher_entry.py":
-            contents = contents.replace("presets/classic-" + version,
-                                        "presets/classic-3.1.1")
+        contents = contents.replace("classic-" + version, "classic-3.1.1")
         path.write_text(contents, encoding="utf-8")
 
     updated = json.loads(manifest_file.read_text(encoding="utf-8"))
