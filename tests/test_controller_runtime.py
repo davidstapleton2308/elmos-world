@@ -26,6 +26,7 @@ class ControllerRuntimeTests(unittest.TestCase):
             app_dir=self.app, data_dir=self.data, runner_path=self.runner,
             bridge_path=self.bridge, platform="win32",
             shell_execute=lambda exe, params, cwd: self.calls.append((exe, params, cwd)) or 42,
+            prerequisite_check=lambda: {"ready": True, "state": "ready", "message": "ready"},
         )
 
     def tearDown(self):
@@ -84,6 +85,32 @@ class ControllerRuntimeTests(unittest.TestCase):
         self.assertIn("--stop-file", self.calls[0][1])
         self.assertIn("--watch-file", self.calls[0][1])
         self.assertIn("--device-guid", self.calls[0][1])
+
+    def test_start_fails_closed_before_uac_when_driver_is_missing(self):
+        self.runtime.save_game_profile("game", "xbox-360-wired", 0, True)
+        self.runtime._prerequisite_check = lambda: {
+            "ready": False, "state": "driver_missing",
+            "message": "Install the Elmos virtual-controller driver first.",
+        }
+        with self.assertRaisesRegex(RuntimeError, "Install the Elmos virtual-controller driver"):
+            self.runtime.start_for_game("game")
+        self.assertEqual(self.calls, [], "Do not show the game-session UAC prompt when the driver is absent.")
+
+    def test_install_driver_skips_uac_when_prerequisites_are_ready(self):
+        result = self.runtime.install_driver()
+        self.assertFalse(result["requested"])
+        self.assertTrue(result["alreadyReady"])
+        self.assertEqual(self.calls, [])
+
+    def test_install_driver_requests_uac_when_driver_is_missing(self):
+        self.runtime._prerequisite_check = lambda: {
+            "ready": False, "state": "driver_missing",
+            "message": "Driver missing.",
+        }
+        result = self.runtime.install_driver()
+        self.assertTrue(result["requested"])
+        self.assertEqual(len(self.calls), 1)
+        self.assertIn("install-driver", self.calls[0][1])
 
     def test_attach_game_process_writes_watch_file(self):
         self.runtime.save_game_profile("game", "xbox-360-wired", 0, True)
