@@ -1152,12 +1152,13 @@ async function smartRefresh(show=true){
  try{
   if(show)$('smartStatus').textContent='Scanning Downloads safely…';
   const data=await api('/api/smart-preview');
-  $('smartAuto').checked=!!data.autoEnabled;
+  $('smartAuto').checked=false;
+  $('smartAuto').disabled=true;
   $('smartUndo').hidden=!data.lastMove;
   const icons={game:'🎮',emulator:'🕹️',rom:'💿',archive:'📦',installer:'⚠️'};
   const rows=(data.items||[]).filter(x=>x.kind!=='other').slice(0,80);
   $('smartResults').innerHTML=rows.map(x=>'<div class="smart-row"><strong>'+icons[x.kind]+' '+esc(x.title)+'</strong><span>'+esc(x.kind.toUpperCase())+' · '+x.confidence+'/100 · '+esc(x.action.toUpperCase())+'</span><small>'+esc(x.reason)+' — '+esc(x.path)+'</small></div>').join('')||'<p class="muted">No game-related folders or archives in Downloads.</p>';
-  $('smartStatus').textContent=data.counts.ready+' verified folder(s) ready; '+data.counts.review+' need review. Automatic sorting: '+(data.autoEnabled?'ON':'OFF')+'.';
+  $('smartStatus').textContent=data.counts.ready+' verified folder(s) ready; '+data.counts.review+' need review. Background auto-sorting is paused pending Windows crash-recovery and no-overwrite validation.';
  }catch(e){$('smartStatus').textContent=e.message;}
  finally{smartScanBusy=false;}
 }
@@ -1167,7 +1168,7 @@ $('smartAuto').onchange=async()=>{
  if(enabled&&!confirm('Allow automatic sorting of verified, completed game and emulator folders? Uncertain folders and loose executable files remain untouched.')){$('smartAuto').checked=false;return;}
  const result=await safe(()=>api('/api/smart-mode',{enabled}));
  if(!result){$('smartAuto').checked=!enabled;return;}
- notify(result.autoEnabled?'Safe auto-organization enabled.':'Auto-organization disabled.');
+ notify(result.message||'Background auto-organization remains disabled until safety validation is complete.',!!result.blocked);
  smartRefresh(false);
 };
 $('smartUndo').onclick=async()=>{
