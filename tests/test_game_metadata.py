@@ -72,6 +72,19 @@ class ManifestIdentityFixtures(unittest.TestCase):
         names=inspect_manifest_names(root,list(root.iterdir()))
         self.assertFalse(names['title'])
 
+    def test_unverified_store_manifest_does_not_add_independent_confidence(self):
+        root=self.root/'UnknownBuild'
+        root.mkdir()
+        (root/'Unrelated.exe').write_bytes(b'MZ'+bytes(100_000))
+        (root/'appmanifest_480.acf').write_text(
+            '"AppState" { "appid" "480" "name" "Outer Wilds" }',encoding='utf-8')
+        old=time.time()-300
+        for path in [root,*root.rglob('*')]:os.utime(path,(old,old))
+        result=inspect_folder(root,min_age=0)
+        self.assertEqual(result['kind'],'game')
+        self.assertNotEqual(result['action'],'ready')
+        self.assertIn('unverified',result['reason'])
+
     def test_unrelated_nested_metadata_does_not_rename_game(self):
         root=self.game('OuterWilds','OuterWilds.exe','goggame-480.info',
                        {'name':'Outer Wilds'})

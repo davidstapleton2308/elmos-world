@@ -18,7 +18,7 @@ for preset_file in (APP / 'presets').rglob('*'):
         datas.append((str(preset_file), str(preset_file.relative_to(APP).parent)))
 binaries = []
 hiddenimports = [
-    'server', 'update_center', 'backend', 'controller_runtime', 'game_media', 'game_descriptions', 'game_discovery',
+    'server', 'update_center', 'backend', 'controller_runtime', 'store_inventory', 'game_media', 'game_descriptions', 'game_discovery',
     'game_uninstall', 'geforce_library', 'steam_core', 'provider_adapters',
     'controller_input', 'native_game_menu', 'smart_discovery', 'game_metadata', 'tkinter', 'tkinter.filedialog',
     'webview.platforms.winforms', 'webview.platforms.edgechromium',

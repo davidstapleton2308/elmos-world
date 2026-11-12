@@ -1216,6 +1216,8 @@ class Engine:
  def smart_organize(self,manual=False):
   """Move only completed high-confidence folders, atomically and without overwriting."""
   from smart_discovery import scan_downloads, discover_emulators, move_verified
+  from store_inventory import installed_inventory
+  installed_inventory.cache_clear()
   if not manual and not self.cfg.get('smart_auto_enabled',False):
    return {'moved':[],'emulatorsRegistered':[],'skipped':[],
            'message':'Automatic organizing disabled.'}
