@@ -129,6 +129,14 @@ if (-not (Test-Path -LiteralPath $BuildPython -PathType Leaf)) {
 Write-Host 'Installing build dependencies...'
 & $BuildPython -m pip install --disable-pip-version-check -r (Join-Path $Root 'build\requirements-windows.txt')
 if ($LASTEXITCODE -ne 0) { throw 'Python package installation failed. Check the output above.' }
+& $BuildPython -m pip install --disable-pip-version-check -r (Join-Path $Root 'controller-lab\\requirements.txt')
+if ($LASTEXITCODE -ne 0) { throw 'Controller Lab Python dependencies failed to install.' }
+if (-not (Get-Command 'dotnet.exe' -CommandType Application -ErrorAction SilentlyContinue)) {
+  throw 'The unified build requires the .NET 10 SDK. Install it from https://dotnet.microsoft.com/download/dotnet/10.0, then rerun this builder.'
+}
+Write-Host 'Building the verified virtual-controller bridge...'
+& (Join-Path $Root 'controller-lab\\scripts\\Build-ControllerLab.ps1')
+if ($LASTEXITCODE -ne 0) { throw 'Controller Lab bridge build failed.' }
 
 Write-Host 'Compiling ElmosWorld.exe...' -ForegroundColor Cyan
 & $BuildPython -m PyInstaller --noconfirm --clean `
