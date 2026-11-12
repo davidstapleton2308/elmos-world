@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - release/unified-auto-input-v3
+      - feature/install-prerequisite-audit
   workflow_dispatch:
 
 permissions:
@@ -284,6 +285,7 @@ jobs:
           retention-days: 30
 
       - name: Publish next GitHub release
+        if: github.ref != 'refs/heads/feature/install-prerequisite-audit'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
