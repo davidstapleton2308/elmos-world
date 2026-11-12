@@ -62,6 +62,7 @@ class ControllerRuntime:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.sessions_dir = self.data_dir / "sessions"
         self.profiles_file = self.data_dir / "launcher_profiles.json"
+        self.global_file = self.data_dir / "automatic_input.json"
         self.status_file = self.data_dir / "runtime_status.json"
         self.platform = platform or sys.platform
         self._shell_execute = shell_execute or self._shell_execute_windows
@@ -97,13 +98,35 @@ class ControllerRuntime:
             return {"schema": 1, "games": {}}
         return data
 
+    def automatic_preferences(self) -> dict[str, Any]:
+        prefs = _read_json(self.global_file, {})
+        if not isinstance(prefs, dict):
+            prefs = {}
+        return {
+            "enabled": prefs.get("enabled") is True,
+            "defaultProfile": "xbox-360-wired",
+            "driverApprovalRequired": True,
+        }
+
+    def set_automatic_preferences(self, enabled: bool) -> dict[str, Any]:
+        if type(enabled) is not bool:
+            raise ValueError("Automatic controller support must be on or off.")
+        with _LOCK:
+            _atomic_json(self.global_file, {"schema": 1, "enabled": enabled,
+                                            "updatedAt": int(time.time())})
+        return self.automatic_preferences()
+
     def get_game_profile(self, game_id: str) -> dict[str, Any]:
         game_id = str(game_id or "")
         if not game_id or len(game_id) > _GAME_ID_MAX:
             raise ValueError("Invalid game identity.")
-        value = self._profiles()["games"].get(game_id, {})
+        saved = self._profiles()["games"]
+        value = saved.get(game_id, {})
         if not isinstance(value, dict):
             value = {}
+        # When the user has enabled automatic translation once, unconfigured
+        # games inherit it. Explicit per-game settings override the default.
+        inherited_auto_start = self.automatic_preferences()["enabled"]
         profile_id = value.get("profileId", "xbox-360-wired")
         if not isinstance(profile_id, str) or not _PROFILE_ID.fullmatch(profile_id):
             profile_id = "xbox-360-wired"
@@ -118,7 +141,8 @@ class ControllerRuntime:
             "profileId": profile_id,
             "deviceIndex": device_index,
             "deviceGuid": device_guid,
-            "autoStart": value.get("autoStart") is True,
+            "autoStart": value.get("autoStart", inherited_auto_start) is True,
+            "inheritedAutoStart": "autoStart" not in value,
             "rate": 120,
         }
 

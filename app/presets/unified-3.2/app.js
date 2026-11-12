@@ -773,11 +773,12 @@ async function loadGameGallery(g){
 
 
 async function controllerProfileDialog(g){
- const [catalog,saved,status,native]=await Promise.all([
+ const [catalog,saved,status,native,automatic]=await Promise.all([
   safe(()=>api('/api/controller-lab/profiles')),
   safe(()=>api('/api/controller-lab/config?id='+encodeURIComponent(g.id))),
   safe(()=>api('/api/controller-lab/status')),
-  safe(()=>api('/api/controller'))
+  safe(()=>api('/api/controller')),
+  safe(()=>api('/api/controller-lab/automatic'))
  ]);
  if(!catalog||!saved)return;
  const profiles=(catalog.profiles||[]).filter(p=>p.deployable&&!p.requiresUsbip&&!/keyboard|mouse/i.test(String(p.type||'')));
@@ -789,6 +790,7 @@ async function controllerProfileDialog(g){
  const isActive=status&&['starting','running','stopping'].includes(status.state)&&status.gameId===g.id;
  dialog('Universal controller','ELMOS INPUT · PER-GAME PROFILE',
   '<div class="config-scroll">'+
+   '<div class="config-block"><label class="config-switch"><input type="checkbox" id="controllerGlobalAutomatic"><span>Automatically activate Elmos Input when I launch any game</span></label><small>One-time preference: saved per-game mappings override the automatic Xbox-compatible default. Initial virtual-driver installation still requires explicit Windows approval; we never install system drivers silently.</small></div>'+
    '<div class="config-block"><label>Physical controller</label><select id="controllerDevice">'+deviceOptions+'</select><small>Choose the physical controller Elmos Input should read. The device is identified again by its SDL GUID for saved mappings.</small></div>'+
    '<div class="config-block"><label>Virtual identity presented to the game</label><select id="controllerProfile">'+profileOptions+'</select><small>Xbox 360 is the recommended compatibility target for most Windows games. Other identities are available when a game specifically needs them.</small></div>'+
    '<div class="config-block"><label class="config-switch"><input type="checkbox" id="controllerAutoStart"><span>Automatically activate this profile when this game launches</span></label><small>Requires the one-time virtual driver setup and a Windows UAC approval when a session starts. This is off until you explicitly enable it.</small></div>'+
@@ -800,6 +802,12 @@ async function controllerProfileDialog(g){
  $('controllerProfile').value=profiles.some(p=>p.id===saved.profileId)?saved.profileId:(profiles[0]?.id||'');
  $('controllerDevice').value=String(saved.deviceIndex??0);
  $('controllerAutoStart').checked=!!saved.autoStart;
+ $('controllerGlobalAutomatic').checked=!!automatic?.enabled;
+ $('controllerGlobalAutomatic').onchange=async()=>{
+  const result=await safe(()=>api('/api/controller-lab/automatic',{enabled:$('controllerGlobalAutomatic').checked}));
+  if(result)notify(result.enabled?'Automatic Elmos Input enabled for newly configured games.':'Automatic Elmos Input disabled.');
+  else $('controllerGlobalAutomatic').checked=!$('controllerGlobalAutomatic').checked;
+ };
  const save=async()=>{
   const result=await safe(()=>api('/api/controller-lab/config',{id:g.id,profileId:$('controllerProfile').value,deviceIndex:Number($('controllerDevice').value),deviceGuid:(devices.find(d=>Number(d.index)===Number($('controllerDevice').value))||{}).guid||saved.deviceGuid||'',autoStart:$('controllerAutoStart').checked}));
   if(result){notify('Controller profile saved for '+g.name+'.');return result;}

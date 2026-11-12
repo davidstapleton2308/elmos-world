@@ -108,6 +108,8 @@ class Handler(BaseHTTPRequestHandler):
     return self.result(controller_runtime.get_game_profile(gameid))
    except Exception as exc:return self.error(400,str(exc))
   if u.path=='/api/controller-lab/status':return self.result(controller_runtime.status())
+  if u.path=='/api/controller-lab/automatic':
+   return self.result(controller_runtime.automatic_preferences())
   if u.path=='/api/preset-status':
    return self.result({'active':active_preset_id(),'presets':[{'id':k,'name':v} for k,v in PRESETS.items()]})
   if u.path=='/api/smart-preview':return self.result(engine.smart_preview())
@@ -186,6 +188,9 @@ class Handler(BaseHTTPRequestHandler):
     engine.cfg['appearance_preset']=preset
     engine.save()
     out={'ok':True,'preset':preset,'restartRequired':True}
+   elif action=='/api/controller-lab/automatic':
+    if type(body.get('enabled')) is not bool:raise ValueError('Specify enabled true or false')
+    out=controller_runtime.set_automatic_preferences(body['enabled'])
    elif action=='/api/controller-lab/config':
     gameid=body.get('id','')
     if not engine.find(gameid):raise ValueError('Game not found')

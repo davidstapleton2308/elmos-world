@@ -37,6 +37,22 @@ class ControllerRuntimeTests(unittest.TestCase):
         self.assertEqual(profile["deviceIndex"], 0)
         self.assertFalse(profile["autoStart"])
 
+    def test_global_auto_support_has_explicit_one_time_consent(self):
+        before = self.runtime.get_game_profile("new-game")
+        self.assertFalse(before["autoStart"])
+        prefs = self.runtime.set_automatic_preferences(True)
+        self.assertTrue(prefs["enabled"])
+        after = self.runtime.get_game_profile("new-game")
+        self.assertTrue(after["autoStart"])
+        self.assertTrue(after["inheritedAutoStart"])
+        self.assertEqual(after["profileId"], "xbox-360-wired")
+        self.runtime.save_game_profile("new-game", "dualsense", 0, False)
+        self.assertFalse(self.runtime.get_game_profile("new-game")["autoStart"])
+        self.runtime.set_automatic_preferences(False)
+        self.assertFalse(self.runtime.get_game_profile("different-game")["autoStart"])
+        with self.assertRaises(ValueError):
+            self.runtime.set_automatic_preferences(1)
+
     def test_save_and_reload_per_game_profile(self):
         saved = self.runtime.save_game_profile("pc:outer-wilds", "dualsense", 1, True, "030000004c050000c405000000010000")
         self.assertEqual(saved["profileId"], "dualsense")
