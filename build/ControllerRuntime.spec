@@ -44,5 +44,4 @@ exe = EXE(
     name="ElmosControllerRuntime",
     console=False,
     upx=False,
-    onefile=True,
 )

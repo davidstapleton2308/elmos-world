@@ -140,6 +140,24 @@ $Exe = Join-Path $Root 'dist\ElmosWorld\ElmosWorld.exe'
 if (-not (Test-Path -LiteralPath $Exe -PathType Leaf)) { throw 'ElmosWorld.exe was not produced.' }
 Write-Host ('EXE built: ' + $Exe) -ForegroundColor Green
 
+Write-Host 'Building standalone Elmos Controller runtime...'
+& $BuildPython -m PyInstaller --noconfirm --clean --distpath (Join-Path $Root 'dist\\controller-runtime') --workpath (Join-Path $Root 'build\\controller-runtime-work') (Join-Path $Root 'build\\ControllerRuntime.spec')
+if ($LASTEXITCODE -ne 0) { throw 'Controller runtime helper build failed.' }
+$Bundle = Join-Path $Root 'dist\\ElmosWorld'
+$Internal = Join-Path $Bundle '_internal'
+if (-not (Test-Path -LiteralPath $Internal)) { $Internal = $Bundle }
+$RuntimeDir = Join-Path $Internal 'controller-runtime'
+$BridgeDir = Join-Path $Internal 'controller-lab\\bridge\\publish'
+New-Item -ItemType Directory -Force -Path $RuntimeDir,$BridgeDir | Out-Null
+Copy-Item (Join-Path $Root 'dist\\controller-runtime\\ElmosControllerRuntime.exe') $RuntimeDir -Force
+Copy-Item (Join-Path $Root 'controller-lab\\bridge\\publish\\Elmos.ControllerLab.Bridge.exe') $BridgeDir -Force
+$NoticeDir = Join-Path $Internal 'controller-lab'
+New-Item -ItemType Directory -Force -Path $NoticeDir | Out-Null
+foreach ($name in @('LICENSE','THIRD-PARTY-NOTICES.txt')) {
+  $source = Join-Path $Root ('controller-lab\\runtime\\' + $name)
+  if (Test-Path -LiteralPath $source) { Copy-Item $source $NoticeDir -Force }
+}
+
 # Verify that required runtime assets were actually bundled before packaging.
 Write-Host 'Checking standalone application dependencies...' -ForegroundColor Cyan
 $SelfTest = Start-Process -FilePath $Exe -ArgumentList '--self-test' -Wait -PassThru

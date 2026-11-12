@@ -50,10 +50,10 @@ def self_test():
     """Offline packaging check for a Windows release without opening the UI."""
     import importlib
     base = Path(__file__).resolve().parent
-    for filename in ('index.html', 'app.js', 'app.css', 'premium_31.css', 'graphite_weave.svg'):
+    for filename in ('index.html', 'app.js', 'app.css', 'premium_31.css', 'graphite_weave.svg', 'presets/classic-3.1.1/index.html', 'presets/classic-3.1.1/app.js', 'presets/unified-3.2/index.html', 'presets/unified-3.2/app.js', 'controller-runtime/ElmosControllerRuntime.exe', 'controller-lab/bridge/publish/Elmos.ControllerLab.Bridge.exe'):
         if not (base / filename).is_file():
             raise RuntimeError('Bundled application resource missing: ' + filename)
-    for module in ('backend', 'server', 'update_center', 'webview', 'pygame', 'tkinter'):
+    for module in ('backend', 'server', 'update_center', 'controller_runtime', 'webview', 'pygame', 'tkinter', 'elmos_controller_lab.bridge'):
         importlib.import_module(module)
     return True
 
