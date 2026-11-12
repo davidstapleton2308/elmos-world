@@ -185,7 +185,7 @@ def _steam_manifest(files):
                for p in files)
 
 
-def _game_signatures(folder, files, dirs):
+def _game_signatures(folder, files, dirs, trusted_store_manifest=False):
     dnames = {p.name.casefold() for p in dirs}
     fnames = {p.name.casefold() for p in files}
     unity = 'unityplayer.dll' in fnames or any(
@@ -194,7 +194,7 @@ def _game_signatures(folder, files, dirs):
         'engine' in dnames and ('content' in dnames or 'binaries' in dnames))
     assets = any(p.suffix.lower() in {'.pak', '.vpk', '.assets', '.uasset', '.rpf'}
                  for p in files)
-    manifest = _steam_manifest(files)
+    manifest = bool(trusted_store_manifest)  # local claims alone are not independent evidence
     # CommonRedist and steam_api alone do not establish product identity.
     return unity, unreal, assets, manifest
 
@@ -280,15 +280,28 @@ def inspect_folder(folder, *, min_age=120, now=None):
     elif re.fullmatch(r'(?:downloads?|new folder|folder)\s*\d*', folder.name, re.I):
         title = display_title(inferred)
 
-    # Product names from validated, bounded text manifests outrank release
-    # folder labels. A conflicting claim is always a manual-review case.
+    # Bounded local manifests may suggest a title, but only an independently
+    # verified installed-store record can increase identity confidence.
     from game_metadata import inspect_manifest_names
+    from store_inventory import installed_inventory, match_candidate
     meta = inspect_manifest_names(folder, files)
     if meta['conflict']:
         return _result(folder, 'game', 45,
                        'Conflicting GOG/Steam/Epic game identity manifests; manual review required',
                        title)
-    if meta['title']:
+    store_identity = match_candidate(folder, files, installed_inventory())
+    if store_identity.get('conflict'):
+        return _result(folder, 'game', 45,
+                       'Store product ID resolves to conflicting installed titles; manual review required',
+                       title)
+    if store_identity.get('matched'):
+        verified_title = display_title(store_identity.get('title', ''))
+        if meta.get('title') and display_title(meta['title']).casefold() != verified_title.casefold():
+            return _result(folder, 'game', 45,
+                           'Local manifest title conflicts with independent installed-store identity',
+                           verified_title)
+        title = verified_title
+    elif meta['title']:
         title = display_title(meta['title'])
 
     opts = candidates(folder, title)
@@ -297,7 +310,7 @@ def inspect_folder(folder, *, min_age=120, now=None):
     exe = Path(opts[0]['path'])
     rival = len(opts) > 1 and opts[0]['score'] - opts[1]['score'] < 18
     ident = _identity(title, exe)
-    unity, unreal, assets, manifest = _game_signatures(folder, files, dirs)
+    unity, unreal, assets, manifest = _game_signatures(folder, files, dirs, store_identity.get('matched', False))
     # Avoid treating a random folder containing one .exe as a game.
     scores = [int(35 + 35 * ident), 30 if (unity or unreal) else 0,
               20 if manifest else 0, 16 if assets else 0]
@@ -319,8 +332,10 @@ def inspect_folder(folder, *, min_age=120, now=None):
     if installers and not structural:
         score = min(score, 45)
         reason += '; installer found without game structure'
-    if meta['title']:
-        reason += '; canonical title declared by '+meta['source']
+    if store_identity.get('matched'):
+        reason += '; independent '+str(store_identity.get('source','store')).upper()+' installed inventory confirms product ID '+str(store_identity.get('productId',''))
+    elif meta['title']:
+        reason += '; local manifest title is unverified against installed-store inventory ('+meta['source']+')'
     if not stable:
         reason += '; files are recent or download is incomplete'
     return _result(folder, 'game', score, reason, title, exe, stable=stable)
