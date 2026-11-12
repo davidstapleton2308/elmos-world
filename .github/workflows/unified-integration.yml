@@ -1,0 +1,99 @@
+name: Unified Elmos World Integration
+
+on:
+  push:
+    branches: [integration/elmos-world-unified]
+    paths: ['app/**', 'build/**', 'controller-lab/**', 'tests/**', '.github/workflows/unified-integration.yml']
+  pull_request:
+    branches: [main]
+    paths: ['app/**', 'build/**', 'controller-lab/**', 'tests/**', '.github/workflows/unified-integration.yml']
+permissions:
+  contents: read
+concurrency:
+  group: elmos-unified-validation-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  windows-integrated-build:
+    runs-on: windows-2022
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          architecture: x64
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check --upgrade pip
+          python -m pip install --disable-pip-version-check -r build/requirements-windows.txt -r controller-lab/requirements.txt
+          python -m pip install --disable-pip-version-check -e "controller-lab[test,sensors]"
+          if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed.' }
+      - name: Compile and test application
+        shell: pwsh
+        run: |
+          python -m compileall -q app build controller-lab/elmos_controller_lab
+          if ($LASTEXITCODE -ne 0) { throw 'Python compilation failed.' }
+          python -m unittest discover -s tests -p 'test_*.py' -v
+          if ($LASTEXITCODE -ne 0) { throw 'Application tests failed.' }
+          python -m pytest controller-lab/tests -q
+          if ($LASTEXITCODE -ne 0) { throw 'Controller Lab tests failed.' }
+      - name: Check Classic and Unified JavaScript
+        shell: pwsh
+        run: |
+          node --check app/app.js
+          if ($LASTEXITCODE -ne 0) { throw 'Root JavaScript syntax failed.' }
+          node --check app/presets/classic-3.1.1/app.js
+          if ($LASTEXITCODE -ne 0) { throw 'Classic JavaScript syntax failed.' }
+          node --check app/presets/unified-3.2/app.js
+          if ($LASTEXITCODE -ne 0) { throw 'Unified JavaScript syntax failed.' }
+      - name: Build verified virtual-device bridge
+        shell: pwsh
+        run: |
+          & 'controller-lab/scripts/Build-ControllerLab.ps1'
+          if ($LASTEXITCODE -ne 0) { throw 'Controller bridge build failed.' }
+      - name: Build Elmos World desktop
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --distpath dist --workpath build/work build/ElmosWorld.spec
+          if ($LASTEXITCODE -ne 0) { throw 'Elmos World build failed.' }
+      - name: Build elevated Controller Lab runtime and stage both helpers
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --distpath dist/controller-runtime --workpath build/controller-runtime-work build/ControllerRuntime.spec
+          if ($LASTEXITCODE -ne 0) { throw 'Controller runtime build failed.' }
+          $bundle = (Resolve-Path 'dist/ElmosWorld').Path
+          $internal = Join-Path $bundle '_internal'
+          if (!(Test-Path $internal)) { $internal = $bundle }
+          $runtime = Join-Path $internal 'controller-runtime'
+          $bridge = Join-Path $internal 'controller-lab/bridge/publish'
+          New-Item -ItemType Directory -Force -Path $runtime,$bridge | Out-Null
+          Copy-Item 'dist/controller-runtime/ElmosControllerRuntime.exe' $runtime -Force
+          Copy-Item 'controller-lab/bridge/publish/Elmos.ControllerLab.Bridge.exe' $bridge -Force
+          $notices = Join-Path $internal 'controller-lab'
+          New-Item -ItemType Directory -Force -Path $notices | Out-Null
+          foreach ($name in @('LICENSE','THIRD-PARTY-NOTICES.txt')) {
+            $source = Join-Path 'controller-lab/runtime' $name
+            if (Test-Path $source) { Copy-Item $source $notices -Force }
+          }
+      - name: Verify standalone executable and runtime
+        shell: pwsh
+        run: |
+          python build/verify_windows_gui.py dist/ElmosWorld/ElmosWorld.exe
+          if ($LASTEXITCODE -ne 0) { throw 'GUI subsystem verification failed.' }
+          $test = Start-Process -FilePath (Resolve-Path 'dist/ElmosWorld/ElmosWorld.exe').Path -ArgumentList '--self-test' -Wait -PassThru
+          if ($test.ExitCode -ne 0) { throw "Packaged self-test failed: $($test.ExitCode)" }
+      - name: Package preview
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist_setup | Out-Null
+          Compress-Archive -Path 'dist/ElmosWorld/*' -DestinationPath 'dist_setup/ElmosWorld_Unified_Preview.zip' -Force
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ElmosWorld-Unified-Windows-Preview
+          path: dist_setup/ElmosWorld_Unified_Preview.zip
+          retention-days: 14
+          if-no-files-found: error
