@@ -1,3 +1,4 @@
+param([switch]$NoLaunch)
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 $manifest = Get-Content -LiteralPath (Join-Path $root 'backup-manifest.json') -Raw | ConvertFrom-Json
@@ -20,4 +21,4 @@ RestoreFolder 'SteamMatch' (Join-Path $env:LOCALAPPDATA 'SteamMatch')
 RestoreFolder 'ElmosWorld' (Join-Path $env:LOCALAPPDATA 'ElmosWorld')
 RestoreFolder 'ElmosControllerLab' (Join-Path $env:LOCALAPPDATA 'ElmosControllerLab')
 Write-Host 'Restored the saved previous Elmos World application and settings.' -ForegroundColor Green
-Start-Process -FilePath (Join-Path $target 'ElmosWorld.exe')
+if (-not $NoLaunch) { Start-Process -FilePath (Join-Path $target 'ElmosWorld.exe') }

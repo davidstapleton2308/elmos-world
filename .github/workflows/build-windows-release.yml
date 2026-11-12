@@ -252,6 +252,24 @@ jobs:
             }
           }
           Write-Host 'PASS: unattended install deferred driver setup; upgrade preserved user data and created a rollback snapshot.'
+          $savedExe = Join-Path $latest.FullName 'program/ElmosWorld.exe'
+          $savedHash = (Get-FileHash -LiteralPath $savedExe -Algorithm SHA256).Hash
+          Set-Content -LiteralPath $installedApp -Value 'simulated broken update'
+          Set-Content -LiteralPath (Join-Path $stateDir 'settings.json') -Value '{"appearance_preset":"unified-3.2"}'
+          $restore = Join-Path $latest.FullName 'restore_previous.ps1'
+          & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $restore -NoLaunch
+          if ($LASTEXITCODE -ne 0) { throw 'Rollback script failed.' }
+          if ((Get-FileHash -LiteralPath $installedApp -Algorithm SHA256).Hash -cne $savedHash) {
+            throw 'Rollback did not restore the saved executable.'
+          }
+          foreach ($entry in $fixtures.GetEnumerator()) {
+            if ((Get-Content -LiteralPath $entry.Key -Raw) -cne $entry.Value) {
+              throw "Rollback did not preserve the expected file: $($entry.Key)"
+            }
+          }
+          $restored = Start-Process -FilePath $installedApp -ArgumentList '--self-test' -Wait -PassThru
+          if ($restored.ExitCode -ne 0) { throw 'Restored executable failed its self-test.' }
+          Write-Host 'PASS: rollback restored the executable and Classic preference.'
       - name: Preserve executable test diagnostic log
         if: failure()
         shell: pwsh

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from typing import Any
 
 from .model import ControllerState, MotionState
@@ -56,6 +57,7 @@ class SDLInputSource:
     editable later in the lab; it is never presented as a guaranteed mapping.
     """
     def __init__(self):
+        os.environ.setdefault("SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS", "1")
         import pygame
         from pygame._sdl2 import controller
         self.pygame = pygame

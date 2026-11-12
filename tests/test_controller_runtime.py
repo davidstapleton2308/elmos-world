@@ -1,12 +1,16 @@
 import json
 import os
 from pathlib import Path
+import subprocess
 import tempfile
+from types import SimpleNamespace
 import unittest
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
 from controller_runtime import ControllerRuntime
+from elmos_controller_lab.lab import _write_runtime_status
+from elmos_controller_lab.process import pid_alive
 
 
 class ControllerRuntimeTests(unittest.TestCase):
@@ -36,11 +40,11 @@ class ControllerRuntimeTests(unittest.TestCase):
         profile = self.runtime.get_game_profile("pc:outer-wilds")
         self.assertEqual(profile["profileId"], "xbox-360-wired")
         self.assertEqual(profile["deviceIndex"], 0)
-        self.assertTrue(profile["autoStart"])
+        self.assertFalse(profile["autoStart"])
 
     def test_global_auto_support_enabled_for_game_launches(self):
         before = self.runtime.get_game_profile("new-game")
-        self.assertTrue(before["autoStart"])
+        self.assertFalse(before["autoStart"])
         prefs = self.runtime.set_automatic_preferences(True)
         self.assertTrue(prefs["enabled"])
         after = self.runtime.get_game_profile("new-game")
@@ -118,6 +122,31 @@ class ControllerRuntimeTests(unittest.TestCase):
         self.assertTrue(self.runtime.attach_game_process(12345))
         current = self.runtime.status()
         self.assertEqual(Path(current["watchFile"]).read_text(encoding="ascii"), "12345")
+
+    def test_helper_status_keeps_launcher_session_controls(self):
+        self.runtime.save_game_profile("game", "xbox-360-wired", 0, True)
+        result = self.runtime.start_for_game("game")
+        current = self.runtime.status()
+        args = SimpleNamespace(status_file=self.runtime.status_file, game="game",
+                               profile="xbox-360-wired", session_id=result["sessionId"],
+                               stop_file=current["stopFile"], watch_file=current["watchFile"])
+        _write_runtime_status(args, "running", frames=1)
+        self.assertEqual(self.runtime.wait_ready(1)["state"], "running")
+        self.assertTrue(self.runtime.attach_game_process(12345))
+        self.assertEqual(Path(args.watch_file).read_text(encoding="ascii"), "12345")
+        self.assertFalse(self.runtime.stop("previous-session")["requested"])
+        self.assertTrue(self.runtime.stop(result["sessionId"])["requested"])
+        self.assertTrue(Path(args.stop_file).is_file())
+
+    def test_pid_check_leaves_live_game_process_running(self):
+        with subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"]) as game:
+            try:
+                self.assertTrue(pid_alive(game.pid))
+                self.assertIsNone(game.poll())
+            finally:
+                game.terminate()
+                game.wait(timeout=5)
+            self.assertFalse(pid_alive(game.pid))
 
     def test_stop_requests_graceful_virtual_device_release(self):
         self.runtime.save_game_profile("game", "xbox-360-wired", 0, True)

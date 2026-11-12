@@ -19,6 +19,7 @@ from .model import ControllerState, neutral_state
 from .sdl_source import SDLInputSource
 from .store import MappingStore
 from .prerequisites import evaluate_prerequisites
+from .process import pid_alive
 
 
 def print_json(value):
@@ -39,6 +40,9 @@ def _write_runtime_status(args, state: str, **extra):
         "gameId": str(getattr(args, "game", "")),
         "profileId": str(getattr(args, "profile", "")),
         "deviceIndex": int(getattr(args, "device", 0)),
+        "sessionId": getattr(args, "session_id", ""),
+        "stopFile": getattr(args, "stop_file", ""),
+        "watchFile": getattr(args, "watch_file", ""),
         "updatedAt": time.time(),
         **extra,
     }
@@ -49,18 +53,6 @@ def _write_runtime_status(args, state: str, **extra):
         os.replace(temporary, path)
     except OSError as exc:
         print("Could not update controller runtime status:", exc, file=sys.stderr, flush=True)
-
-
-def _pid_alive(pid: int) -> bool:
-    if type(pid) is not int or pid <= 0:
-        return False
-    try:
-        os.kill(pid, 0)
-        return True
-    except PermissionError:
-        return True
-    except (OSError, ValueError):
-        return False
 
 
 def command_browser_probe(args):
@@ -438,6 +430,7 @@ def command_emulate(args):
 
         source = None
         created_slots: list[str] = []
+        frames = 0
         device_name = "Synthetic Controller" if args.demo else ""
         device_guid = "synthetic"
         try:
@@ -496,12 +489,9 @@ def command_emulate(args):
             gamepad_lease = HealthyFrameLease(bridge, args.slot)
             print(f"Input: {device_guid} | Game: {args.game} | Mapping: {mapping.name}", flush=True)
             start = time.monotonic()
-            frames = 0
             last_status_update = 0.0
             last_control_check = 0.0
             watch_pid = 0
-            _write_runtime_status(args, "running", deviceGuid=device_guid, deviceName=device_name,
-                                  mappingName=mapping.name, startedAt=time.time(), frames=0)
             while True:
                 now = time.monotonic()
                 if now - last_control_check >= 0.25:
@@ -516,7 +506,7 @@ def command_emulate(args):
                         if not watch_pid and now - start > 30:
                             print("No game process was attached to this controller session; stopping safely.", flush=True)
                             break
-                        if watch_pid and not _pid_alive(watch_pid):
+                        if watch_pid and not pid_alive(watch_pid):
                             print("Tracked game process exited; releasing virtual devices.", flush=True)
                             break
                     last_control_check = now
@@ -524,15 +514,15 @@ def command_emulate(args):
                 output = mapper.map_actions(physical)
                 gamepad_lease.submit(output.gamepad.to_wire())
                 frames += 1
-                if now - last_status_update >= 1.0:
-                    _write_runtime_status(args, "running", deviceGuid=device_guid, deviceName=device_name,
-                                          mappingName=mapping.name, frames=frames, lastFrameAt=time.time())
-                    last_status_update = now
                 if need_keyboard:
                     bridge.send_keyboard(keyboard_slot, sorted(output.keyboard_keys), sorted(output.keyboard_modifiers))
                 if need_mouse:
                     bridge.send_mouse(mouse_slot, sorted(output.mouse_buttons), output.mouse_dx,
                                       output.mouse_dy, output.mouse_wheel, output.mouse_pan)
+                if now - last_status_update >= 1.0:
+                    _write_runtime_status(args, "running", deviceGuid=device_guid, deviceName=device_name,
+                                          mappingName=mapping.name, frames=frames, lastFrameAt=time.time())
+                    last_status_update = now
                 time.sleep(1.0 / max(30, min(250, args.rate)))
         except KeyboardInterrupt:
             print("\nStopping virtual controller outputs…", flush=True)
@@ -559,12 +549,12 @@ def command_emulate(args):
                     source.close()
                 except Exception:
                     pass
-            _write_runtime_status(args, "stopped", message="Virtual devices released.", frames=locals().get("frames", 0))
             if args.stop_file:
                 try:
                     Path(args.stop_file).unlink(missing_ok=True)
                 except OSError:
                     pass
+    _write_runtime_status(args, "stopped", message="Virtual devices released.", frames=frames)
 
 
 def build_parser():
@@ -616,6 +606,7 @@ def build_parser():
     emulate.add_argument("--stop-file", default="", help="Local stop flag watched by the Elmos launcher")
     emulate.add_argument("--watch-file", default="", help="File containing the game PID; output ends when that process exits")
     emulate.add_argument("--status-file", default="", help="Atomic runtime status file for the Elmos launcher")
+    emulate.add_argument("--session-id", default="", help="Launcher session identity for status updates")
     emulate.set_defaults(func=command_emulate)
     return parser
 

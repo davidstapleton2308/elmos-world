@@ -21,6 +21,12 @@ _PROFILE_ID = re.compile(r"^[a-z0-9][a-z0-9._-]{0,95}$", re.I)
 _GAME_ID_MAX = 512
 _LOCK = threading.RLock()
 
+_SOURCE_LAB = Path(__file__).resolve().parent.parent / "controller-lab"
+if (_SOURCE_LAB / "elmos_controller_lab").is_dir() and str(_SOURCE_LAB) not in sys.path:
+    sys.path.insert(0, str(_SOURCE_LAB))
+
+from elmos_controller_lab.process import pid_alive
+
 
 def _local_root() -> Path:
     return Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "ElmosControllerLab"
@@ -104,9 +110,7 @@ class ControllerRuntime:
         if not isinstance(prefs, dict):
             prefs = {}
         return {
-            # User requested launch-time controller support by default.
-            # Does not silently install or configure a Windows driver.
-            "enabled": prefs.get("enabled", True) is True,
+            "enabled": prefs.get("enabled", False) is True,
             "defaultProfile": "xbox-360-wired",
             "driverApprovalRequired": True,
         }
@@ -176,18 +180,6 @@ class ControllerRuntime:
             _atomic_json(self.profiles_file, data)
         return self.get_game_profile(game_id)
 
-    @staticmethod
-    def _pid_alive(pid: int) -> bool:
-        if type(pid) is not int or pid <= 0:
-            return False
-        try:
-            os.kill(pid, 0)
-            return True
-        except PermissionError:
-            return True
-        except (OSError, ValueError):
-            return False
-
     def status(self) -> dict[str, Any]:
         value = _read_json(self.status_file, {})
         if not isinstance(value, dict) or not value:
@@ -196,17 +188,15 @@ class ControllerRuntime:
         pid = value.get("pid", 0)
         updated = value.get("updatedAt", 0)
         if state in ("starting", "running", "stopping") and type(pid) is int and pid > 0:
-            if not self._pid_alive(pid):
+            if not pid_alive(pid):
                 value["state"] = "failed" if value.get("error") else "stopped"
                 value["message"] = value.get("error") or "Controller runtime exited; virtual-device watchdog will release stale output."
                 value["running"] = False
-                _atomic_json(self.status_file, value)
                 return value
         elif state == "starting" and (not isinstance(updated, (int, float)) or time.time() - updated > 45):
             value["state"] = "failed"
             value["message"] = "Controller startup did not complete. Check driver setup and the Windows UAC prompt."
             value["running"] = False
-            _atomic_json(self.status_file, value)
             return value
         value["running"] = state == "running"
         return value
@@ -283,8 +273,9 @@ class ControllerRuntime:
             return {"started": False, "state": "disabled", "message": "Per-game controller auto-start is disabled."}
         current = self.status()
         if current.get("state") in ("starting", "running", "stopping"):
-            if current.get("gameId") == game_id:
-                return {"started": True, "alreadyRunning": True, "state": current.get("state")}
+            if current.get("gameId") == game_id and current.get("state") != "stopping":
+                return {"started": True, "alreadyRunning": True, "state": current["state"],
+                        "sessionId": current.get("sessionId")}
             raise RuntimeError("Another virtual-controller session is already active. Stop it before switching games.")
         if self.platform != "win32":
             raise RuntimeError("Virtual Windows controllers require Windows 10/11.")
@@ -307,6 +298,7 @@ class ControllerRuntime:
             "--profile", config["profileId"], "--game", game_id,
             "--device", str(config["deviceIndex"]), "--rate", str(config["rate"]),
             "--stop-file", str(stop_file), "--watch-file", str(watch_file),
+            "--session-id", session_id,
             "--status-file", str(self.status_file),
         ]
         if config.get("deviceGuid"):
@@ -318,7 +310,8 @@ class ControllerRuntime:
                            "message": str(exc), "updatedAt": time.time()})
             _atomic_json(self.status_file, status)
             raise
-        return {"started": True, "state": "starting", "message": status["message"], **result}
+        return {"started": True, "state": "starting", "message": status["message"],
+                "sessionId": session_id, **result}
 
     def start_for_game(self, game_id: str) -> dict[str, Any] | None:
         config = self.get_game_profile(game_id)
@@ -349,8 +342,10 @@ class ControllerRuntime:
             time.sleep(0.15)
         return self.status()
 
-    def stop(self) -> dict[str, Any]:
+    def stop(self, session_id: str | None = None) -> dict[str, Any]:
         current = self.status()
+        if session_id is not None and current.get("sessionId") != session_id:
+            return {"requested": False, "state": current["state"], "message": "Controller session has changed."}
         if current.get("state") not in ("starting", "running", "stopping"):
             return {"requested": False, "state": current.get("state", "stopped"),
                     "message": "No active virtual-controller session."}

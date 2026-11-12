@@ -656,11 +656,12 @@ class Engine:
  def platform_sources(self):
   from provider_adapters import discover
   return discover()
- def record_finished_session(self,gameid,started,process):
+ def record_finished_session(self,gameid,started,process,controller_session=None):
   try:process.wait()
   except Exception:return
-  try:controller_runtime.stop()
-  except Exception:pass
+  if controller_session:
+   try:controller_runtime.stop(controller_session)
+   except Exception as exc:session_event('controller_stop_failed',str(exc)[:140])
   seconds=max(0,int(time.monotonic()-started))
   session_event('process_exited',f'{gameid[-55:]} · {seconds}s')
   with self.lock:
@@ -849,21 +850,6 @@ class Engine:
     if not gamefile.is_file():raise RuntimeError('Game file is missing.')
     args=[str(gamefile)]
    if sys.platform!='win32':return {'message':'Windows only: launch verified but not executed here.','command':[str(exe)]+args}
-   # If this title has an explicitly enabled virtual-input profile, request
-   # Windows UAC before the game starts so the virtual device can enumerate
-   # before the game polls XInput/Windows Gaming Input. Failure never blocks
-   # the ordinary game launch.
-   controller_start = None
-   try:
-    controller_start = controller_runtime.start_for_game(gameid)
-    if controller_start and controller_start.get('started'):
-     controller_status = controller_runtime.wait_ready(4.5)
-     if controller_status.get('state') != 'running':
-      session_event('controller_input_not_ready',str(controller_status.get('message','Controller helper did not become ready'))[:150])
-   except Exception as exc:
-    reason=str(exc)[:240]
-    session_event('controller_input_unavailable',reason)
-    controller_start={'started':False,'state':'failed','message':reason}
    # Lock check and process creation as ONE operation. A second launch must
    # never orphan a live game or overwrite the tracked session.
    global _active_game,_active_game_type,_active_launch_profile,_active_game_id,_active_game_name
@@ -872,12 +858,28 @@ class Engine:
     if _active_game is not None and _active_game.poll() is None:
      session_event('launch_rejected',f'active pid={_active_game.pid}')
      raise RuntimeError('Another game is already running. Resume or close it before starting a new game.')
-    # No shell, elevation or changes to emulator configuration.
-    process=subprocess.Popen([str(exe)]+args,cwd=str(exe.parent),close_fds=True)
+    controller_session=None
+    process=None
+    try:
+     controller_start=controller_runtime.start_for_game(gameid)
+     if controller_start and controller_start.get('started'):
+      controller_session=controller_start['sessionId']
+      status=controller_runtime.wait_ready(8)
+      if status.get('state')!='running' or status.get('sessionId')!=controller_session:
+       raise RuntimeError(status.get('message') or 'Controller translation did not become ready.')
+      controller_start.update(state='running',message='Controller translation is active.')
+     process=subprocess.Popen([str(exe)]+args,cwd=str(exe.parent),close_fds=True)
+     if controller_session and not controller_runtime.attach_game_process(process.pid):
+      raise RuntimeError('The controller helper could not track the game process.')
+    except Exception as exc:
+     session_event('direct_launch_failed',str(exc)[:240])
+     if controller_session:
+      try:controller_runtime.stop(controller_session)
+      except Exception as stop_error:session_event('controller_stop_failed',str(stop_error)[:140])
+     if process is not None and process.poll() is None:
+      process.terminate()
+     raise
     _active_game=process
-    if controller_start and controller_start.get('started'):
-     try:controller_runtime.attach_game_process(process.pid)
-     except Exception as exc:session_event('controller_watch_attach_failed',str(exc)[:140])
     _active_game_type=g['type']
     _active_game_id=gameid
     _active_game_name=g['name']
@@ -890,7 +892,7 @@ class Engine:
    # at the fixed 800ms delay previously used by the web UI.
    # Window handoff is initiated only after the loading transition is ready.
    entry=self.local_entry(gameid);entry['lastPlayed']=int(time.time());entry['playCount']=entry.get('playCount',0)+1;self.save_local()
-   threading.Thread(target=self.record_finished_session,args=(gameid,time.monotonic(),process),daemon=True,name='game-playtime').start()
+   threading.Thread(target=self.record_finished_session,args=(gameid,time.monotonic(),process,controller_session),daemon=True,name='game-playtime').start()
    return {'message':'Launching '+g['name']+' directly.','command':[str(exe)]+args,
            'controllerInput':controller_start or {'started':False,'state':'disabled'}}
  def xenia_controller(self,emulatorid):
