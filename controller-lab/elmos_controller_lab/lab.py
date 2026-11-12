@@ -4,6 +4,8 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
+from pathlib import Path
 import sys
 import time
 
@@ -22,6 +24,40 @@ def print_json(value):
     print(json.dumps(value, indent=2, default=str))
 
 
+def _write_runtime_status(args, state: str, **extra):
+    status_file = getattr(args, "status_file", None)
+    if not status_file:
+        return
+    path = Path(status_file)
+    payload = {
+        "state": state,
+        "running": state == "running",
+        "pid": os.getpid(),
+        "gameId": str(getattr(args, "game", "")),
+        "profileId": str(getattr(args, "profile", "")),
+        "deviceIndex": int(getattr(args, "device", 0)),
+        "updatedAt": time.time(),
+        **extra,
+    }
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_suffix(path.suffix + ".tmp")
+        temporary.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        os.replace(temporary, path)
+    except OSError as exc:
+        print("Could not update controller runtime status:", exc, file=sys.stderr, flush=True)
+
+
+def _pid_alive(pid: int) -> bool:
+    if type(pid) is not int or pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+        return True
+    except PermissionError:
+        return True
+    except (OSError, ValueError):
+        return False
 
 
 def command_browser_probe(args):
@@ -45,7 +81,7 @@ def command_browser_probe(args):
 
 def command_gui(args):
     from .gui import main as gui_main
-    gui_main(args.bridge)
+    gui_main(args.bridge, args.game, args.profile)
 
 
 def command_devices(_args):
@@ -122,6 +158,7 @@ def command_matrix(args):
         elif event.get("event_name") == "error":
             print("[bridge error]", event.get("message"), file=sys.stderr, flush=True)
 
+    _write_runtime_status(args, "starting", message="Opening the virtual-device bridge.")
     with BridgeClient(args.bridge, on_event=on_event) as bridge:
         status = bridge.request("status")
         if not status.get("driverInstalled") or not status.get("driverPrepared"):
@@ -334,6 +371,8 @@ def command_emulate(args):
 
         source = None
         created_slots: list[str] = []
+        device_name = "Synthetic Controller" if args.demo else ""
+        device_guid = "synthetic"
         try:
             device_guid = "synthetic"
             if not args.demo:
@@ -346,6 +385,7 @@ def command_emulate(args):
                 if selected is None:
                     raise BridgeError(f"No SDL device at index {args.device}.")
                 device_guid = selected["guid"] or selected["name"]
+                device_name = selected["name"]
                 # SDL enumeration indices may change after hotplug; pin the physical instance.
                 physical_instance = selected["instance_id"]
                 sensor_ready = source.attach_sensor_reader(physical_instance)
@@ -389,11 +429,34 @@ def command_emulate(args):
             gamepad_lease = HealthyFrameLease(bridge, args.slot)
             print(f"Input: {device_guid} | Game: {args.game} | Mapping: {mapping.name}", flush=True)
             start = time.monotonic()
+            frames = 0
+            last_status_update = 0.0
+            _write_runtime_status(args, "running", deviceGuid=device_guid, deviceName=device_name,
+                                  mappingName=mapping.name, startedAt=time.time(), frames=0)
             while True:
+                if args.stop_file and Path(args.stop_file).exists():
+                    print("Graceful stop requested by Elmos World.", flush=True)
+                    break
+                if args.watch_file:
+                    try:
+                        watch_pid = int(Path(args.watch_file).read_text(encoding="ascii").strip())
+                    except (OSError, ValueError):
+                        watch_pid = 0
+                    if not watch_pid and time.monotonic() - start > 30:
+                        print("No game process was attached to this controller session; stopping safely.", flush=True)
+                        break
+                    if watch_pid and not _pid_alive(watch_pid):
+                        print("Tracked game process exited; releasing virtual devices.", flush=True)
+                        break
                 now = time.monotonic()
                 physical = _demo_state(now - start) if args.demo else source.read_instance(physical_instance)
                 output = mapper.map_actions(physical)
                 gamepad_lease.submit(output.gamepad.to_wire())
+                frames += 1
+                if now - last_status_update >= 1.0:
+                    _write_runtime_status(args, "running", deviceGuid=device_guid, deviceName=device_name,
+                                          mappingName=mapping.name, frames=frames, lastFrameAt=time.time())
+                    last_status_update = now
                 if need_keyboard:
                     bridge.send_keyboard(keyboard_slot, sorted(output.keyboard_keys), sorted(output.keyboard_modifiers))
                 if need_mouse:
@@ -421,7 +484,16 @@ def command_emulate(args):
                 except Exception as exc:
                     print(f"Destroy warning for {slot}:", exc, file=sys.stderr)
             if source:
-                source.close()
+                try:
+                    source.close()
+                except Exception:
+                    pass
+            _write_runtime_status(args, "stopped", message="Virtual devices released.", frames=locals().get("frames", 0))
+            if args.stop_file:
+                try:
+                    Path(args.stop_file).unlink(missing_ok=True)
+                except OSError:
+                    pass
 
 
 def build_parser():
@@ -429,6 +501,8 @@ def build_parser():
     parser.add_argument("--bridge", help="Path to Elmos.ControllerLab.Bridge.exe")
     sub = parser.add_subparsers(dest="command", required=True)
     gui = sub.add_parser("gui", help="Open the Controller Lab mapping and live-output interface")
+    gui.add_argument("--game", default="default", help="Initial game identity for the saved mapping profile")
+    gui.add_argument("--profile", default="", help="Initial virtual target profile id")
     gui.set_defaults(func=command_gui)
     devices = sub.add_parser("devices", help="List physical SDL controllers")
     devices.set_defaults(func=command_devices)
@@ -465,6 +539,9 @@ def build_parser():
     emulate.add_argument("--rate", type=int, default=120)
     emulate.add_argument("--game", default="default", help="Game identity used to load a device-specific mapping profile")
     emulate.add_argument("--actions-demo", action="store_true", help="Also test virtual keyboard/mouse output with a built-in WASD/mouse layout")
+    emulate.add_argument("--stop-file", default="", help="Local stop flag watched by the Elmos launcher")
+    emulate.add_argument("--watch-file", default="", help="File containing the game PID; output ends when that process exits")
+    emulate.add_argument("--status-file", default="", help="Atomic runtime status file for the Elmos launcher")
     emulate.set_defaults(func=command_emulate)
     return parser
 
@@ -474,6 +551,7 @@ def main():
     try:
         args.func(args)
     except (BridgeError, RuntimeError, OSError) as exc:
+        _write_runtime_status(args, "failed", error=str(exc), message=str(exc))
         print(f"Controller Lab: {exc}", file=sys.stderr)
         return 2
     return 0

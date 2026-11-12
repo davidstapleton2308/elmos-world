@@ -20,7 +20,7 @@ MOUSE_OPTIONS = ["none", "left", "right", "middle", "back", "forward"]
 
 
 class ControllerLabApp:
-    def __init__(self, bridge_path=None):
+    def __init__(self, bridge_path=None, game_id=None, target_profile_id=None):
         self.root = tk.Tk()
         self.root.title("Elmo's Controller Lab")
         self.root.geometry("1120x820")
@@ -38,10 +38,12 @@ class ControllerLabApp:
         self.device_guid = "unknown"
         self.mapper = None
         self._after_id = None
+        self.initial_game_id = str(game_id or "default")
+        self.initial_target_profile_id = str(target_profile_id or "")
 
         self.status_var = tk.StringVar(value="Starting Controller Lab…")
         self.driver_var = tk.StringVar(value="Checking virtual driver…")
-        self.game_var = tk.StringVar(value="default")
+        self.game_var = tk.StringVar(value=self.initial_game_id)
         self.device_var = tk.StringVar()
         self.profile_var = tk.StringVar()
         self.search_var = tk.StringVar()
@@ -285,7 +287,8 @@ class ControllerLabApp:
                 labels.append(label)
             self.profile_combo["values"] = labels
             if labels and self.profile_var.get() not in labels:
-                preferred = next((x for x in labels if "xbox-360-wired" in x), labels[0])
+                preferred = next((x for x in labels if self.initial_target_profile_id and f"[{self.initial_target_profile_id}]" in x), None)
+                preferred = preferred or next((x for x in labels if "xbox-360-wired" in x), labels[0])
                 self.profile_var.set(preferred)
             self.status_var.set(f'{len(self.profiles)} deployable gamepad/joystick/wheel profiles loaded.')
         except Exception as exc:
@@ -538,5 +541,5 @@ class ControllerLabApp:
         self.root.mainloop()
 
 
-def main(bridge_path=None):
-    ControllerLabApp(bridge_path).run()
+def main(bridge_path=None, game_id=None, target_profile_id=None):
+    ControllerLabApp(bridge_path, game_id, target_profile_id).run()
