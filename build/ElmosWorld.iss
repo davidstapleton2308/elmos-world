@@ -35,6 +35,8 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "Create desktop shortcut"; GroupDescription: "Shortcuts:"
 
 [Files]
+Source: "preinstall_backup.ps1"; Flags: dontcopy
+Source: "restore_previous.ps1"; Flags: dontcopy
 Source: "..\dist\ElmosWorld\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
@@ -48,4 +50,20 @@ Filename: "{app}\{#MyAppExeName}"; Description: "Launch Elmos World"; Flags: now
 function InitializeSetup(): Boolean;
 begin
   Result := True;
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  ResultCode: Integer;
+  Params: String;
+begin
+  Result := '';
+  if not FileExists(ExpandConstant('{app}\\ElmosWorld.exe')) then Exit;
+  ExtractTemporaryFile('preinstall_backup.ps1');
+  ExtractTemporaryFile('restore_previous.ps1');
+  Params := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' +
+    ExpandConstant('{tmp}\\preinstall_backup.ps1') + '" -AppDir "' + ExpandConstant('{app}') + '"';
+  if not Exec(ExpandConstant('{sys}\\WindowsPowerShell\\v1.0\\powershell.exe'), Params,
+     '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
+    Result := 'The existing Elmos World could not be backed up. No update files have been installed. Please close Elmos World and try again.';
 end;
