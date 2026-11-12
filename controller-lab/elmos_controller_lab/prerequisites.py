@@ -46,14 +46,14 @@ def evaluate_prerequisites(status, *, bridge_exists=True, platform="win32"):
         }
 
     architecture = str(status.get("architecture") or "").upper()
-    if architecture and architecture not in ("X64", "AMD64"):
+    if architecture not in ("X64", "AMD64"):
         return {
             "ready": False, "state": "unsupported_architecture",
             "exitCode": EXIT_UNSUPPORTED_PLATFORM,
-            "message": "The virtual-controller bridge is not running as x64.",
+            "message": "The virtual-controller bridge did not positively report an x64 architecture.",
             "driverInstalled": bool(status.get("driverInstalled") is True),
             "driverPrepared": bool(status.get("driverPrepared") is True),
-            "architecture": architecture,
+            "architecture": architecture or None,
         }
 
     installed = status.get("driverInstalled") is True
@@ -71,11 +71,11 @@ def evaluate_prerequisites(status, *, bridge_exists=True, platform="win32"):
             "exitCode": EXIT_DRIVER_MISSING,
             "message": "The Elmos virtual-controller driver is not installed.",
         }
-    if sdk_version and sdk_version != EXPECTED_DRIVER_SDK_VERSION:
+    if sdk_version != EXPECTED_DRIVER_SDK_VERSION:
         return {
             **common, "ready": False, "state": "driver_version_mismatch",
             "exitCode": EXIT_DRIVER_VERSION_MISMATCH,
-            "message": "The installed virtual-controller driver preparation is for a different SDK version.",
+            "message": "The bridge did not positively confirm the expected driver SDK version.",
         }
     if not prepared:
         return {
