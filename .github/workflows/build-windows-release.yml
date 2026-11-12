@@ -34,11 +34,6 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Set up .NET 10 for Elmos Input bridge
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-
       - name: Determine next patch version and prepare release sources
         id: release_version
         shell: pwsh
@@ -111,12 +106,6 @@ jobs:
           $probeCode = $LASTEXITCODE
           if ($probeCode -ne 10) { throw "Expected an unprivileged missing-driver result (10), got $probeCode." }
 
-      - name: Build physical-to-virtual Controller Lab bridge
-        shell: pwsh
-        run: |
-          & 'controller-lab/scripts/Build-ControllerLab.ps1'
-          if ($LASTEXITCODE -ne 0) { throw 'Controller Lab bridge failed to build.' }
-
       - name: Compile desktop application
         shell: pwsh
         run: |
@@ -129,26 +118,6 @@ jobs:
         run: |
           python -m PyInstaller --noconfirm --clean --distpath dist/controller-runtime --workpath build/controller-runtime-work build/ControllerRuntime.spec
           if ($LASTEXITCODE -ne 0) { throw 'Controller runtime helper build failed.' }
-          $bundle = (Resolve-Path 'dist/ElmosWorld').Path
-          $internal = Join-Path $bundle '_internal'
-          if (!(Test-Path $internal)) { $internal = $bundle }
-          $runtime = Join-Path $internal 'controller-runtime'
-          $bridge = Join-Path $internal 'controller-lab/bridge/publish'
-          New-Item -ItemType Directory -Force -Path $runtime,$bridge | Out-Null
-          Copy-Item 'dist/controller-runtime/ElmosControllerRuntime.exe' $runtime -Force
-          Copy-Item 'controller-lab/bridge/publish/Elmos.ControllerLab.Bridge.exe' $bridge -Force
-          $notices = Join-Path $internal 'controller-lab'
-          New-Item -ItemType Directory -Force -Path $notices | Out-Null
-          foreach ($name in @('LICENSE','THIRD-PARTY-NOTICES.txt')) {
-            $source = Join-Path 'controller-lab/runtime' $name
-            if (Test-Path $source) { Copy-Item $source $notices -Force }
-          }
-
-      - name: Bundle separate virtual controller runtime
-        shell: pwsh
-        run: |
-          python -m PyInstaller --noconfirm --clean --distpath dist/controller-runtime --workpath build/controller-runtime-work build/ControllerRuntime.spec
-          if ($LASTEXITCODE -ne 0) { throw 'Virtual controller runtime build failed.' }
           $bundle = (Resolve-Path 'dist/ElmosWorld').Path
           $internal = Join-Path $bundle '_internal'
           if (!(Test-Path $internal)) { $internal = $bundle }
@@ -187,26 +156,6 @@ jobs:
           $selfTest = Start-Process -FilePath $exe -ArgumentList '--self-test' -Wait -PassThru
           if ($selfTest.ExitCode -ne 0) { throw "Bundled GUI executable smoke-test failed with exit code $($selfTest.ExitCode)." }
 
-      - name: Preserve executable test diagnostic log
-        if: failure()
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Path diagnostics -Force | Out-Null
-          $log = Join-Path $env:LOCALAPPDATA 'ElmosWorld/logs/launcher.log'
-          if (Test-Path $log) {
-            Copy-Item $log diagnostics/launcher.log
-          } else {
-            Set-Content diagnostics/launcher.log 'No application diagnostic log found.'
-          }
-
-      - name: Upload diagnostic log on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ElmosWorld-Diagnostics
-          path: diagnostics/launcher.log
-          if-no-files-found: warn
-
       - name: Install Inno Setup
         shell: pwsh
         run: |
@@ -240,6 +189,7 @@ jobs:
 
       - name: Test real installer through detached update worker
         shell: pwsh
+        timeout-minutes: 8
         env:
           VERSION: ${{ steps.release_version.outputs.version }}
         run: |
@@ -250,7 +200,7 @@ jobs:
           $status = Join-Path $env:RUNNER_TEMP 'elmos-update-status.json'
           $testApp = Join-Path $env:WINDIR 'System32/whoami.exe'
           # Simulate the race: Elmos World already exited before the worker checks its PID.
-          & powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $worker -Installer $setup -ParentId 2147483600 -AppExe $testApp -LogPath $log -StatusPath $status
+          & powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $worker -Installer $setup -ParentId 2147483600 -AppExe $testApp -LogPath $log -StatusPath $status -Unattended
           if ($LASTEXITCODE -ne 0) {
             if (Test-Path $log) { Get-Content $log }
             throw 'Detached update worker failed to install the Windows release.'
@@ -261,6 +211,24 @@ jobs:
           if (-not (Test-Path -LiteralPath $installedApp)) { throw "Installer did not install the desktop app: $installedApp" }
           $check = Start-Process -FilePath $installedApp -ArgumentList '--self-test' -Wait -PassThru
           if ($check.ExitCode -ne 0) { throw 'Installed application failed its executable self-test.' }
+          $prereqLog = Join-Path $env:LOCALAPPDATA 'ElmosWorld/logs/installer-prerequisites.log'
+          $audit = Get-Content -LiteralPath $prereqLog -Raw
+          if ($audit -notmatch 'Read-only prerequisite check exit code: 10' -or
+              $audit -notmatch 'User deferred virtual-controller driver installation' -or
+              $audit -match 'requesting elevation') {
+            throw "Unexpected clean-install prerequisite audit: $audit"
+          }
+          $stateDir = Join-Path $env:LOCALAPPDATA 'SteamMatch'
+          $gameDir = Join-Path $env:RUNNER_TEMP 'Elmos Test Game'
+          New-Item -ItemType Directory -Force -Path $stateDir,$gameDir | Out-Null
+          $fixtures = @{
+            (Join-Path $stateDir 'settings.json') = '{"appearancePreset":"classic-3.1.1"}'
+            (Join-Path $stateDir 'registry_v2.json') = '{"fixture":"existing game registration"}'
+            (Join-Path $gameDir 'save.txt') = 'existing game save'
+          }
+          foreach ($entry in $fixtures.GetEnumerator()) {
+            Set-Content -LiteralPath $entry.Key -Value $entry.Value -NoNewline
+          }
           # Reinstall the same build with an existing installed app to prove
           # the installer-side backup gate and recovery manifest work.
           $again = Start-Process -FilePath $setup -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/CLOSEAPPLICATIONS') -Wait -PassThru
@@ -269,7 +237,43 @@ jobs:
           $snapshots = @(Get-ChildItem -LiteralPath $backupRoot -Directory -ErrorAction SilentlyContinue)
           $valid = @($snapshots | Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'backup-manifest.json') })
           if ($valid.Count -eq 0) { throw 'Installer did not create a rollback backup before reinstalling.' }
-          Write-Host 'PASS: installer worker and backup-enabled upgrade both completed.'
+          foreach ($entry in $fixtures.GetEnumerator()) {
+            if ((Get-Content -LiteralPath $entry.Key -Raw) -cne $entry.Value) {
+              throw "Upgrade changed an existing user file: $($entry.Key)"
+            }
+          }
+          $latest = $valid | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          foreach ($name in @('settings.json', 'registry_v2.json')) {
+            $source = Join-Path $stateDir $name
+            $copy = Join-Path $latest.FullName "SteamMatch/$name"
+            if ((Get-Content -LiteralPath $copy -Raw) -cne $fixtures[$source]) {
+              throw "Rollback snapshot did not preserve $name"
+            }
+          }
+          Write-Host 'PASS: unattended install deferred driver setup; upgrade preserved user data and created a rollback snapshot.'
+      - name: Preserve executable test diagnostic log
+        if: failure()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path diagnostics -Force | Out-Null
+          $log = Join-Path $env:LOCALAPPDATA 'ElmosWorld/logs/launcher.log'
+          if (Test-Path $log) {
+            Copy-Item $log diagnostics/launcher.log
+          } else {
+            Set-Content diagnostics/launcher.log 'No application diagnostic log found.'
+          }
+          $audit = Join-Path $env:LOCALAPPDATA 'ElmosWorld/logs/installer-prerequisites.log'
+          if (Test-Path $audit) { Copy-Item $audit diagnostics/ }
+          if (Test-Path 'dist_setup/installer.log') { Copy-Item 'dist_setup/installer.log' diagnostics/ }
+
+      - name: Upload diagnostic log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ElmosWorld-Diagnostics
+          path: diagnostics/
+          if-no-files-found: warn
+
       - name: Package portable build and SHA-256 checksum
         shell: pwsh
         env:
@@ -287,7 +291,11 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ElmosWorld-Windows-Setup
-          path: dist_setup/
+          path: |
+            dist_setup/ElmosWorld_Setup_*.exe
+            dist_setup/ElmosWorld_Setup_*.exe.sha256
+            dist_setup/ElmosWorld_Portable_*.zip
+            dist_setup/RELEASE_NOTES.md
           if-no-files-found: error
           retention-days: 30
 

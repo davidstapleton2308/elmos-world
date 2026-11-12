@@ -3,7 +3,8 @@ param(
   [Parameter(Mandatory=$true)][int]$ParentId,
   [Parameter(Mandatory=$true)][string]$AppExe,
   [Parameter(Mandatory=$true)][string]$LogPath,
-  [Parameter(Mandatory=$true)][string]$StatusPath
+  [Parameter(Mandatory=$true)][string]$StatusPath,
+  [switch]$Unattended
 )
 $ErrorActionPreference = 'Stop'
 
@@ -45,6 +46,7 @@ try {
   Set-UpdateState 'installing' 'Installing the verified update'
   $installLog = Join-Path (Split-Path -Parent $Installer) 'installer.log'
   $args = @('/SILENT','/NORESTART','/CLOSEAPPLICATIONS',('/LOG="' + $installLog + '"'))
+  if ($Unattended) { $args += '/SUPPRESSMSGBOXES' }
   $process = Start-Process -FilePath $Installer -ArgumentList $args -Wait -PassThru
   $code = [int]$process.ExitCode
   Write-UpdateLog ("Installer finished with exit code $code")

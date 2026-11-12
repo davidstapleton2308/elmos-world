@@ -60,10 +60,12 @@ class ReleasePackagingTests(unittest.TestCase):
 class ControllerPrerequisiteInstallerTests(unittest.TestCase):
     def test_installer_checks_driver_and_requests_elevation_only_for_helper(self):
         installer = (ROOT / 'build/ElmosWorld.iss').read_text(encoding='utf-8')
-        self.assertIn('CurStepChanged(CurStep)', installer)
+        self.assertIn('procedure CurStepChanged(CurStep: TSetupStep)', installer)
+        self.assertIn('CurStep <> ssPostInstall', installer)
         self.assertIn('check-prerequisites', installer)
         self.assertIn("ShellExec('runas', ControllerHelperPath", installer)
         self.assertIn('User approved driver setup', installer)
+        self.assertIn('mbConfirmation, MB_YESNO, IDNO', installer)
         self.assertIn('PrivilegesRequired=lowest', installer)
         self.assertIn('controller-runtime', installer)
         self.assertIn('controller-lab', installer)
@@ -71,7 +73,7 @@ class ControllerPrerequisiteInstallerTests(unittest.TestCase):
     def test_silent_update_keeps_explicit_driver_consent_dialog_available(self):
         updater = (APP / 'apply_update.ps1').read_text(encoding='utf-8')
         self.assertIn("'/SILENT'", updater)
-        self.assertNotIn("'/SUPPRESSMSGBOXES'", updater)
+        self.assertIn("if ($Unattended) { $args += '/SUPPRESSMSGBOXES' }", updater)
 
     def test_suppressed_installer_defaults_driver_consent_to_no(self):
         installer = (ROOT / 'build/ElmosWorld.iss').read_text(encoding='utf-8')
