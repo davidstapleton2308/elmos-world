@@ -1097,8 +1097,29 @@ class Engine:
   saved=read_json(APP/'smart_moves.json',[])
   return saved if isinstance(saved,list) else []
 
+ def _smart_begin_move(self,item):
+  from smart_discovery import _safe_name
+  source=Path(item['path'])
+  root=Path(self.games_root if item['kind']=='game' else DEFAULT_EMULATORS)
+  target=root/_safe_name(item['title'])
+  try:relative=Path(item['exe']).relative_to(source)
+  except ValueError:raise ValueError('Executable is outside the candidate folder')
+  record={'kind':item['kind'],'name':item['title'],'from':str(source),
+          'path':str(target),'exe':str(target/relative),'status':'pending',
+          'intentAt':time.time()}
+  history=self._smart_history()
+  history.append(record)
+  write_json(APP/'smart_moves.json',history[-100:])
+  return record
+
  def _smart_record_move(self,result):
   history=self._smart_history()
+  for record in reversed(history):
+   if record.get('status')=='pending' and record.get('from')==result.get('from'):
+    record.update({key:result[key] for key in ('kind','name','path','from','exe')})
+    record['status']='complete';record['completedAt']=time.time()
+    write_json(APP/'smart_moves.json',history[-100:])
+    return
   history.append({key:result[key] for key in ('kind','name','path','from','exe')})
   write_json(APP/'smart_moves.json',history[-100:])
 
@@ -1111,6 +1132,10 @@ class Engine:
    if not history:raise RuntimeError('There are no organized folders to undo.')
    record=history[-1]
    downloads=Path(os.environ.get('USERPROFILE',str(Path.home())))/'Downloads'
+   source=Path(record.get('from',''))
+   if record.get('status')=='pending' and source.exists():
+    history.pop();write_json(APP/'smart_moves.json',history)
+    return {'ok':True,'undone':{'name':record.get('name','folder'),'path':str(source),'notMoved':True}}
    undone=undo_verified(record,downloads,self.games_root,DEFAULT_EMULATORS)
    history.pop()
    write_json(APP/'smart_moves.json',history)
@@ -1141,11 +1166,14 @@ class Engine:
                     'ignored':sum(i['action']=='ignore' for i in found)}}
 
  def smart_mode(self,enabled):
-  """An explicit opt-in is required before background file moves."""
+  """Background auto-moves stay blocked until Windows safety gates pass."""
   with self.lock:
-   self.cfg['smart_auto_enabled']=bool(enabled)
+   self.cfg['smart_auto_enabled']=False
    self.save()
-  return {'autoEnabled':bool(enabled)}
+  if enabled:
+   return {'autoEnabled':False,'blocked':True,
+           'message':'Background auto-organization is paused until complete Windows filesystem, crash-recovery and no-overwrite safety tests pass.'}
+  return {'autoEnabled':False,'blocked':False,'message':'Background auto-organization disabled.'}
 
  def _smart_register_emulator(self,item):
   """Register a distinct, known emulator without launching or configuring it."""
@@ -1196,7 +1224,9 @@ class Engine:
   with self.lock:
    for item in scan_downloads(downloads):
     if item['action']!='ready':continue
+    journal=None
     try:
+     journal=self._smart_begin_move(item)
      result=move_verified(item,downloads,self.games_root,DEFAULT_EMULATORS)
      moved.append(result)
      self._smart_record_move(result)
@@ -1206,6 +1236,10 @@ class Engine:
      else:
       art_targets.append(Path(result['path']))
     except (OSError,ValueError) as exc:
+     if journal and Path(journal['from']).exists():
+      history=self._smart_history()
+      history=[x for x in history if not (x.get('status')=='pending' and x.get('from')==journal['from'])]
+      write_json(APP/'smart_moves.json',history)
      skipped.append({'name':item['filename'],'reason':str(exc)[:180]})
    for item in discover_emulators(DEFAULT_EMULATORS):
     if self._smart_register_emulator(item):registered.append(item['title'])

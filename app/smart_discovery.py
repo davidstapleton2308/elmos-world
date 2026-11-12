@@ -98,31 +98,46 @@ def _reparse(path):
 
 
 def _walk(folder):
-    """Bounded, non-executing inventory; reject reparse links rather than follow."""
+    """Bounded, non-executing safety inventory; inspect ignored subfolders for links."""
     files, dirs = [], []
     queue = [(folder, 0)]
     links = False
-    while queue and len(files) + len(dirs) < MAX_FILES:
+    incomplete = False
+    while queue:
         current, depth = queue.pop(0)
         try:
             entries = sorted(current.iterdir(), key=lambda p: p.name.casefold())
         except OSError:
+            incomplete = True
             continue
         for entry in entries:
             if _reparse(entry):
                 links = True
                 continue
             if entry.is_dir():
-                if entry.name.lower() in IGNORE_DIRS:
-                    continue
                 dirs.append(entry)
                 if depth < MAX_DEPTH:
                     queue.append((entry, depth + 1))
+                else:
+                    incomplete = True
             elif entry.is_file():
                 files.append(entry)
             if len(files) + len(dirs) >= MAX_FILES:
+                incomplete = True
                 break
-    return files, dirs, links, bool(queue)
+        if incomplete and len(files) + len(dirs) >= MAX_FILES:
+            break
+    return files, dirs, links, incomplete
+
+
+def _evidence_items(folder, files, dirs):
+    """Exclude utility/backup folders from identity evidence, not safety scanning."""
+    def ignored(path, is_dir=False):
+        relative = path.relative_to(folder)
+        parts = relative.parts if is_dir else relative.parts[:-1]
+        return any(part.casefold() in IGNORE_DIRS for part in parts)
+    return ([p for p in files if not ignored(p)],
+            [p for p in dirs if not ignored(p, True)])
 
 
 def _identity(title, exe):
@@ -216,18 +231,19 @@ def inspect_folder(folder, *, min_age=120, now=None):
         return _result(folder, 'other', 0, 'Folder is unavailable or a reparse link')
     if folder.name.casefold() in IGNORE_DIRS | BLOCKED_FOLDERS:
         return _result(folder, 'other', 0, 'Protected utility or system folder')
-    files, dirs, links, truncated = _walk(folder)
-    if links or truncated:
-        return _result(folder, 'other', 0, 'Nested links or oversized directory; review manually')
+    all_files, all_dirs, links, incomplete = _walk(folder)
+    if links or incomplete:
+        return _result(folder, 'other', 0, 'Nested links, unreadable paths or incomplete inventory; review manually')
     now = time.time() if now is None else now
     try:
         ages = [now - folder.stat().st_mtime]
-        ages += [now - p.stat().st_mtime for p in (files + dirs)[:MAX_FILES]]
+        ages += [now - p.stat().st_mtime for p in (all_files + all_dirs)]
         stable = min(ages or [0]) >= min_age
     except OSError:
         stable = False
-    if any(p.suffix.casefold() in TRANSIENT for p in files):
+    if any(p.suffix.casefold() in TRANSIENT for p in all_files):
         stable = False
+    files, dirs = _evidence_items(folder, all_files, all_dirs)
     exes = [p for p in files if p.suffix.casefold() == '.exe' and not blocked_exe(p)]
     installers = [p for p in files if p.suffix.casefold() == '.exe' and blocked_exe(p)]
     emulator_hits = []
@@ -331,7 +347,7 @@ def scan_downloads(downloads, min_age=120):
     if not downloads.is_dir() or _reparse(downloads):
         return []
     try:
-        entries = sorted(downloads.iterdir(), key=lambda p: p.name.casefold())[:MAX_ITEMS]
+        entries = sorted(downloads.iterdir(), key=lambda p: p.name.casefold())
     except OSError:
         return []
     return [inspect_entry(p, min_age=min_age) for p in entries]
@@ -342,7 +358,7 @@ def discover_emulators(root, min_age=120):
     if not root.is_dir() or _reparse(root):
         return []
     try:
-        entries = sorted(root.iterdir(), key=lambda p: p.name.casefold())[:MAX_ITEMS]
+        entries = sorted(root.iterdir(), key=lambda p: p.name.casefold())
     except OSError:
         return []
     return [inspect_folder(p, min_age=min_age) for p in entries if p.is_dir() and not _reparse(p)]
