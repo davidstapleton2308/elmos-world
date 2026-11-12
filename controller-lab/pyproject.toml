@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "elmos-controller-lab"
+version = "0.1.0"
+description = "Universal controller input mapping and virtual-device test laboratory for Elmo's World"
+requires-python = ">=3.10"
+dependencies = ["pygame-ce>=2.5.8,<3"]
+
+[project.optional-dependencies]
+test = ["pytest>=8,<10"]
+sensors = ["hidapi>=0.14,<1"]
+
+[project.scripts]
+elmos-controller-lab = "elmos_controller_lab.lab:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["elmos_controller_lab*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
