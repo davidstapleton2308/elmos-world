@@ -81,6 +81,11 @@ class DiscoveryFixtureTests(unittest.TestCase):
         folder=self.downloads/'Xenia Canary';folder.mkdir()
         touch(folder/'xenia_canary.exe')
         touch(folder/'xenia-canary-config.toml',100)
+        # Windows files may have a slightly future timestamp immediately after
+        # creation; make this deliberately completed rather than race the clock.
+        old_time=time.time()-300
+        for path in [folder,*folder.rglob('*')]:
+            os.utime(path,(old_time,old_time))
         item=self.look(folder)
         self.assertEqual(item['kind'],'emulator')
         self.assertEqual(item['action'],'ready',item)
