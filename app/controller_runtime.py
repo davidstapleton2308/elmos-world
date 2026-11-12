@@ -261,28 +261,16 @@ class ControllerRuntime:
             sys.path.insert(0, str(lab_root))
         try:
             from elmos_controller_lab.bridge import BridgeClient
+            from elmos_controller_lab.prerequisites import evaluate_prerequisites
             with BridgeClient(self.bridge_path) as bridge:
                 status = bridge.request("status", timeout=12)
+            assessment = evaluate_prerequisites(
+                status, bridge_exists=True, platform=self.platform
+            )
+            result.update(assessment)
         except Exception as exc:
             result.update(state="bridge_unavailable",
                           message="The controller bridge could not be checked: " + str(exc)[:220])
-            return result
-        installed = status.get("driverInstalled") is True
-        prepared = status.get("driverPrepared") is True
-        result.update(
-            driverInstalled=installed, driverPrepared=prepared,
-            backendSdkVersion=str(status.get("backendSdkVersion") or ""),
-            architecture=str(status.get("architecture") or ""),
-        )
-        if not installed:
-            result.update(state="driver_missing",
-                          message="The Elmos virtual-controller driver is not installed. Install it from Settings before launching translated controller sessions.")
-        elif not prepared:
-            result.update(state="driver_unprepared",
-                          message="The virtual-controller driver needs preparation or repair for this Elmos version.")
-        else:
-            result.update(ready=True, state="ready",
-                          message="Controller translation prerequisites are ready.")
         return result
 
     def _check_prerequisites(self) -> dict[str, Any]:
