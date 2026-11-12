@@ -56,7 +56,7 @@ class ControllerRuntime:
     def __init__(self, *, app_dir: str | Path | None = None,
                  data_dir: str | Path | None = None, runner_path: str | Path | None = None,
                  bridge_path: str | Path | None = None, platform: str | None = None,
-                 shell_execute=None, popen=None):
+                 shell_execute=None, popen=None, prerequisite_check=None):
         self.app_dir = Path(app_dir) if app_dir else Path(__file__).resolve().parent
         self.data_dir = Path(data_dir) if data_dir else _local_root()
         self.data_dir.mkdir(parents=True, exist_ok=True)
@@ -67,6 +67,7 @@ class ControllerRuntime:
         self.platform = platform or sys.platform
         self._shell_execute = shell_execute or self._shell_execute_windows
         self._popen = popen or subprocess.Popen
+        self._prerequisite_check = prerequisite_check
         self.runner_path = Path(runner_path) if runner_path else self._first_existing([
             self.app_dir / "controller-runtime" / "ElmosControllerRuntime.exe",
             self.app_dir.parent / "controller-runtime" / "ElmosControllerRuntime.exe",
@@ -235,6 +236,59 @@ class ControllerRuntime:
             raise RuntimeError(f"Windows could not start the elevated controller helper (ShellExecute code {result}).")
         return {"accepted": True, "shellResult": result}
 
+    def prerequisites(self) -> dict[str, Any]:
+        """Read-only audit of the bundled controller runtime and virtual driver."""
+        result = {
+            "ready": False, "state": "unknown", "driverInstalled": False,
+            "driverPrepared": False, "message": "",
+            "helperPath": str(self.runner_path), "bridgePath": str(self.bridge_path),
+        }
+        if self.platform != "win32":
+            result.update(state="unsupported_platform",
+                          message="Virtual controller translation requires Windows 10/11.")
+            return result
+        if not self.runner_path.is_file():
+            result.update(state="helper_missing",
+                          message="The bundled Elmos Controller helper is missing. Repair or update Elmos World.")
+            return result
+        if not self.bridge_path.is_file():
+            result.update(state="bridge_missing",
+                          message="The bundled virtual-controller bridge is missing. Repair or update Elmos World.")
+            return result
+        candidates = [self.app_dir / "controller-lab", self.app_dir.parent / "controller-lab"]
+        lab_root = next((p for p in candidates if (p / "elmos_controller_lab").is_dir()), None)
+        if lab_root and str(lab_root) not in sys.path:
+            sys.path.insert(0, str(lab_root))
+        try:
+            from elmos_controller_lab.bridge import BridgeClient
+            with BridgeClient(self.bridge_path) as bridge:
+                status = bridge.request("status", timeout=12)
+        except Exception as exc:
+            result.update(state="bridge_unavailable",
+                          message="The controller bridge could not be checked: " + str(exc)[:220])
+            return result
+        installed = status.get("driverInstalled") is True
+        prepared = status.get("driverPrepared") is True
+        result.update(
+            driverInstalled=installed, driverPrepared=prepared,
+            backendSdkVersion=str(status.get("backendSdkVersion") or ""),
+            architecture=str(status.get("architecture") or ""),
+        )
+        if not installed:
+            result.update(state="driver_missing",
+                          message="The Elmos virtual-controller driver is not installed. Install it from Settings before launching translated controller sessions.")
+        elif not prepared:
+            result.update(state="driver_unprepared",
+                          message="The virtual-controller driver needs preparation or repair for this Elmos version.")
+        else:
+            result.update(ready=True, state="ready",
+                          message="Controller translation prerequisites are ready.")
+        return result
+
+    def _check_prerequisites(self) -> dict[str, Any]:
+        checker = self._prerequisite_check or self.prerequisites
+        return checker()
+
     def start(self, game_id: str, *, require_auto: bool = False) -> dict[str, Any]:
         config = self.get_game_profile(game_id)
         if require_auto and not config["autoStart"]:
@@ -246,8 +300,9 @@ class ControllerRuntime:
             raise RuntimeError("Another virtual-controller session is already active. Stop it before switching games.")
         if self.platform != "win32":
             raise RuntimeError("Virtual Windows controllers require Windows 10/11.")
-        if not self.runner_path.is_file() or not self.bridge_path.is_file():
-            raise RuntimeError("Controller Lab runtime files are missing from this installation.")
+        readiness = self._check_prerequisites()
+        if not readiness.get("ready") is True:
+            raise RuntimeError(readiness.get("message") or "Controller translation prerequisites are not ready.")
         session_id = secrets.token_hex(12)
         self.sessions_dir.mkdir(parents=True, exist_ok=True)
         stop_file = self.sessions_dir / (session_id + ".stop")
@@ -337,8 +392,14 @@ class ControllerRuntime:
                 "message": "Elmos Controller Lab opened in a separate window."}
 
     def install_driver(self) -> dict[str, Any]:
+        readiness = self.prerequisites()
+        if readiness.get("ready") is True:
+            return {"requested": False, "alreadyReady": True,
+                    "message": "The virtual-controller driver is already installed and prepared."}
+        if readiness.get("state") in ("helper_missing", "bridge_missing", "unsupported_platform"):
+            raise RuntimeError(readiness.get("message") or "Controller setup files are unavailable.")
         result = self._elevated(["--bridge", str(self.bridge_path), "install-driver"])
-        return {"requested": True, "message": "Driver setup requested. Review and approve the Windows UAC prompt.",
+        return {"requested": True, "message": "Driver setup requested. Approve the Windows UAC prompt to install the virtual-controller driver.",
                 **result}
 
     def catalog(self) -> dict[str, Any]:
