@@ -5,6 +5,7 @@ import os, re, json, time, secrets, random, shutil, tempfile, hashlib, difflib, 
 from pathlib import Path
 from game_discovery import detect as detect_pc_game, blocked_exe, JUNK_ROOT, clean_game_title
 import steam_core as vdf
+from controller_runtime import ControllerRuntime
 
 _active_game_lock=threading.RLock()
 _active_game=None
@@ -227,6 +228,7 @@ def request_game_close():
 APP=Path(os.environ.get('LOCALAPPDATA',str(Path.home())))/'SteamMatch'
 LAUNCH_PROFILES=APP/'launch_profiles.json'; SETTINGS=APP/'settings.json'; REGISTRY=APP/'registry_v2.json'; ARCADE=APP/'arcade.json'; BACKUP=APP/'backups'; GROVE=APP/'grove_state.json'; GROVE_ART=APP/'grove_art'
 DEFAULT_GAMES=Path('C:/Gaming/Games'); DEFAULT_EMULATORS=Path('C:/Gaming/Emulators')
+controller_runtime=ControllerRuntime(app_dir=Path(__file__).resolve().parent)
 BAD=('redist','_commonredist','setup','unins','crash','easyanticheat','eac','dxweb','vcredist','dotnet','oalinst','prereq','benchmark','updater','artwork_minisoundtrack','crashreport','anticheat','uninstall','redistributable','vc_redist')
 PREFERRED={
  '7 days to die':'7DaysToDie.exe','buckshot roulette':'Buckshot Roulette.exe','control':'Control.exe',
@@ -481,6 +483,10 @@ class Engine:
  def __init__(self):
   APP.mkdir(parents=True,exist_ok=True);BACKUP.mkdir(exist_ok=True)
   self.cfg=read_json(SETTINGS,{})
+  self.cfg.setdefault('appearance_preset','unified-3.2')
+  # Disable any legacy persisted background organizer setting until the
+  # Windows move/journal race gates are fully validated on real NTFS.
+  self.cfg['smart_auto_enabled']=False
   self.reg=read_json(REGISTRY,{})
   self.extra=read_json(ARCADE,{'emulators':{},'roms':{},'notes':{}})
   self.steam=Path(self.cfg.get('steam_path') or steam_root())
@@ -653,6 +659,8 @@ class Engine:
  def record_finished_session(self,gameid,started,process):
   try:process.wait()
   except Exception:return
+  try:controller_runtime.stop()
+  except Exception:pass
   seconds=max(0,int(time.monotonic()-started))
   session_event('process_exited',f'{gameid[-55:]} · {seconds}s')
   with self.lock:
@@ -841,6 +849,19 @@ class Engine:
     if not gamefile.is_file():raise RuntimeError('Game file is missing.')
     args=[str(gamefile)]
    if sys.platform!='win32':return {'message':'Windows only: launch verified but not executed here.','command':[str(exe)]+args}
+   # If this title has an explicitly enabled virtual-input profile, request
+   # Windows UAC before the game starts so the virtual device can enumerate
+   # before the game polls XInput/Windows Gaming Input. Failure never blocks
+   # the ordinary game launch.
+   controller_start = None
+   try:
+    controller_start = controller_runtime.start_for_game(gameid)
+    if controller_start and controller_start.get('started'):
+     controller_status = controller_runtime.wait_ready(4.5)
+     if controller_status.get('state') != 'running':
+      session_event('controller_input_not_ready',str(controller_status.get('message','Controller helper did not become ready'))[:150])
+   except Exception as exc:
+    session_event('controller_input_unavailable',str(exc)[:150])
    # Lock check and process creation as ONE operation. A second launch must
    # never orphan a live game or overwrite the tracked session.
    global _active_game,_active_game_type,_active_launch_profile,_active_game_id,_active_game_name
@@ -852,6 +873,9 @@ class Engine:
     # No shell, elevation or changes to emulator configuration.
     process=subprocess.Popen([str(exe)]+args,cwd=str(exe.parent),close_fds=True)
     _active_game=process
+    if controller_start and controller_start.get('started'):
+     try:controller_runtime.attach_game_process(process.pid)
+     except Exception as exc:session_event('controller_watch_attach_failed',str(exc)[:140])
     _active_game_type=g['type']
     _active_game_id=gameid
     _active_game_name=g['name']
@@ -865,7 +889,8 @@ class Engine:
    # Window handoff is initiated only after the loading transition is ready.
    entry=self.local_entry(gameid);entry['lastPlayed']=int(time.time());entry['playCount']=entry.get('playCount',0)+1;self.save_local()
    threading.Thread(target=self.record_finished_session,args=(gameid,time.monotonic(),process),daemon=True,name='game-playtime').start()
-   return {'message':'Launching '+g['name']+' directly.','command':[str(exe)]+args}
+   return {'message':'Launching '+g['name']+' directly.','command':[str(exe)]+args,
+           'controllerInput':controller_start or {'started':False,'state':'disabled'}}
  def xenia_controller(self,emulatorid):
   with self.lock:
    em=self.extra.get('emulators',{}).get(emulatorid)
@@ -1075,8 +1100,29 @@ class Engine:
   saved=read_json(APP/'smart_moves.json',[])
   return saved if isinstance(saved,list) else []
 
+ def _smart_begin_move(self,item):
+  from smart_discovery import _safe_name
+  source=Path(item['path'])
+  root=Path(self.games_root if item['kind']=='game' else DEFAULT_EMULATORS)
+  target=root/_safe_name(item['title'])
+  try:relative=Path(item['exe']).relative_to(source)
+  except ValueError:raise ValueError('Executable is outside the candidate folder')
+  record={'kind':item['kind'],'name':item['title'],'from':str(source),
+          'path':str(target),'exe':str(target/relative),'status':'pending',
+          'intentAt':time.time()}
+  history=self._smart_history()
+  history.append(record)
+  write_json(APP/'smart_moves.json',history[-100:])
+  return record
+
  def _smart_record_move(self,result):
   history=self._smart_history()
+  for record in reversed(history):
+   if record.get('status')=='pending' and record.get('from')==result.get('from'):
+    record.update({key:result[key] for key in ('kind','name','path','from','exe')})
+    record['status']='complete';record['completedAt']=time.time()
+    write_json(APP/'smart_moves.json',history[-100:])
+    return
   history.append({key:result[key] for key in ('kind','name','path','from','exe')})
   write_json(APP/'smart_moves.json',history[-100:])
 
@@ -1089,6 +1135,10 @@ class Engine:
    if not history:raise RuntimeError('There are no organized folders to undo.')
    record=history[-1]
    downloads=Path(os.environ.get('USERPROFILE',str(Path.home())))/'Downloads'
+   source=Path(record.get('from',''))
+   if record.get('status')=='pending' and source.exists():
+    history.pop();write_json(APP/'smart_moves.json',history)
+    return {'ok':True,'undone':{'name':record.get('name','folder'),'path':str(source),'notMoved':True}}
    undone=undo_verified(record,downloads,self.games_root,DEFAULT_EMULATORS)
    history.pop()
    write_json(APP/'smart_moves.json',history)
@@ -1119,11 +1169,14 @@ class Engine:
                     'ignored':sum(i['action']=='ignore' for i in found)}}
 
  def smart_mode(self,enabled):
-  """An explicit opt-in is required before background file moves."""
+  """Background auto-moves stay blocked until Windows safety gates pass."""
   with self.lock:
-   self.cfg['smart_auto_enabled']=bool(enabled)
+   self.cfg['smart_auto_enabled']=False
    self.save()
-  return {'autoEnabled':bool(enabled)}
+  if enabled:
+   return {'autoEnabled':False,'blocked':True,
+           'message':'Background auto-organization is paused until complete Windows filesystem, crash-recovery and no-overwrite safety tests pass.'}
+  return {'autoEnabled':False,'blocked':False,'message':'Background auto-organization disabled.'}
 
  def _smart_register_emulator(self,item):
   """Register a distinct, known emulator without launching or configuring it."""
@@ -1163,6 +1216,8 @@ class Engine:
  def smart_organize(self,manual=False):
   """Move only completed high-confidence folders, atomically and without overwriting."""
   from smart_discovery import scan_downloads, discover_emulators, move_verified
+  from store_inventory import installed_inventory
+  installed_inventory.cache_clear()
   if not manual and not self.cfg.get('smart_auto_enabled',False):
    return {'moved':[],'emulatorsRegistered':[],'skipped':[],
            'message':'Automatic organizing disabled.'}
@@ -1174,7 +1229,9 @@ class Engine:
   with self.lock:
    for item in scan_downloads(downloads):
     if item['action']!='ready':continue
+    journal=None
     try:
+     journal=self._smart_begin_move(item)
      result=move_verified(item,downloads,self.games_root,DEFAULT_EMULATORS)
      moved.append(result)
      self._smart_record_move(result)
@@ -1184,6 +1241,10 @@ class Engine:
      else:
       art_targets.append(Path(result['path']))
     except (OSError,ValueError) as exc:
+     if journal and Path(journal['from']).exists():
+      history=self._smart_history()
+      history=[x for x in history if not (x.get('status')=='pending' and x.get('from')==journal['from'])]
+      write_json(APP/'smart_moves.json',history)
      skipped.append({'name':item['filename'],'reason':str(exc)[:180]})
    for item in discover_emulators(DEFAULT_EMULATORS):
     if self._smart_register_emulator(item):registered.append(item['title'])

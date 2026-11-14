@@ -27,6 +27,11 @@ jobs:
           python-version: "3.12"
           architecture: x64
 
+      - name: Set up .NET 10 for the virtual-controller bridge
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
       - name: Determine next patch version and prepare release sources
         id: release_version
         shell: pwsh
@@ -78,12 +83,38 @@ jobs:
           python -m pip install --disable-pip-version-check -r build/requirements-windows.txt
           if ($LASTEXITCODE -ne 0) { throw 'Dependencies installation failed.' }
 
+      - name: Build the verified Elmos Controller Lab bridge
+        shell: pwsh
+        run: |
+          & 'controller-lab/scripts/Build-ControllerLab.ps1'
+          if ($LASTEXITCODE -ne 0) { throw 'Controller Lab bridge build failed.' }
+
       - name: Compile desktop application
         shell: pwsh
         run: |
           python -m PyInstaller --noconfirm --clean --distpath dist --workpath build/work build/ElmosWorld.spec
           if ($LASTEXITCODE -ne 0) { throw 'PyInstaller failed.' }
           if (!(Test-Path dist/ElmosWorld/ElmosWorld.exe)) { throw 'Standalone executable missing.' }
+
+      - name: Build standalone elevated controller runtime
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --distpath dist/controller-runtime --workpath build/controller-runtime-work build/ControllerRuntime.spec
+          if ($LASTEXITCODE -ne 0) { throw 'Controller runtime helper build failed.' }
+          $bundle = (Resolve-Path 'dist/ElmosWorld').Path
+          $internal = Join-Path $bundle '_internal'
+          if (!(Test-Path $internal)) { $internal = $bundle }
+          $runtime = Join-Path $internal 'controller-runtime'
+          $bridge = Join-Path $internal 'controller-lab/bridge/publish'
+          New-Item -ItemType Directory -Force -Path $runtime,$bridge | Out-Null
+          Copy-Item 'dist/controller-runtime/ElmosControllerRuntime.exe' $runtime -Force
+          Copy-Item 'controller-lab/bridge/publish/Elmos.ControllerLab.Bridge.exe' $bridge -Force
+          $notices = Join-Path $internal 'controller-lab'
+          New-Item -ItemType Directory -Force -Path $notices | Out-Null
+          foreach ($name in @('LICENSE','THIRD-PARTY-NOTICES.txt')) {
+            $source = Join-Path 'controller-lab/runtime' $name
+            if (Test-Path $source) { Copy-Item $source $notices -Force }
+          }
 
       - name: Verify executable is a genuine GUI application
         shell: pwsh

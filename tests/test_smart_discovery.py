@@ -156,6 +156,22 @@ class DiscoveryFixtureTests(unittest.TestCase):
         except (OSError,NotImplementedError):self.skipTest('Symlink permission unavailable')
         self.assertNotEqual(self.look(folder)['action'],'ready')
 
+    def test_scan_does_not_starve_entries_after_first_200(self):
+        for index in range(205):
+            touch(self.downloads/(f'notes-{index:03d}.txt'),10)
+        folder=self.unity('Outer Wilds','OuterWilds')
+        result=scan_downloads(self.downloads,min_age=0)
+        self.assertEqual(len(result),206)
+        self.assertIn(str(folder),{item['path'] for item in result})
+
+    def test_symlink_inside_ignored_commonredist_folder_blocks_move(self):
+        if not hasattr(os,'symlink'):self.skipTest('Symlink unavailable')
+        folder=self.unity('Outer Wilds','OuterWilds')
+        ignored=folder/'_CommonRedist';ignored.mkdir()
+        try:(ignored/'outside').symlink_to(self.downloads,target_is_directory=True)
+        except (OSError,NotImplementedError):self.skipTest('Symlink permission unavailable')
+        self.assertNotEqual(self.look(folder)['action'],'ready')
+
     def test_scan_is_read_only(self):
         self.unity('Outer Wilds','OuterWilds')
         touch(self.downloads/'setup.exe')

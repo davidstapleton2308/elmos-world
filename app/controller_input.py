@@ -78,7 +78,17 @@ class ControllerMonitor:
                 count=pygame.joystick.get_count()
                 devices=[]
                 for i in range(count):
-                    try:devices.append({'index':i,'name':pygame.joystick.Joystick(i).get_name(),'mapped':bool(controller.is_controller(i))})
+                    try:
+                        pad=pygame.joystick.Joystick(i)
+                        try:guid=pad.get_guid()
+                        except Exception:guid=''
+                        try:vendor_id=pad.get_vendor()
+                        except Exception:vendor_id=0
+                        try:product_id=pad.get_product()
+                        except Exception:product_id=0
+                        devices.append({'index':i,'name':pad.get_name(),'guid':guid,
+                                        'vendor_id':vendor_id,'product_id':product_id,
+                                        'mapped':bool(controller.is_controller(i))})
                     except Exception:pass
                 if not count:
                     current=None;device_id=None;gamepad=None;ps_press.update(False)

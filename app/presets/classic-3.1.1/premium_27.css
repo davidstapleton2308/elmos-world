@@ -1,0 +1,16 @@
+/* v2.7: Screenshot gallery. All previous carousel, launch, controller and
+   obsidian/ember styles are preserved. This sheet only styles the gallery. */
+#detailView .detail-shots-head{min-height:20px}
+#detailView #detailShotsStatus{color:#d8aa7b!important;letter-spacing:.08em;font-weight:750}
+#detailView .screenshots{scrollbar-width:thin!important;scrollbar-color:#bd8052 transparent!important;scroll-snap-type:x proximity}
+#detailView .screenshots::-webkit-scrollbar{height:5px!important;display:block!important}
+#detailView .screenshots::-webkit-scrollbar-thumb{background:#b37a52;border-radius:6px}
+#detailView .screenshots .shot-tile{scroll-snap-align:center;box-shadow:0 8px 18px rgba(0,0,0,.20)}
+#detailView .screenshots .shot-tile img{object-fit:cover!important;background:#11191b!important}
+#detailView .gallery-empty{box-sizing:border-box;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;
+  min-width:100%;height:100%;padding:9px 16px;border:1px solid rgba(223,177,130,.14);
+  border-radius:10px;color:#b4c9bd;background:linear-gradient(120deg,rgba(34,43,43,.45),rgba(12,17,18,.42));
+  font-size:11px;letter-spacing:.02em;line-height:1.35;}
+#detailView .gallery-empty strong{color:#e5eadf;font-size:12px;font-weight:700}
+#detailView .gallery-empty small{display:block;color:#96aaa1;font-size:10px;margin-top:4px;max-width:70ch}
+#dialogBackdrop #configRefreshGallery,#dialogBackdrop #configImportGallery{border-color:rgba(221,161,110,.25)!important}

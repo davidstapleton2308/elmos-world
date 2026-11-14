@@ -1,0 +1,57 @@
+/* Elmos World 3.0 -- controller-first polish, no poster outline.
+   This sheet intentionally loads LAST so earlier premium-frame overrides cannot
+   bring the selection bezel back. The selected cover still enlarges. */
+#libraryView #gameCards.cards[data-layout="deck"] .game-card,
+#libraryView #gameCards.cards[data-layout="deck"] .game-card.selected,
+#libraryView #gameCards.cards[data-layout="deck"] .game-card:focus,
+#libraryView #gameCards.cards[data-layout="deck"] .game-card:focus-visible,
+#libraryView #gameCards.cards[data-layout="deck"] .game-card.selected:focus-visible {
+  outline:none!important;
+  border:0!important;
+  box-shadow:none!important;
+}
+#libraryView #gameCards.cards[data-layout="deck"] .game-card .poster,
+#libraryView #gameCards.cards[data-layout="deck"] .game-card.selected .poster,
+#libraryView #gameCards.cards[data-layout="deck"] .game-card:focus-visible .poster,
+#libraryView #gameCards.cards[data-layout="deck"] .game-card.selected:focus .poster,
+#libraryView #gameCards.cards[data-layout="deck"] .game-card.selected:focus-visible .poster,
+#libraryView #gameCards.cards[data-layout="deck"] .game-card:hover .poster {
+  border:0!important;
+  outline:0!important;
+  box-shadow:0 14px 34px rgba(0,0,0,.34)!important;
+}
+#libraryView #gameCards.cards[data-layout="deck"] .game-card.selected .poster,
+#libraryView #gameCards.cards[data-layout="deck"] .game-card:focus-visible .poster {
+  box-shadow:0 18px 42px rgba(0,0,0,.53),0 16px 32px rgba(168,95,44,.07)!important;
+}
+#libraryView #gameCards.cards[data-layout="deck"] .game-card.selected .poster::before,
+#libraryView #gameCards.cards[data-layout="deck"] .game-card.selected .poster::after {
+  display:none!important;
+  content:none!important;
+}
+/* Preserve the dim side cards and the bright, physically larger selection. */
+#libraryView #gameCards.cards[data-layout="deck"] .game-card.selected {
+  opacity:1!important;filter:none!important;z-index:5!important;
+}
+/* Matching button geometry on Emulators, including TV/couch layouts. */
+#emulatorsView .emu-hero-actions{display:flex!important;align-items:stretch!important;justify-content:flex-start!important;gap:12px!important;flex-wrap:wrap!important}
+#emulatorsView .emu-hero-actions>button{display:inline-flex!important;align-items:center!important;justify-content:center!important;min-height:52px!important;min-width:175px!important;margin:0!important;padding:12px 20px!important;white-space:nowrap!important;line-height:1.2!important;vertical-align:middle!important}
+/* Focus-follow is implemented in JS, but long pages also need a visible cue. */
+html[data-screen="settings"],html[data-screen="activity"],html[data-screen="emulators"],html[data-screen="queue"]{scroll-behavior:auto!important;scroll-padding-top:90px;}
+#settingsView,#activityView,#emulatorsView,#queueView{padding-bottom:clamp(40px,8vh,90px)}
+#settingsView :is(button,input,select,textarea):focus-visible,
+#activityView :is(button,input,select,textarea):focus-visible,
+#emulatorsView :is(button,input,select,textarea):focus-visible{
+  outline:2px solid rgba(225,170,121,.75)!important;outline-offset:3px!important;
+}
+#dialogBackdrop .config-danger{border:1px solid rgba(219,119,104,.34)!important;background:linear-gradient(140deg,rgba(87,39,35,.25),rgba(14,22,22,.5))!important}
+#dialogBackdrop .config-danger>label{color:#efd1c5!important}
+#dialogBackdrop .danger-btn,.danger-btn{border:1px solid rgba(227,128,112,.65);color:#ffe3d9;background:#5a2926;padding:12px 18px;border-radius:10px;font-weight:750;cursor:pointer}
+#dialogBackdrop .danger-btn:focus-visible,.danger-btn:focus-visible{outline:2px solid #eead8c!important;outline-offset:3px!important}
+#dialogBackdrop .danger-btn:disabled,.danger-btn:disabled{opacity:.35!important;cursor:not-allowed}
+#dialogBackdrop .uninstall-warning{border:1px solid rgba(228,153,116,.37);background:#2b1d1a;border-radius:12px;padding:15px;margin-bottom:16px}
+#dialogBackdrop .uninstall-warning strong{color:#ffe2cd;font-size:15px}
+#dialogBackdrop .uninstall-warning p{color:#e0c6bd;line-height:1.5;margin:10px 0}
+#dialogBackdrop .uninstall-warning .config-path{word-break:break-word;overflow-wrap:anywhere;font-size:12px;color:#ffd9b3}
+#dialogBackdrop .config-switch{display:flex;align-items:center;gap:12px;font-size:13px}
+#dialogBackdrop .config-switch input{width:18px;height:18px;accent-color:#cb8c5b}

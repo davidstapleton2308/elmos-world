@@ -129,6 +129,14 @@ if (-not (Test-Path -LiteralPath $BuildPython -PathType Leaf)) {
 Write-Host 'Installing build dependencies...'
 & $BuildPython -m pip install --disable-pip-version-check -r (Join-Path $Root 'build\requirements-windows.txt')
 if ($LASTEXITCODE -ne 0) { throw 'Python package installation failed. Check the output above.' }
+& $BuildPython -m pip install --disable-pip-version-check -r (Join-Path $Root 'controller-lab\requirements.txt')
+if ($LASTEXITCODE -ne 0) { throw 'Controller Lab Python dependencies failed to install.' }
+if (-not (Get-Command 'dotnet.exe' -CommandType Application -ErrorAction SilentlyContinue)) {
+  throw 'The unified build requires the .NET 10 SDK. Install it from https://dotnet.microsoft.com/download/dotnet/10.0, then rerun this builder.'
+}
+Write-Host 'Building the verified virtual-controller bridge...'
+& (Join-Path $Root 'controller-lab\scripts\Build-ControllerLab.ps1')
+if ($LASTEXITCODE -ne 0) { throw 'Controller Lab bridge build failed.' }
 
 Write-Host 'Compiling ElmosWorld.exe...' -ForegroundColor Cyan
 & $BuildPython -m PyInstaller --noconfirm --clean `
@@ -139,6 +147,24 @@ if ($LASTEXITCODE -ne 0) { throw 'PyInstaller build failed. See its output above
 $Exe = Join-Path $Root 'dist\ElmosWorld\ElmosWorld.exe'
 if (-not (Test-Path -LiteralPath $Exe -PathType Leaf)) { throw 'ElmosWorld.exe was not produced.' }
 Write-Host ('EXE built: ' + $Exe) -ForegroundColor Green
+
+Write-Host 'Building standalone Elmos Controller runtime...'
+& $BuildPython -m PyInstaller --noconfirm --clean --distpath (Join-Path $Root 'dist\controller-runtime') --workpath (Join-Path $Root 'build\controller-runtime-work') (Join-Path $Root 'build\ControllerRuntime.spec')
+if ($LASTEXITCODE -ne 0) { throw 'Controller runtime helper build failed.' }
+$Bundle = Join-Path $Root 'dist\ElmosWorld'
+$Internal = Join-Path $Bundle '_internal'
+if (-not (Test-Path -LiteralPath $Internal)) { $Internal = $Bundle }
+$RuntimeDir = Join-Path $Internal 'controller-runtime'
+$BridgeDir = Join-Path $Internal 'controller-lab\bridge\publish'
+New-Item -ItemType Directory -Force -Path $RuntimeDir,$BridgeDir | Out-Null
+Copy-Item (Join-Path $Root 'dist\controller-runtime\ElmosControllerRuntime.exe') $RuntimeDir -Force
+Copy-Item (Join-Path $Root 'controller-lab\bridge\publish\Elmos.ControllerLab.Bridge.exe') $BridgeDir -Force
+$NoticeDir = Join-Path $Internal 'controller-lab'
+New-Item -ItemType Directory -Force -Path $NoticeDir | Out-Null
+foreach ($name in @('LICENSE','THIRD-PARTY-NOTICES.txt')) {
+  $source = Join-Path $Root ('controller-lab\runtime\' + $name)
+  if (Test-Path -LiteralPath $source) { Copy-Item $source $NoticeDir -Force }
+}
 
 # Verify that required runtime assets were actually bundled before packaging.
 Write-Host 'Checking standalone application dependencies...' -ForegroundColor Cyan
