@@ -15,6 +15,22 @@ sys.path.insert(0, str(ROOT / 'app'))
 import update_center
 
 
+def wait_for_worker_exit(pid, timeout_ms=12000):
+    # The worker writes state=complete before closing redirected stdout/stderr.
+    # Do not delete its temporary log directory while Windows still owns it.
+    import ctypes
+    kernel=ctypes.WinDLL('kernel32',use_last_error=True)
+    kernel.OpenProcess.argtypes=(ctypes.c_uint,ctypes.c_int,ctypes.c_uint)
+    kernel.OpenProcess.restype=ctypes.c_void_p
+    kernel.WaitForSingleObject.argtypes=(ctypes.c_void_p,ctypes.c_uint)
+    kernel.WaitForSingleObject.restype=ctypes.c_uint
+    kernel.CloseHandle.argtypes=(ctypes.c_void_p,)
+    handle=kernel.OpenProcess(0x00100000,False,int(pid))
+    if handle:
+        try:kernel.WaitForSingleObject(handle,timeout_ms)
+        finally:kernel.CloseHandle(handle)
+
+
 def main():
     if sys.platform != 'win32':
         raise RuntimeError('This integration test requires Windows.')
@@ -42,6 +58,7 @@ def main():
                     if log_path.exists():
                         print(log_path.read_text(encoding='utf-8-sig', errors='replace')[-4000:])
                     raise RuntimeError('Detached background update did not succeed.')
+                wait_for_worker_exit(worker_pid)
                 return
             time.sleep(0.5)
         raise RuntimeError('Detached background updater did not complete within 150 seconds.')
