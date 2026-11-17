@@ -16,6 +16,28 @@ class DriverSafetyTests(unittest.TestCase):
         self.assertEqual(d.VIGEM_SHA256,'89220a7865076b342892f98865f3499fb7c4cfd673159e89d352c360fd014c6a')
         self.assertIn('github.com/nefarius/ViGEmBus/releases/download/v1.22.0',d.VIGEM_URL)
 
+    def test_installed_vigembus_service_is_detected(self):
+        from unittest.mock import MagicMock
+        service_output = (
+            'SERVICE_NAME: ViGEmBus\\n'
+            '        TYPE               : 1  KERNEL_DRIVER\\n'
+            '        STATE              : 4  RUNNING\\n'
+        )
+        with patch.object(d.os, 'name', 'nt'), patch.object(
+            d.subprocess, 'run',
+            return_value=MagicMock(returncode=0, stdout=service_output)
+        ) as query:
+            self.assertTrue(d.is_installed())
+        query.assert_called_once()
+
+    def test_stopped_but_registered_vigembus_service_is_installed(self):
+        from unittest.mock import MagicMock
+        with patch.object(d.os, 'name', 'nt'), patch.object(
+            d.subprocess, 'run',
+            return_value=MagicMock(returncode=0, stdout='SERVICE_NAME: ViGEmBus\\nSTATE: 1 STOPPED')
+        ):
+            self.assertTrue(d.is_installed())
+
     def test_existing_driver_skips_all_downloads_and_installers(self):
         with patch.object(d.os,'name','nt'),patch.object(d,'is_installed',return_value=True),\
              patch.object(d,'download_verified') as download,\
