@@ -275,6 +275,7 @@ function deleteHiddenDialog(){
 }
 // Separate GeForce NOW collection. No change to the local-games carousel.
 let gfnSelected=localStorage.getItem('elmo-gfn-selected')||'',gfnCenterTimer=null;
+let gfnAutoSyncAttempted=false;
 const gfnItems=()=>state.gfnGames||[];
 const gfnNormalize=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
 function gfnArtFor(g,slot){
@@ -408,6 +409,7 @@ function open(name){
   // Restore deck position after the library becomes visible; never reset to item one.
   requestAnimationFrame(()=>syncSelectedCard(true));
  }
+ if(name==='gfn'&&!gfnAutoSyncAttempted){gfnAutoSyncAttempted=true;gfnSync();}
  syncBrowsePreviewVisibility();if(name==='activity'){renderActivity();refreshLaunchTimeline();}
 }
 function revealModalControl(target){
