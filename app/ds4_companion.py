@@ -7,6 +7,11 @@ instance, or assumes those backends are interchangeable.
 from __future__ import annotations
 
 import csv
+import hashlib
+import shutil
+import tempfile
+import urllib.request
+import zipfile
 import io
 import os
 import subprocess
@@ -41,6 +46,8 @@ def _candidates():
     env_program=Path(os.environ.get('ProgramFiles',r'C:\Program Files'))
     env_roaming=Path(os.environ.get('APPDATA',str(home/'AppData'/'Roaming')))
     paths=[
+        env_local/'ElmosWorld'/'ElmosInput'/'DS4Windows'/'DS4Windows.exe',
+        env_local/'ElmosWorld'/'ElmosInput'/'DS4Windows'/'DS4Windows'/'DS4Windows.exe',
         Path(r'C:\Gaming\Controller-Test\DS4Windows\DS4Windows.exe'),
         env_program/'DS4Windows'/'DS4Windows.exe',
         env_local/'Programs'/'DS4Windows'/'DS4Windows.exe',
@@ -51,6 +58,86 @@ def _candidates():
     paths += [Path(r'C:\Gaming\Controller-Test\DS4Windows')/sub/'DS4Windows.exe'
               for sub in ('DS4Windows','DS4Windows_3.3.3_x64')]
     return paths
+
+
+# Archive is from SourceForge's Ryochan7 project mirror. The fixed digest
+# matches the original Chocolatey verification of DS4Windows 3.3.3 x64.
+ARCHIVE_URL = ('https://sourceforge.net/projects/ds4windows.mirror/files/'
+               'v3.3.3/DS4Windows_3.3.3_x64.zip/download')
+ARCHIVE_SHA256 = 'cf5619bcb51b82e4e1765276e9f67fb1e2d23dff968a653657acf35bafff8bf4'
+MAX_ARCHIVE_BYTES = 12_000_000
+MAX_EXTRACT_BYTES = 110_000_000
+
+def managed_root():
+    return Path(os.environ.get('LOCALAPPDATA', str(Path.home() / 'AppData' / 'Local'))) / 'ElmosWorld' / 'ElmosInput'
+
+def install_missing_user_component():
+    """Download missing verified DS4Windows without an extra Elmos prompt.
+
+    Never installs/modifies ViGEmBus, VIIPER, HidHide, USB/IP or other kernel
+    drivers. Those may require Windows elevation and verified installers.
+    Existing controller executables, settings and mappers are left intact.
+    """
+    root = managed_root()
+    target = root / 'DS4Windows'
+    if existing_executable():
+        return {'installed':False, 'reason':'existing installation preserved'}
+    root.mkdir(parents=True, exist_ok=True)
+    fd = None
+    archive = None
+    staging = None
+    try:
+        fd, archive = tempfile.mkstemp(prefix='elmos-ds4-',suffix='.zip',dir=str(root))
+        digest = hashlib.sha256()
+        length = 0
+        with os.fdopen(fd, 'wb') as output:
+            fd = None
+            with urllib.request.urlopen(ARCHIVE_URL, timeout=18) as source:
+                while True:
+                    block=source.read(131072)
+                    if not block: break
+                    length += len(block)
+                    if length > MAX_ARCHIVE_BYTES:
+                        raise ValueError('Controller archive exceeds safe size')
+                    output.write(block)
+                    digest.update(block)
+        if digest.hexdigest().lower() != ARCHIVE_SHA256:
+            raise ValueError('Controller archive SHA-256 mismatch; refused to install')
+        staging = Path(tempfile.mkdtemp(prefix='elmos-stage-',dir=str(root)))
+        with zipfile.ZipFile(archive) as z:
+            entries=z.infolist()
+            if len(entries)>1500 or sum(max(0,e.file_size) for e in entries)>MAX_EXTRACT_BYTES:
+                raise ValueError('Unexpected archive size')
+            for entry in entries:
+                name=entry.filename.replace('\\','/')
+                pieces=[x for x in name.split('/') if x]
+                typebits=(entry.external_attr >> 16) & 0o170000
+                if (not pieces or name.startswith('/') or ':' in name
+                    or any(x in ('.','..') for x in pieces) or typebits==0o120000):
+                    raise ValueError('Unsafe archive entry')
+                dest=staging.joinpath(*pieces)
+                if entry.is_dir():
+                    dest.mkdir(parents=True,exist_ok=True)
+                else:
+                    dest.parent.mkdir(parents=True,exist_ok=True)
+                    with z.open(entry) as src, dest.open('wb') as dst:
+                        shutil.copyfileobj(src,dst)
+        executables=list(staging.rglob('DS4Windows.exe'))
+        if len(executables)!=1:
+            raise ValueError('Verified archive does not contain one DS4Windows.exe')
+        if target.exists():
+            return {'installed':False,'reason':'existing managed files preserved'}
+        staging.rename(target)
+        staging=None
+        return {'installed':True,'reason':'Verified classic DS4Windows 3.3.3 installed'}
+    finally:
+        if fd is not None:
+            os.close(fd)
+        if archive:
+            try: os.unlink(archive)
+            except OSError: pass
+        if staging:
+            shutil.rmtree(staging,ignore_errors=True)
 
 def existing_executable():
     for p in _candidates():
@@ -91,7 +178,14 @@ def start_existing():
             return status()
         exe=existing_executable()
         if not exe:
-            _last_error='DS4Windows executable not found; preserving existing controller and driver configuration.'
+            try:
+                install_missing_user_component()
+                exe=existing_executable()
+            except (OSError,ValueError,zipfile.BadZipFile) as exc:
+                _last_error='Verified DS4Windows download unavailable: '+str(exc)[:160]
+                return status()
+        if not exe:
+            _last_error='Controller executable unavailable; drivers were left unchanged.'
             return status()
         # Never launch unknown EXEs outside the recognized user installation roots.
         try:
