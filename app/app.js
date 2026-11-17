@@ -278,6 +278,7 @@ let gfnSelected=localStorage.getItem('elmo-gfn-selected')||'',gfnCenterTimer=nul
 const gfnItems=()=>state.gfnGames||[];
 const gfnNormalize=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
 function gfnArtFor(g,slot){
+ const cached=g.images||{}; if(slot==='portrait'&&cached.portrait)return cached.portrait; if(slot!=='portrait'&&cached.hero)return cached.hero;
  const local=(state.games||[]).find(x=>gfnNormalize(x.name)===gfnNormalize(g.name));
  if(local){const url=art(local,slot==='portrait'?'portrait':'hero')||art(local,'wide');if(url)return url;}
  if(g.steamId){const id=encodeURIComponent(g.steamId);return slot==='portrait'?`https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/${id}/library_600x900.jpg`:`https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/${id}/library_hero.jpg`;}
@@ -290,8 +291,8 @@ function gfnSelect(id,center=false){
  const hero=gfnArtFor(g,'hero');
  $('gfnHero').style.backgroundImage=hero?`linear-gradient(90deg,#0a1110 0%,rgba(10,17,16,.86) 27%,rgba(10,17,16,.13) 84%),url("${hero}")`:'';
  $('gfnHeroTitle').textContent=g.name;
- $('gfnHeroText').textContent=g.available?'GeForce NOW · Launch through your saved NVIDIA shortcut':'Shortcut missing · Reimport to play';
- $('gfnPlay').textContent=g.available?'▶ Play on GeForce NOW':'Shortcut unavailable';
+ $('gfnHeroText').textContent=(g.store?g.store+' · ':'')+(g.directLaunch?'GeForce NOW · Direct game shortcut':g.synced?'Synced My Library · Opens GeForce NOW app':'Shortcut missing · Reimport to play');
+ $('gfnPlay').textContent=g.directLaunch?'▶ Play on GeForce NOW':g.synced?'▶ Open in GeForce NOW':'Shortcut unavailable';
  $('gfnPlay').disabled=!g.available;
  $('gfnPlay').onclick=()=>gfnLaunch(g);
  for(const card of $('gfnCards').querySelectorAll('.gfn-card')){
@@ -304,25 +305,39 @@ function renderGfn(){
  const root=$('gfnCards');
  root.innerHTML=games.map(g=>{
  const image=gfnArtFor(g,'portrait');const monogram=esc(g.name.slice(0,2).toUpperCase());
- return `<button class="gfn-card" data-gfn="${esc(g.id)}"><span class="gfn-poster">${image?`<img loading="lazy" decoding="async" src="${esc(image)}" alt="" onerror="this.style.display='none'">`:''}<span class="gfn-monogram">${monogram}</span></span><strong>${esc(g.name)}</strong><small>${g.available?'CLOUD GAME · READY':'SHORTCUT MISSING'}</small></button>`;
- }).join('')||'<div class="gfn-empty">Nothing imported yet. Create a game shortcut in the GeForce NOW app, then import it here.</div>';
+ return `<button class="gfn-card" data-gfn="${esc(g.id)}"><span class="gfn-poster">${image?`<img loading="lazy" decoding="async" src="${esc(image)}" alt="" onerror="this.style.display='none'">`:''}<span class="gfn-monogram">${monogram}</span></span><strong>${esc(g.name)}</strong><small>${esc(g.store||'GEFORCE NOW')+' · '+(g.directLaunch?'DIRECT PLAY':g.synced?'SYNCED':'SHORTCUT MISSING')}</small></button>`;
+ }).join('')||'<div class="gfn-empty">No cloud games synced yet. Open GeForce NOW My Library, scroll through it, then select Sync My Library.</div>';
  for(const card of root.querySelectorAll('.gfn-card')){
   card.onfocus=()=>gfnSelect(card.dataset.gfn,false);
   card.onpointerenter=()=>gfnSelect(card.dataset.gfn,false);
-  card.onclick=()=>{const game=gfnSelectedItem();if(game)gfnLaunch(game)};
+  card.onclick=()=>gfnSelect(card.dataset.gfn,true);
+  card.ondblclick=()=>{const game=gfnSelectedItem();if(game)gfnLaunch(game)};
  }
  if(games.length){if(!games.some(x=>x.id===gfnSelected))gfnSelected=games[0].id;gfnSelect(gfnSelected,false)}
- else{$('gfnHero').style.backgroundImage='';$('gfnHeroTitle').textContent='Your games. In the cloud.';$('gfnHeroText').textContent='Import shortcuts created by NVIDIA to build your separate cloud library.';$('gfnPlay').textContent='▶ Open GeForce NOW';$('gfnPlay').disabled=false;$('gfnPlay').onclick=gfnOpenApp;}
+ else{$('gfnHero').style.backgroundImage='';$('gfnHeroTitle').textContent='Your games. In the cloud.';$('gfnHeroText').textContent='Sync your connected Steam, Epic, Ubisoft and other GeForce NOW games into Elmos World.';$('gfnPlay').textContent='▶ Open GeForce NOW';$('gfnPlay').disabled=false;$('gfnPlay').onclick=gfnOpenApp;}
 }
 async function gfnOpenApp(){
  const provider=(state.platforms||[]).find(x=>x.name==='GeForce NOW'&&x.installed);
  if(provider){const r=await safe(()=>api('/api/open-platform',{name:'GeForce NOW'}));if(r)notify('Opening GeForce NOW…')}
  else notify('GeForce NOW was not detected at a standard installation path. Open its app and create per-game desktop shortcuts.',true);
 }
+async function gfnSync(){
+ const b=$('gfnSync');if(!b||b.disabled)return;
+ b.disabled=true;b.textContent='Syncing My Library…';
+ $('gfnStatus').textContent='Reading GeForce NOW My Library cache…';
+ try{
+  const r=await api('/api/gfn-sync',{});
+  if(!r?.ok)throw new Error(r?.message||'Sync failed');
+  await reload(false);open('gfn');
+  $('gfnStatus').textContent=r.message+' '+r.added+' added; '+r.updated+' refreshed. NVIDIA files unchanged.';
+  notify(r.added?('Synced '+r.added+' new cloud games'):r.message);
+ }catch(e){$('gfnStatus').textContent='Sync failed: '+e.message;notify(e.message,true)}
+ finally{b.disabled=false;b.textContent='↻ Sync My Library'}
+}
 async function gfnLaunch(g){
- if(!g?.available)return notify('This shortcut is missing. Import it again.',true);
+ if(!g?.available)return notify('This cloud game is unavailable. Sync My Library or import its NVIDIA shortcut.',true);
  const r=await safe(()=>api('/api/gfn-launch',{id:g.id}));
- if(r){notify('Launching '+g.name+' through your NVIDIA shortcut…');if(window.pywebview?.api?.minimize)window.pywebview.api.minimize().catch(()=>{});}
+ if(r){notify(g.directLaunch?'Launching '+g.name+' through NVIDIA…':'Opening GeForce NOW. Select '+g.name+' in your synced library.');if(window.pywebview?.api?.minimize)window.pywebview.api.minimize().catch(()=>{});}
 }
 async function gfnImport(){
  const path=await pick('gfn-shortcut');if(!path)return;
@@ -343,7 +358,7 @@ async function gfnDiscover(){
 }
 function gfnManage(){
  const games=gfnItems();
- dialog('Manage cloud library','GEFORCE NOW',`<p>All cloud games remain separate from your local game library. Removing one here never touches NVIDIA or Steam.</p>${games.map((g,i)=>`<div class="cloud-manage-row"><span><strong>${esc(g.name)}</strong><small>${esc(g.shortcut)}</small></span><button data-gfn-art="${i}" class="btn-quiet">Find cover</button><button data-gfn-rename="${i}" class="btn-quiet">Rename</button><button data-gfn-remove="${i}" class="danger-btn">Remove</button></div>`).join('')||'<p>No imported cloud shortcuts yet.</p>'}<div class="dialog-actions"><button class="btn-primary" id="gfnManageImport">＋ Import shortcut</button><button class="btn-quiet" id="gfnManageClose">Close</button></div>`);
+ dialog('Manage cloud library','GEFORCE NOW',`<p>All cloud games remain separate from your local game library. Removing one here never touches NVIDIA or Steam.</p>${games.map((g,i)=>`<div class="cloud-manage-row"><span><strong>${esc(g.name)}</strong><small>${esc(g.shortcut||((g.store||'GeForce NOW')+' · Synced game'))}</small></span><button data-gfn-art="${i}" class="btn-quiet">Find cover</button><button data-gfn-rename="${i}" class="btn-quiet">Rename</button><button data-gfn-remove="${i}" class="danger-btn">Remove</button></div>`).join('')||'<p>No imported cloud shortcuts yet.</p>'}<div class="dialog-actions"><button class="btn-primary" id="gfnManageImport">＋ Import shortcut</button><button class="btn-quiet" id="gfnManageClose">Close</button></div>`);
  $('gfnManageImport').onclick=()=>{closeDialog();gfnImport()};$('gfnManageClose').onclick=closeDialog;
  document.querySelectorAll('[data-gfn-remove]').forEach(button=>button.onclick=async()=>{
   const g=games[Number(button.dataset.gfnRemove)];if(!confirm(`Remove ${g.name} from this cloud library? NVIDIA files are untouched.`))return;
@@ -1078,7 +1093,7 @@ function setupControllerEditor(){syncNativeMenuButtons();const options=Array.fro
 function applyVisualPreferences(){document.documentElement.dataset.theme=elmoTheme;document.documentElement.dataset.motion=elmoMotion;applyAtmosphere();$('themeChoice').value=elmoTheme;$('motionChoice').value=elmoMotion}
 function fullscreenToggle(){if(window.pywebview?.api?.toggle_fullscreen)window.pywebview.api.toggle_fullscreen().catch(()=>{});else if(document.fullscreenElement)document.exitFullscreen?.();else document.documentElement.requestFullscreen?.().catch(()=>{});}
 $('deleteHiddenButton').onclick=deleteHiddenDialog;
-$('gfnImport').onclick=gfnImport;$('gfnDiscover').onclick=gfnDiscover;$('gfnManage').onclick=gfnManage;$('gfnPrev').onclick=()=>gfnMove(-1);$('gfnNext').onclick=()=>gfnMove(1);
+$('gfnSync').onclick=gfnSync;$('gfnImport').onclick=gfnImport;$('gfnDiscover').onclick=gfnDiscover;$('gfnManage').onclick=gfnManage;$('gfnPrev').onclick=()=>gfnMove(-1);$('gfnNext').onclick=()=>gfnMove(1);
 $('logoHome').onclick=()=>open('library');document.querySelectorAll('.rail-link').forEach(b=>b.onclick=()=>open(b.dataset.screen));$('featuredDetails').onclick=()=>{};$('nextFeature').onclick=()=>moveCarousel(1);$('backToLibrary').onclick=()=>open('library');$('search').oninput=()=>{open('library');renderLibrary()};document.querySelectorAll('[data-sort]').forEach(b=>b.onclick=()=>{sort=b.dataset.sort;document.querySelectorAll('[data-sort]').forEach(x=>x.classList.toggle('active',x===b));renderLibrary()});$('rescan').onclick=async()=>{await reload(true);notify('Library refreshed. Existing games remain unchanged.')};$('queueRescan').onclick=async()=>{await reload(true);notify('Scan complete.')};$('addGame').onclick=addGame;$('newEmulator').onclick=addEmulator;$('newRom').onclick=addRom;$('closeDialog').onclick=closeDialog;$('dialogBackdrop').onclick=e=>{if(e.target===$('dialogBackdrop'))closeDialog()};window.addEventListener('keydown',e=>{if(e.key==='F11'){e.preventDefault();fullscreenToggle()}if(e.key==='Escape'){if(!$('mediaViewer').hidden){e.preventDefault();closeViewer();return;}if(sessionState==='menu'){e.preventDefault();closeGameMenu()}else if(modal)closeDialog();else if(screen==='detail')open('library')}if(!$('mediaViewer').hidden&&['ArrowLeft','ArrowRight'].includes(e.key)){e.preventDefault();moveViewer(e.key==='ArrowRight'?1:-1);return;}if(screen==='detail'&&!modal&&document.activeElement?.closest('#detailShots')&&['ArrowLeft','ArrowRight'].includes(e.key)){e.preventDefault();galleryMove(e.key==='ArrowRight'?1:-1);return;}if(e.key==='Backspace'&&document.activeElement.tagName!=='INPUT'&&document.activeElement.tagName!=='TEXTAREA'&&screen==='detail')open('library')});$('carouselPrev').onclick=()=>moveCarousel(-1);$('carouselNext').onclick=()=>moveCarousel(1);
 function moveCarousel(delta){
  const list=visibleGames();if(!list.length)return;
