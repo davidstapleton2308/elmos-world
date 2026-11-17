@@ -32,7 +32,7 @@ def clamp(value, low, high):
 def _sony_device(snapshot):
     """Reject ViGEm/VIIPER/Xbox virtual outputs to prevent feedback loops."""
     name = str(snapshot.get('name') or '').casefold()
-    return any(key in name for key in ('wireless controller', 'dualshock', 'dualsense', 'sony')) and not any(
+    return any(key in name for key in ('wireless controller', 'ps4 controller', 'dualshock', 'dualsense', 'sony')) and not any(
         key in name for key in ('xbox', 'viiper', 'vigem'))
 
 
