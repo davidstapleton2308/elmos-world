@@ -204,24 +204,23 @@ def _connect_default_profile(proc, exe):
         _log('Unable to request controller profile: '+str(exc)[:140])
 
 def status():
-    with _lock:
-        current=_owned
-        owned=bool(current and current.poll() is None)
-        exe=existing_executable()
-        running=bool(_running_named('DS4Windows.exe'))
-        viiper=bool(_running_named('viiper.exe'))
-        return {'available':os.name=='nt',
-                'running':running or owned,'startedByElmos':owned,
-                'exeFound':bool(exe),'viiperRunning':viiper,
-                'backend':'classic DS4Windows + ViGEmBus',
-                'phase':_setup_phase,
-                'message':_last_error if _last_error else (
-                   'Existing VIIPER virtual-controller backend detected; untouched' if viiper and not running
-                   else 'Using existing DS4Windows; no duplicate launched' if running and not owned
-                   else 'Elmos World started your existing DS4Windows installation' if owned
-                   else 'DS4Windows found; ready for Elmos to open it' if exe
-                   else 'DS4Windows was not located in standard folders. Existing controller drivers were not modified.'
-                )}
+    current=_owned
+    owned=bool(current and current.poll() is None)
+    exe=existing_executable()
+    running=bool(_running_named('DS4Windows.exe'))
+    viiper=bool(_running_named('viiper.exe'))
+    return {'available':os.name=='nt',
+            'running':running or owned,'startedByElmos':owned,
+            'exeFound':bool(exe),'viiperRunning':viiper,
+            'backend':'classic DS4Windows + ViGEmBus',
+            'phase':_setup_phase,
+            'message':_last_error if _last_error else (
+               'Existing VIIPER virtual-controller backend detected; untouched' if viiper and not running
+               else 'Using existing DS4Windows; no duplicate launched' if running and not owned
+               else 'Elmos World started your existing DS4Windows installation' if owned
+               else 'DS4Windows found; ready for Elmos to open it' if exe
+               else 'DS4Windows was not located in standard folders. Existing controller drivers were not modified.'
+            )}
 
 def start_existing():
     global _owned, _owned_exe, _last_error, _setup_phase
