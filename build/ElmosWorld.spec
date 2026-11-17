@@ -9,13 +9,13 @@ ASSETS = [
     'index.html', 'app.css', 'app.js', 'apply_update.ps1', 'brand_emblem.svg', 'graphite_weave.svg',
     'elmos_world.ico', 'grove.ico', 'premium_23.css', 'premium_24.css',
     'premium_25.css', 'premium_26.css', 'premium_27.css', 'premium_28.css',
-    'premium_30.css', 'premium_31.css', 'premium_32.css',
+    'premium_30.css', 'premium_31.css', 'premium_32.css', 'premium_33.css',
 ]
 datas = [(str(APP / f), '.') for f in ASSETS]
 binaries = []
 hiddenimports = [
     'server', 'update_center', 'backend', 'gfn_cache_sync', 'game_media', 'game_descriptions', 'game_discovery',
-    'game_uninstall', 'geforce_library', 'steam_core', 'provider_adapters',
+    'game_uninstall', 'geforce_library', 'gfn_artwork', 'steam_core', 'provider_adapters',
     'controller_input', 'native_game_menu', 'smart_discovery', 'game_metadata', 'tkinter', 'tkinter.filedialog',
     'webview.platforms.winforms', 'webview.platforms.edgechromium',
     'pygame._sdl2.controller', 'clr',
