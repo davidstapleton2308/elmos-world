@@ -274,7 +274,7 @@ function deleteHiddenDialog(){
  update();
 }
 // Separate GeForce NOW collection. No change to the local-games carousel.
-let gfnSelected=localStorage.getItem('elmo-gfn-selected')||'',gfnCenterTimer=null;
+let gfnSelected=localStorage.getItem('elmo-gfn-selected')||'',gfnCenterTimer=null,gfnProgrammaticUntil=0;
 let gfnAutoSyncAttempted=false;
 const gfnItems=()=>state.gfnGames||[];
 const gfnNormalize=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
@@ -286,6 +286,23 @@ function gfnArtFor(g,slot){
  return '';
 }
 function gfnSelectedItem(){return gfnItems().find(x=>x.id===gfnSelected)||null;}
+function gfnCenterCard(card){
+ const root=$('gfnCards');if(!card||!root?.clientWidth)return;
+ gfnProgrammaticUntil=performance.now()+550;
+ const left=card.getBoundingClientRect().left-root.getBoundingClientRect().left+root.scrollLeft+card.offsetWidth/2-root.clientWidth/2;
+ root.scrollTo({left:Math.max(0,left),behavior:document.documentElement.dataset.motion==='reduced'?'instant':'smooth'});
+}
+function gfnSelectCentered(){
+ if(screen!=='gfn'||performance.now()<gfnProgrammaticUntil)return;
+ const root=$('gfnCards');if(!root?.clientWidth)return;
+ const center=root.getBoundingClientRect().left+root.clientWidth/2;
+ let nearest=null,dist=Infinity;
+ for(const card of root.querySelectorAll('.gfn-card')){
+  const rect=card.getBoundingClientRect(),d=Math.abs((rect.left+rect.right)/2-center);
+  if(d<dist){nearest=card;dist=d;}
+ }
+ if(nearest&&nearest.dataset.gfn!==gfnSelected)gfnSelect(nearest.dataset.gfn,false);
+}
 function gfnSelect(id,center=false){
  const g=gfnItems().find(x=>x.id===id);if(!g)return;
  gfnSelected=id;localStorage.setItem('elmo-gfn-selected',id);
@@ -297,9 +314,9 @@ function gfnSelect(id,center=false){
  $('gfnPlay').disabled=!g.available;
  $('gfnPlay').onclick=()=>gfnLaunch(g);
  for(const card of $('gfnCards').querySelectorAll('.gfn-card')){
-  const active=card.dataset.gfn===id;card.classList.toggle('active',active);card.setAttribute('aria-selected',active?'true':'false');
+  const active=card.dataset.gfn===id;card.classList.toggle('active',active);card.classList.toggle('selected',active);card.setAttribute('aria-selected',active?'true':'false');
  }
- if(center){const card=[...$('gfnCards').querySelectorAll('.gfn-card')].find(x=>x.dataset.gfn===id);card?.scrollIntoView({inline:'center',block:'nearest',behavior:'smooth'});}
+ if(center){const card=[...$('gfnCards').querySelectorAll('.gfn-card')].find(x=>x.dataset.gfn===id);gfnCenterCard(card);}
 }
 function renderGfn(){
  const games=gfnItems();$('gfnCount').textContent=`${games.length} game${games.length===1?'':'s'}`;
@@ -310,11 +327,11 @@ function renderGfn(){
  }).join('')||'<div class="gfn-empty">No cloud games synced yet. Open GeForce NOW My Library, scroll through it, then select Sync My Library.</div>';
  for(const card of root.querySelectorAll('.gfn-card')){
   card.onfocus=()=>gfnSelect(card.dataset.gfn,false);
-  card.onpointerenter=()=>gfnSelect(card.dataset.gfn,false);
+  // Hover does not hijack centered selection during mouse-wheel scrolling.
   card.onclick=()=>gfnSelect(card.dataset.gfn,true);
   card.ondblclick=()=>{const game=gfnSelectedItem();if(game)gfnLaunch(game)};
  }
- if(games.length){if(!games.some(x=>x.id===gfnSelected))gfnSelected=games[0].id;gfnSelect(gfnSelected,false)}
+ if(games.length){if(!games.some(x=>x.id===gfnSelected))gfnSelected=games[0].id;gfnSelect(gfnSelected,true);if(screen==='gfn')requestAnimationFrame(()=>gfnSelect(gfnSelected,true))}
  else{$('gfnHero').style.backgroundImage='';$('gfnHeroTitle').textContent='Your games. In the cloud.';$('gfnHeroText').textContent='Sync your connected Steam, Epic, Ubisoft and other GeForce NOW games into Elmos World.';$('gfnPlay').textContent='▶ Open GeForce NOW';$('gfnPlay').disabled=false;$('gfnPlay').onclick=gfnOpenApp;}
 }
 async function gfnOpenApp(){
@@ -409,7 +426,7 @@ function open(name){
   // Restore deck position after the library becomes visible; never reset to item one.
   requestAnimationFrame(()=>syncSelectedCard(true));
  }
- if(name==='gfn'&&!gfnAutoSyncAttempted){gfnAutoSyncAttempted=true;gfnSync();}
+ if(name==='gfn'){requestAnimationFrame(()=>gfnSelect(gfnSelected,true));if(!gfnAutoSyncAttempted){gfnAutoSyncAttempted=true;gfnSync();}}
  syncBrowsePreviewVisibility();if(name==='activity'){renderActivity();refreshLaunchTimeline();}
 }
 function revealModalControl(target){
@@ -948,12 +965,21 @@ function scrollWithRightStick(value,now=performance.now()){
  return false;
 }
 function padFocusFirst(){const options=padControls();
- const preferred=screen==='library'?document.querySelector('#gameCards .game-card.selected')||document.querySelector('#gameCards .game-card'):screen==='detail'?$('playSelected'):null;
+ const preferred=screen==='library'?document.querySelector('#gameCards .game-card.selected')||document.querySelector('#gameCards .game-card'):screen==='gfn'?document.querySelector('#gfnCards .gfn-card.selected')||document.querySelector('#gfnCards .gfn-card'):screen==='detail'?$('playSelected'):null;
  (preferred&&options.includes(preferred)?preferred:options[0])?.focus({preventScroll:true});
- if(preferred?.classList.contains('game-card'))syncSelectedCard(true);
+ if(screen==='library'&&preferred?.classList.contains('game-card'))syncSelectedCard(true);
+ if(screen==='gfn'&&preferred?.classList.contains('gfn-card'))gfnSelect(preferred.dataset.gfn,true);
 }
 function navSpatial(dir){
  if(!$('mediaViewer').hidden){if(dir==='left')moveViewer(-1);else if(dir==='right')moveViewer(1);return;}
+ if(screen==='gfn'&&!modal&&['left','right'].includes(dir)){
+  const active=document.activeElement;
+  if(active?.closest('#gfnCards')||active?.id==='gfnPlay'){gfnMove(dir==='right'?1:-1);return;}
+ }
+ if(screen==='gfn'&&!modal&&dir==='down'&&!document.activeElement?.closest('#gfnCards')){
+  const card=[...$('gfnCards').querySelectorAll('.gfn-card')].find(x=>x.dataset.gfn===gfnSelected)||$('gfnCards').querySelector('.gfn-card');
+  if(card){card.focus({preventScroll:true});gfnSelect(card.dataset.gfn,true);return;}
+ }
  if(screen==='detail'&&!modal&&['left','right'].includes(dir)&&document.activeElement?.closest('#detailShots')){galleryMove(dir==='right'?1:-1);return;}
  const opts=padControls();if(!opts.length)return;
  const active=document.activeElement;
@@ -1106,6 +1132,14 @@ function moveCarousel(delta){
  card?.focus({preventScroll:true});
 }
 $('gameCards').addEventListener('scroll',()=>{clearTimeout(deckScrollTimer);deckScrollTimer=setTimeout(selectCenteredCard,105)},{passive:true});
+$('gfnCards').addEventListener('scroll',()=>{clearTimeout(gfnCenterTimer);gfnCenterTimer=setTimeout(gfnSelectCentered,115)},{passive:true});
+$('gfnView').addEventListener('wheel',e=>{
+ if(screen!=='gfn'||modal||e.target.closest('input,select,textarea'))return;
+ const root=$('gfnCards');if(!root||root.scrollWidth<=root.clientWidth+1)return;
+ const delta=Math.abs(e.deltaX)>Math.abs(e.deltaY)?e.deltaX:e.deltaY;
+ if(!delta)return;
+ e.preventDefault();root.scrollBy({left:delta*1.4,behavior:'auto'});
+},{passive:false});
 $('gameCards').addEventListener('wheel',e=>{if(screen!=='library')return;if(Math.abs(e.deltaY)>Math.abs(e.deltaX)){e.preventDefault();$('gameCards').scrollBy({left:e.deltaY*1.4,behavior:'auto'})}},{passive:false});
 $('layoutChoice').onchange=()=>applyLayout($('layoutChoice').value);$('layoutToggle').onclick=()=>applyLayout('carousel');function applyLayout(value){libraryLayout='carousel';localStorage.setItem('elmo-layout','carousel');$('layoutChoice').value='carousel';renderLibrary();syncSelectedCard(true);notify('Home layout: single cinematic carousel')}
 let updateReady=false;
