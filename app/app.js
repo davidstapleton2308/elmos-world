@@ -279,11 +279,17 @@ let gfnAutoSyncAttempted=false;
 const gfnItems=()=>state.gfnGames||[];
 const gfnNormalize=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
 function gfnArtFor(g,slot){
- const cached=g.images||{}; if(slot==='portrait'&&cached.portrait)return cached.portrait; if(slot!=='portrait'&&cached.hero)return cached.hero;
+ const cached=g.images||{};
  const local=(state.games||[]).find(x=>gfnNormalize(x.name)===gfnNormalize(g.name));
- if(local){const url=art(local,slot==='portrait'?'portrait':'hero')||art(local,'wide');if(url)return url;}
- if(g.steamId){const id=encodeURIComponent(g.steamId);return slot==='portrait'?`https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/${id}/library_600x900.jpg`:`https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/${id}/library_hero.jpg`;}
- return slot==='portrait'?(cached.hero||''):(cached.portrait||'');
+ if(slot==='portrait'){
+  // A true portrait cover takes priority over the NVIDIA widescreen tile.
+  if(local){const cover=art(local,'portrait');if(cover)return cover;}
+  if(g.steamId)return `https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/${encodeURIComponent(g.steamId)}/library_600x900.jpg`;
+  return cached.portrait||cached.hero||(local&&(art(local,'hero')||art(local,'wide')))||'';
+ }
+ if(local){const wide=art(local,'hero')||art(local,'wide');if(wide)return wide;}
+ if(g.steamId)return `https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/${encodeURIComponent(g.steamId)}/library_hero.jpg`;
+ return cached.hero||cached.portrait||(local&&art(local,'portrait'))||'';
 }
 function gfnSelectedItem(){return gfnItems().find(x=>x.id===gfnSelected)||null;}
 function gfnCenterCard(card){
@@ -308,7 +314,7 @@ function gfnSelect(id,center=false){
  const g=gfnItems().find(x=>x.id===id);if(!g)return;
  gfnSelected=id;localStorage.setItem('elmo-gfn-selected',id);
  const hero=gfnArtFor(g,'hero');
- $('gfnHero').style.backgroundImage=hero?`linear-gradient(90deg,#0a1110 0%,rgba(10,17,16,.86) 27%,rgba(10,17,16,.13) 84%),url("${hero}")`:'';
+ $('gfnHero').style.backgroundImage=hero?`linear-gradient(90deg,rgba(5,8,9,.9),rgba(5,8,9,.42) 43%,rgba(5,8,9,.05) 80%),linear-gradient(0deg,rgba(5,8,9,.66),transparent 52%),url("${hero}")`:'';
  $('gfnHeroTitle').textContent=g.name;
  $('gfnHeroText').textContent=(g.store?g.store+' · ':'')+(g.directLaunch?'GeForce NOW · Direct cloud game launch':g.synced?'Synced My Library · Opens GeForce NOW app':'Shortcut missing · Reimport to play');
  $('gfnPlay').textContent=g.directLaunch?'▶ Play on GeForce NOW':g.synced?'▶ Open in GeForce NOW':'Shortcut unavailable';
@@ -324,7 +330,7 @@ function renderGfn(){
  const root=$('gfnCards');
  root.innerHTML=games.map(g=>{
  const image=gfnArtFor(g,'portrait');const monogram=esc(g.name.slice(0,2).toUpperCase());
- return `<button class="gfn-card" data-gfn="${esc(g.id)}"><span class="gfn-poster">${image?`<img loading="lazy" decoding="async" src="${esc(image)}" alt="" onerror="this.style.display='none'">`:''}<span class="gfn-monogram">${monogram}</span></span><strong>${esc(g.name)}</strong><small>${esc(g.store||'GEFORCE NOW')+' · '+(g.directLaunch?'DIRECT PLAY':g.synced?'SYNCED':'SHORTCUT MISSING')}</small></button>`;
+ return `<button class="gfn-card" data-gfn="${esc(g.id)}"><span class="gfn-poster">${image?`<img loading="lazy" decoding="async" src="${esc(image)}" alt="" onerror="this.hidden=true">`:''}<span class="gfn-monogram">${monogram}</span></span><strong>${esc(g.name)}</strong><small>${esc(g.store||'GEFORCE NOW')+' · '+(g.directLaunch?'DIRECT PLAY':g.synced?'SYNCED':'SHORTCUT MISSING')}</small></button>`;
  }).join('')||'<div class="gfn-empty">No cloud games synced yet. Open GeForce NOW My Library, scroll through it, then select Sync My Library.</div>';
  for(const card of root.querySelectorAll('.gfn-card')){
   const poster=card.querySelector('.gfn-poster');const game=gfnItems().find(x=>x.id===card.dataset.gfn);
