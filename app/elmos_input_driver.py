@@ -27,7 +27,8 @@ def is_installed():
     try:
         p=subprocess.run(['sc.exe','query','ViGEmBus'], capture_output=True,
                          text=True,timeout=5,creationflags=hidden)
-        return p.returncode == 0 and 'SERVICE_NAME:' in p.stdout.upper() and 'VIGEMBUS' in p.stdout.upper()
+        output = (p.stdout or '').upper()
+        return p.returncode == 0 and 'SERVICE_NAME:' in output and 'VIGEMBUS' in output
     except (OSError,subprocess.SubprocessError):
         return False
 
