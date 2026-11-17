@@ -25,12 +25,12 @@ jobs:
           python-version: '3.12'
       - name: Syntax-check native input and launcher
         run: python -m compileall -q app tests
-      - name: Test DS4 Xbox 360 runtime and Elmos lifecycle
+      - name: Test native Xbox mapping and Elmos-owned runtime
         shell: pwsh
         run: |
           python -m unittest discover -s tests -p test_elmos_native_input.py -v
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -c "from pathlib import Path; p=Path('app/server.py').read_text(); assert 'ds4_engine.start()' in p; assert 'native_input.start()' not in p; assert 'ds4_engine.stop(' in p"
+          python -c "from pathlib import Path; p=Path('app/server.py').read_text(); assert 'native_input.start()' in p; assert 'ds4_engine.start()' not in p; assert 'native_input.stop(' in p"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Check entire launcher regression suite
         run: python -m unittest discover -s tests -p "test_*.py"
