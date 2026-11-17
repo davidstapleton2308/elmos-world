@@ -19,6 +19,25 @@ class NativeInputTests(unittest.TestCase):
         pad.left_joystick_float.assert_called_once_with(x_value_float=0.5,y_value_float=0.25)
         pad.right_joystick_float.assert_called_once_with(x_value_float=-0.3,y_value_float=-0.9)
         pad.update.assert_called_once_with()
+    def test_windows_ps4_controller_name_bridges_mapped_sdl(self):
+        frame=n.frame_from_snapshot(dict(
+            connected=True, mode='mapped SDL', name='PS4 Controller',
+            buttons={'a':True, 'b':True, 'guide':True},
+            axes=[.25,-.5,-.75,.5],triggers=[0.,1.]))
+        self.assertIsNotNone(frame)
+        self.assertEqual(frame['name'], 'PS4 Controller')
+        self.assertIn('XUSB_GAMEPAD_A', frame['buttons'])
+        self.assertIn('XUSB_GAMEPAD_B', frame['buttons'])
+        self.assertIn('XUSB_GAMEPAD_GUIDE', frame['buttons'])
+        self.assertEqual(frame['axes'], [.25,-.5,-.75,.5])
+        self.assertEqual(frame['triggers'], [0.,1.])
+
+    def test_ps4_like_virtual_device_names_are_rejected(self):
+        for name in ('PS4 Controller ViGEm', 'PS4 Controller VIIPER', 'Xbox PS4 Controller'):
+            self.assertIsNone(n.frame_from_snapshot(dict(
+                connected=True,mode='mapped SDL',name=name,
+                buttons={'a':True},axes=[0,0,0,0],triggers=[0,0])))
+
     def test_no_virtual_feedback_loop(self):
         self.assertIsNone(n.frame_from_snapshot(dict(connected=True,mode='mapped SDL',name='Xbox 360 Controller',axes=[0]*4)))
     def test_stick_clicks_map_to_xbox_thumb_buttons(self):
