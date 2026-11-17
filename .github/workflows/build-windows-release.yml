@@ -199,10 +199,16 @@ jobs:
           $signature = Get-AuthenticodeSignature -LiteralPath $setup
           $exeSignature = Get-AuthenticodeSignature -LiteralPath 'dist/ElmosWorld/ElmosWorld.exe'
           if ($signature.Status -ne 'Valid' -or $exeSignature.Status -ne 'Valid') {
-            Write-Host 'NO RELEASE: Windows installer and bundled app need trusted Authenticode signatures.'
-            Write-Host 'A successful GitHub smoke test does not establish Smart App Control compatibility.'
-            Write-Host 'Configure CA-backed signing, then publish a verified signed release.'
-            exit 0
+            Write-Warning 'UNSIGNED PERSONAL BUILD: Smart App Control will likely block this release.'
+            Write-Warning 'Use only on a personal Windows PC whose owner knowingly accepts unsigned apps.'
+            Write-Warning 'Do not mistake the SHA-256 checksum for a trusted code-signing identity.'
+            $notes = 'dist_setup/RELEASE_NOTES.md'
+            Add-Content -LiteralPath $notes -Encoding UTF8 -Value @(
+              ''
+              'IMPORTANT: This build is unsigned. Smart App Control may block its installer or app.'
+              'This release is for the repository owner''s personal computer; it is not a trusted signed installer.'
+              'Never disable Microsoft Defender or application-control policies just to install this release.'
+            )
           }
           $checksum = "$setup.sha256"
           $portable = "dist_setup/ElmosWorld_Portable_$env:VERSION.zip"
