@@ -18,6 +18,7 @@ class ControllerMonitor:
         self.lock=threading.RLock()
         self.state=dict(available=False, connected=False, mode='none', name='', buttons={}, axes=[0,0,0,0], rawButtons=[], rawAxes=[], hats=[], devices=[], error='Starting native controller reader…')
         self.thread=None
+        self._stop=threading.Event()
         self.return_handler=None
         self.menu_input_handler=None  # foreground-independent native game-menu navigation
         self.navigation_map={'a':0,'b':1}
@@ -50,8 +51,14 @@ class ControllerMonitor:
 
     def start(self):
         if self.thread:return
+        self._stop.clear()
         self.thread=threading.Thread(target=self._loop,name='Elmos controller monitor',daemon=True)
         self.thread.start()
+    def stop(self):
+        # Stop polling during desktop shutdown; never alter physical or virtual drivers.
+        self._stop.set()
+        if self.thread and self.thread.is_alive() and threading.current_thread() is not self.thread:
+            self.thread.join(timeout=0.8)
     def snapshot(self):
         with self.lock:
             return dict({k:(dict(v) if isinstance(v,dict) else list(v) if isinstance(v,list) else v) for k,v in self.state.items()},guideIndex=self.guide_index)
@@ -73,7 +80,7 @@ class ControllerMonitor:
         names={'a':'CONTROLLER_BUTTON_A','b':'CONTROLLER_BUTTON_B','x':'CONTROLLER_BUTTON_X','y':'CONTROLLER_BUTTON_Y','up':'CONTROLLER_BUTTON_DPAD_UP','down':'CONTROLLER_BUTTON_DPAD_DOWN','left':'CONTROLLER_BUTTON_DPAD_LEFT','right':'CONTROLLER_BUTTON_DPAD_RIGHT','lb':'CONTROLLER_BUTTON_LEFTSHOULDER','rb':'CONTROLLER_BUTTON_RIGHTSHOULDER','start':'CONTROLLER_BUTTON_START','back':'CONTROLLER_BUTTON_BACK','guide':'CONTROLLER_BUTTON_GUIDE'}
         codes={n:getattr(pygame,c,getattr(controller,c,None)) for n,c in names.items()}
         try:
-            while True:
+            while not self._stop.is_set():
                 pygame.event.pump()
                 count=pygame.joystick.get_count()
                 devices=[]
