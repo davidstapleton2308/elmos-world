@@ -1,0 +1,36 @@
+name: Elmos Input Native Compatibility Tests
+
+on:
+  push:
+    branches:
+      - feature/elmos-native-input-integration
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-mapping:
+    runs-on: windows-2022
+    timeout-minutes: 12
+    env:
+      VGAMEPAD_SKIP_VIGEMBUS_INSTALL: 'true'
+      ELMOS_INPUT_DISABLE_SETUP: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Syntax-check native input and launcher
+        run: python -m compileall -q app tests
+      - name: Test native Xbox mapping and no-DS4Windows runtime
+        shell: pwsh
+        run: |
+          python -m unittest discover -s tests -p test_elmos_native_input.py -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -c "from pathlib import Path; p=Path('app/server.py').read_text(); assert 'import ds4_companion' not in p; assert 'ds4_companion.' not in p; assert 'native_input.start()' in p"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Check entire launcher regression suite
+        run: python -m unittest discover -s tests -p "test_*.py"
