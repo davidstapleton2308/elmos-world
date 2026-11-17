@@ -141,19 +141,47 @@ def launch_helper(installer, parent_pid):
         'state': 'prepared',
         'detail': 'Verified update downloaded. Starting background installer.'
     }), encoding='utf-8')
-    flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
-    worker = subprocess.Popen(
-        ['powershell.exe', '-NoLogo', '-NoProfile', '-NonInteractive',
-         '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', str(helper),
-         '-Installer', str(installer), '-ParentId', str(parent_pid),
-         '-AppExe', str(Path(sys.executable).resolve()),
-         '-LogPath', str(logfile), '-StatusPath', str(statefile)],
-        close_fds=True, creationflags=flags,
-        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    )
-    # Verify the worker survived launch before the server exits.
+    # Capture PowerShell parser/startup failures, which otherwise vanish with
+    # DEVNULL redirection and leave update.log empty.
+    diagnostic = CFG.parent / 'logs' / 'update-worker-stderr.log'
+    diagnostic.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with diagnostic.open('ab') as errors:
+            worker = subprocess.Popen(
+                ['powershell.exe', '-NoLogo', '-NoProfile', '-NonInteractive',
+                 '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden',
+                 '-File', str(helper),
+                 '-Installer', str(installer), '-ParentId', str(parent_pid),
+                 '-AppExe', str(Path(sys.executable).resolve()),
+                 '-LogPath', str(logfile), '-StatusPath', str(statefile)],
+                close_fds=True,
+                creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
+                stdin=subprocess.DEVNULL, stdout=errors, stderr=subprocess.STDOUT,
+            )
+    except OSError as exc:
+        statefile.write_text(json.dumps({'state': 'failed', 'detail': str(exc)}), encoding='utf-8')
+        raise RuntimeError('Could not launch PowerShell update worker: ' + str(exc)) from exc
+
+    # The worker must explicitly acknowledge startup. No fixed 250 ms guess:
+    # slow process creation/antivirus scans can delay first PowerShell output.
     import time
-    time.sleep(0.25)
-    if worker.poll() is not None:
-        raise RuntimeError('Update worker immediately exited. See ' + str(logfile))
-    return worker.pid
+    deadline = time.monotonic() + 12
+    while time.monotonic() < deadline:
+        status = last_attempt() or {}
+        if status.get('state') in ('waiting', 'installing', 'complete'):
+            return worker.pid
+        if status.get('state') == 'failed' or worker.poll() is not None:
+            try:
+                details = diagnostic.read_text(encoding='utf-8-sig', errors='replace')[-2500:]
+            except OSError:
+                details = ''
+            detail = status.get('detail') or details.strip() or 'No PowerShell error text captured.'
+            raise RuntimeError('Update worker could not start: ' + detail +
+                               ' (details: ' + str(diagnostic) + ')')
+        time.sleep(0.2)
+    # If the worker never confirmed readiness, keep the launcher open and
+    # avoid silently exiting while an unknown helper is running.
+    if worker.poll() is None:
+        worker.terminate()
+    raise RuntimeError('Update worker did not confirm startup. Check ' + str(diagnostic))
+
