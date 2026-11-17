@@ -1219,8 +1219,10 @@ function setupControllerEditor(){syncNativeMenuButtons();const options=Array.fro
 }
 function renderElmosInput(r){
  if(!r)return;
- $('inputStatus').textContent=r.message+(r.device?' · '+r.device:'');
- $('inputStart').hidden=!!r.running&&!!r.connected;
+ $('inputStatus').textContent=r.message+(r.device?' · '+r.device:'')+
+  (r.virtualConnected?' · Virtual Xbox 360: active':'')+
+  (r.controllerMode?' · Physical input: '+r.controllerMode:'');
+ $('inputStart').hidden=!!r.running;
 }
 async function refreshElmosInput(){
  try{renderElmosInput(await api('/api/input-status',{}))}
