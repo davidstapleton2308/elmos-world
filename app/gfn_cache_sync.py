@@ -54,7 +54,7 @@ def extract_cached_games(data):
         if not 2 <= len(name) <= 160:
             continue
         art = {}
-        for key, url in ART.findall(head):
+        for key, url in ART.findall(part):
             value = _safe_art(url)
             if not value:
                 continue
