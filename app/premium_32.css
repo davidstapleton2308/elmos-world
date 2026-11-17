@@ -9,7 +9,7 @@
 }
 #gfnView>.gfn-hero{
  flex:1 1 auto!important;min-height:0!important;
- background-color:#101b18;background-size:cover!important;
+ background-color:#101b18;background-size:cover,cover,cover!important;
  background-position:center center!important;background-repeat:no-repeat!important;
  border:0!important;isolation:isolate;overflow:hidden;
  display:flex;align-items:flex-end;
@@ -94,6 +94,12 @@
  overflow:hidden!important;
  box-shadow:0 14px 34px rgba(0,0,0,.34)!important;
 }
+/* Use the entire frame for the selected artwork, with no letterboxed gray
+   margins. The backplate also fills when NVIDIA serves a landscape-only tile. */
+#gfnView #gfnCards .gfn-card .gfn-poster{background-size:cover!important}
+#gfnView #gfnCards .gfn-card .gfn-poster img{
+ background:transparent!important;
+}
 /* Preserve all of the cover artwork while filling the entire frame with a
    softened continuation of the same image when NVIDIA only caches wide art. */
 #gfnView #gfnCards .gfn-card .gfn-poster::before{
@@ -108,7 +114,7 @@
 }
 #gfnView #gfnCards .gfn-poster img{
  position:absolute!important;inset:0;width:100%!important;height:100%!important;
- display:block;object-fit:contain!important;object-position:center!important;
+ display:block;object-fit:cover!important;object-position:center!important;
  background:transparent!important;border:0!important;
  z-index:2;
 }
