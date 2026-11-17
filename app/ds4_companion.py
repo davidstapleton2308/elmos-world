@@ -175,7 +175,7 @@ def status():
 
 def start_existing():
     global _owned, _owned_exe, _last_error
-    if os.name!='nt':
+    if os.name!='nt' or os.environ.get('ELMOS_INPUT_DISABLE_SETUP')=='1':
         return status()
     with _lock:
         if _owned and _owned.poll() is None:
