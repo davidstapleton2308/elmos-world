@@ -15,9 +15,11 @@ datas = [(str(APP / f), '.') for f in ASSETS]
 # The native ViGEmBus kernel driver is signed and distributed by its publisher.
 # Bundle its checksum-verified installer so restricted Wi-Fi cannot block setup.
 datas.append((str(APP / 'drivers' / 'ViGEmBus_1.22.0_x64_x86_arm64.exe'), 'drivers'))
+# Official pinned archived DS4Windows 3.3.3 portable mapper; no external runtime download.
+datas.append((str(APP / 'engines' / 'ds4windows-3-3-3.zip'), 'engines'))
 binaries = []
 hiddenimports = [
-    'server', 'update_center', 'backend', 'gfn_cache_sync', 'elmos_native_input', 'elmos_input_driver', 'game_media', 'game_descriptions', 'game_discovery',
+    'server', 'update_center', 'backend', 'elmos_ds4_engine', 'gfn_cache_sync', 'elmos_native_input', 'elmos_input_driver', 'game_media', 'game_descriptions', 'game_discovery',
     'game_uninstall', 'geforce_library', 'gfn_artwork', 'steam_core', 'provider_adapters',
     'controller_input', 'native_game_menu', 'smart_discovery', 'game_metadata', 'tkinter', 'tkinter.filedialog',
     'webview.platforms.winforms', 'webview.platforms.edgechromium',
