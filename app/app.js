@@ -278,7 +278,7 @@ let gfnSelected=localStorage.getItem('elmo-gfn-selected')||'',gfnCenterTimer=nul
 const gfnItems=()=>state.gfnGames||[];
 const gfnNormalize=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
 function gfnArtFor(g,slot){
- const cached=g.images||{}; if(slot==='portrait'&&cached.portrait)return cached.portrait; if(slot!=='portrait'&&cached.hero)return cached.hero;
+ const cached=g.images||{}; if(slot==='portrait'&&(cached.portrait||cached.hero))return cached.portrait||cached.hero; if(slot!=='portrait'&&(cached.hero||cached.portrait))return cached.hero||cached.portrait;
  const local=(state.games||[]).find(x=>gfnNormalize(x.name)===gfnNormalize(g.name));
  if(local){const url=art(local,slot==='portrait'?'portrait':'hero')||art(local,'wide');if(url)return url;}
  if(g.steamId){const id=encodeURIComponent(g.steamId);return slot==='portrait'?`https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/${id}/library_600x900.jpg`:`https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/${id}/library_hero.jpg`;}
