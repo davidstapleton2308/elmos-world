@@ -8,3 +8,5 @@ Pillow>=11,<13
 
 # ViGEmClient feeder; Elmos owns mapping and the virtual Xbox 360 target.
 vgamepad>=0.1.0,<1
+# Install vgamepad with VGAMEPAD_SKIP_VIGEMBUS_INSTALL=true;
+# Elmos owns explicit signed-driver setup after its own installed-driver check.
