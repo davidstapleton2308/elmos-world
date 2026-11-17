@@ -361,7 +361,25 @@ function gfnManage(){
  });
 }
 function gfnMove(delta){const games=gfnItems();if(!games.length)return;const i=Math.max(0,games.findIndex(x=>x.id===gfnSelected));const g=games[Math.max(0,Math.min(games.length-1,i+delta))];gfnSelect(g.id,true);const c=[...$('gfnCards').querySelectorAll('.gfn-card')].find(x=>x.dataset.gfn===g.id);c?.focus({preventScroll:true});}
-function renderEmulators(){const em=Object.entries(state.emulators||{});$('emulatorCards').innerHTML=em.length?em.map(([id,v])=>`<div class="list-row"><div><strong>${esc(v.name)}</strong><small>${esc(v.platform)} · ${esc(v.exe)}</small></div><span class="tag">CONNECTED</span></div>`).join(''):'<div class="setting-note">No emulators yet. Connect Xenia Canary for your SSX ISO.</div>';$('romCards').innerHTML=state.games.filter(g=>g.type==='rom'&&!g.hidden).map(g=>`<div class="list-row"><div><strong>${esc(g.name)}</strong><small>${esc(g.gamefile)}</small></div><button class="add-btn" data-rom="${esc(g.id)}">View game →</button></div>`).join('')||'<div class="setting-note">No ISO or ROM entries yet. Add one above to launch through your configured emulator.</div>';document.querySelectorAll('[data-rom]').forEach(e=>e.onclick=()=>details(e.dataset.rom))}
+function renderEmulators(){
+ const em=Object.entries(state.emulators||{});
+ $('emulatorCards').innerHTML=em.length?'<div class="emu-library-grid">'+em.map(([id,e])=>'<button class="emu-library-card" data-emulator="'+esc(id)+'"><span class="emu-library-symbol">◈</span><span class="emu-library-status">CONNECTED</span><strong>'+esc(e.name)+'</strong><span class="emu-library-platform">'+esc(e.platform)+'</span><span class="emu-library-count">'+state.games.filter(g=>g.type==='rom'&&!g.hidden&&g.emulator===id).length+' games</span><span class="emu-library-open">Manage games →</span></button>').join('')+'</div>':'<div class="setting-note">No emulators yet. Add one to get started.</div>';
+ $('romCards').innerHTML=state.games.filter(g=>g.type==='rom'&&!g.hidden).map(g=>'<div class="list-row"><div><strong>'+esc(g.name)+'</strong><small>'+esc(state.emulators[g.emulator]?.name||'Emulator missing')+' · '+esc(g.gamefile)+'</small></div><button class="add-btn" data-rom="'+esc(g.id)+'">Configure →</button></div>').join('')||'<div class="setting-note">No ISO / ROM games yet.</div>';
+ document.querySelectorAll('[data-emulator]').forEach(x=>x.onclick=()=>manageEmulator(x.dataset.emulator));
+ document.querySelectorAll('[data-rom]').forEach(x=>x.onclick=()=>details(x.dataset.rom));
+}
+function manageEmulator(id){
+ const e=state.emulators[id];if(!e)return;
+ const games=state.games.filter(g=>g.type==='rom'&&!g.hidden);
+ const own=games.filter(g=>g.emulator===id),other=games.filter(g=>g.emulator!==id);
+ const existing=own.map(g=>'<button class="option" data-emugame="'+esc(g.id)+'"><span><b>'+esc(g.name)+'</b><small>'+esc(g.gamefile)+'</small></span>Configure →</button>').join('')||'<p>No games assigned yet.</p>';
+ const picker=other.length?'<div class="config-inline"><select id="assignExistingRom"><option value="">Choose imported game…</option>'+other.map(g=>'<option value="'+esc(g.id)+'">'+esc(g.name)+'</option>').join('')+'</select><button class="add-btn" id="assignRomNow">Assign</button></div>':'<p>No other imported emulated games available.</p>';
+ dialog(e.name,'EMULATOR LIBRARY','<div class="emu-manage-heading"><span class="emu-library-symbol">◈</span><div><strong>'+esc(e.platform)+'</strong><small>'+esc(e.exe)+'</small></div></div><p>Assign games to this emulator without moving or deleting files.</p><div class="emu-manage-label">ASSIGNED GAMES · '+own.length+'</div>'+existing+'<div class="emu-manage-label">ASSIGN IMPORTED ISO / ROM</div>'+picker+'<div class="dialog-actions"><button class="btn-primary" id="emuAddRom">＋ Add ISO / ROM</button><button class="btn-quiet" id="emuClose">Close</button></div>');
+ document.querySelectorAll('[data-emugame]').forEach(x=>x.onclick=()=>{closeDialog();details(x.dataset.emugame)});
+ if($('assignRomNow'))$('assignRomNow').onclick=async()=>{const gameid=$('assignExistingRom').value;if(!gameid)return notify('Choose a game first.',true);if(await safe(()=>api('/api/rom-emulator',{id:gameid,emulator:id}))){await reload(true);manageEmulator(id);notify('Emulator assigned. Artwork and title preserved.');}};
+ $('emuAddRom').onclick=()=>addRom(id);
+ $('emuClose').onclick=closeDialog;
+}
 function open(name){
  const previous=screen;
  if(previous!==name)menuSound();
