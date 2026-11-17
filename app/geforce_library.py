@@ -104,7 +104,7 @@ def direct_route(variant_id, short_name, parent_game_id=''):
     from urllib.parse import quote
     if not re.fullmatch(r'[0-9]{1,18}', str(variant_id or '')):
         raise ValueError('Missing or invalid GeForce NOW CMS game ID.')
-    if not re.fullmatch(r'[A-Za-z0-9_.-]{1,140}', str(short_name or '')):
+    if not re.fullmatch(r'[A-Za-z0-9_ .-]{1,140}', str(short_name or '')):
         raise ValueError('Missing or invalid NVIDIA shortName. Refresh My Library.')
     parent = str(parent_game_id or '')
     if parent and not re.fullmatch(r'[a-fA-F0-9-]{36}', parent):
