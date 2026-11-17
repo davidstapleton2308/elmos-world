@@ -340,10 +340,9 @@ async function gfnEnhanceCovers(){
  const pending=gfnItems().filter(g=>!g.artChecked);if(!pending.length)return;
  pending.sort((a,b)=>Number(b.id===gfnSelected)-Number(a.id===gfnSelected));
  gfnArtEnrichBusy=true;
- try{
-  // The cloud game list stays playable while exact-title artwork is looked up.
-  for(const item of pending){
-   if(screen!=='gfn')break;
+ const worker=async()=>{
+  while(screen==='gfn'&&pending.length){
+   const item=pending.shift();
    try{
     const result=await api('/api/gfn-polish-art',{id:item.id});
     if(!result?.ok)continue;
@@ -353,8 +352,12 @@ async function gfnEnhanceCovers(){
     const card=[...$('gfnCards').querySelectorAll('.gfn-card')].find(c=>c.dataset.gfn===item.id);
     if(card)gfnDecoratePoster(card,current);
     if(gfnSelected===item.id)gfnSelect(item.id,false);
-   }catch(e){/* Keep the NVIDIA fallback art when a provider is unavailable. */}
+   }catch(e){/* Keep cached NVIDIA art when a public provider is unavailable. */}
   }
+ };
+ try{
+  // Three small concurrent artwork searches keep the user interface responsive.
+  await Promise.all([worker(),worker(),worker()]);
  }finally{gfnArtEnrichBusy=false}
 }
 function gfnSelectedItem(){return gfnItems().find(x=>x.id===gfnSelected)||null;}
