@@ -39,6 +39,61 @@ def single_instance():
     return ctypes.get_last_error() != 183  # ERROR_ALREADY_EXISTS
 
 
+
+def restore_existing_window():
+    """An explicit second launch should bring the existing desktop shell forward.
+
+    Only target Elmos's exact window title. Never terminate another process and
+    never delete a guessed PID/lock file.
+    """
+    if os.name != 'nt':
+        return False
+    from ctypes import wintypes
+    user32 = ctypes.WinDLL('user32', use_last_error=True)
+    title = 'Elmos World · Tinkle_0nMe_Elmo'
+    matches = []
+    enum_proc = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    user32.EnumWindows.argtypes = (enum_proc, wintypes.LPARAM)
+    user32.EnumWindows.restype = wintypes.BOOL
+    user32.GetWindowTextLengthW.argtypes = (wintypes.HWND,)
+    user32.GetWindowTextLengthW.restype = ctypes.c_int
+    user32.GetWindowTextW.argtypes = (wintypes.HWND, ctypes.c_wchar_p, ctypes.c_int)
+    user32.GetWindowTextW.restype = ctypes.c_int
+    user32.ShowWindow.argtypes = (wintypes.HWND, ctypes.c_int)
+    user32.SetForegroundWindow.argtypes = (wintypes.HWND,)
+    user32.SetForegroundWindow.restype = wintypes.BOOL
+    user32.IsWindow.argtypes = (wintypes.HWND,)
+    user32.IsWindow.restype = wintypes.BOOL
+
+    @enum_proc
+    def found(hwnd, _):
+        length = user32.GetWindowTextLengthW(hwnd)
+        if length < 5 or length > 250:
+            return True
+        buffer = ctypes.create_unicode_buffer(length + 1)
+        user32.GetWindowTextW(hwnd, buffer, len(buffer))
+        if buffer.value == title:
+            matches.append(hwnd)
+            return False
+        return True
+
+    user32.EnumWindows(found, 0)
+    if not matches or not user32.IsWindow(matches[0]):
+        return False
+    hwnd = matches[0]
+    user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+    user32.SetForegroundWindow(hwnd)
+    return True
+
+
+def release_single_instance():
+    """Close only the handle owned by this process; Windows owns mutex cleanup."""
+    global _mutex_handle
+    if _mutex_handle and os.name == 'nt':
+        ctypes.WinDLL('kernel32', use_last_error=True).CloseHandle(_mutex_handle)
+        _mutex_handle = None
+
+
 def _notify(text):
     if os.name == 'nt':
         ctypes.windll.user32.MessageBoxW(None, str(text), APP_TITLE, 0x40)
@@ -75,7 +130,11 @@ def start():
                 traceback.print_exc(file=stream)
             return 2
     if not single_instance():
-        _notify('Elmos World is already running. Use the existing launcher window or the PS menu.')
+        if not restore_existing_window():
+            _notify('Elmos World is still running in the background, but its window could not be found.\n\n'
+                    'To recover, open Task Manager > Details, find ElmosWorld.exe, '
+                    'and End task for that exact process. Then open Elmos World again.\n\n'
+                    'Your games and settings will not be deleted.')
         return 0
 
     path = log_path()
@@ -94,6 +153,7 @@ def start():
             return 1
         finally:
             sys.stdout, sys.stderr = previous_out, previous_err
+            release_single_instance()
 
 
 if __name__ == '__main__':
