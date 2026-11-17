@@ -171,6 +171,14 @@ jobs:
         run: |
           $setup = (Resolve-Path "dist_setup/ElmosWorld_Setup_$env:VERSION.exe").Path
           $installedApp = Join-Path $env:LOCALAPPDATA 'Programs/Elmos World/ElmosWorld.exe'
+          # The prior installer test deliberately relaunched Elmos World.
+          # The real application's Update & Restart closes it before upgrade.
+          # Reproduce that handoff by closing ONLY runner-created Elmos processes.
+          Get-Process -Name ElmosWorld -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          Start-Sleep -Seconds 2
+          if (Get-Process -Name ElmosWorld -ErrorAction SilentlyContinue) {
+            throw 'Previous Elmos World process is still running on the CI machine.'
+          }
           python build/test_detached_worker.py $setup $installedApp
           if ($LASTEXITCODE -ne 0) { throw 'Actual hidden background update process failed.' }
 
