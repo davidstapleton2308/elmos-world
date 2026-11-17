@@ -87,7 +87,7 @@ jobs:
         shell: pwsh
         run: |
           ./build/prepare_elmos_input.ps1
-          if ($LASTEXITCODE -ne 0) { throw 'Elmos Input bundle staging failed.' }
+          if (-not (Test-Path 'build/vendor/ElmosInput/ELMOS_INPUT_MANIFEST.json')) { throw 'Elmos Input bundle staging failed.' }
 
       - name: Compile desktop application
         shell: pwsh
