@@ -21,6 +21,11 @@ class NativeInputTests(unittest.TestCase):
         pad.update.assert_called_once_with()
     def test_no_virtual_feedback_loop(self):
         self.assertIsNone(n.frame_from_snapshot(dict(connected=True,mode='mapped SDL',name='Xbox 360 Controller',axes=[0]*4)))
+    def test_stick_clicks_map_to_xbox_thumb_buttons(self):
+        frame=n.frame_from_snapshot(dict(connected=True,mode='mapped SDL',name='Wireless Controller',
+            buttons={'l3':True,'r3':True},axes=[0,0,0,0]))
+        self.assertIn('XUSB_GAMEPAD_LEFT_THUMB',frame['buttons'])
+        self.assertIn('XUSB_GAMEPAD_RIGHT_THUMB',frame['buttons'])
     def test_disconnect_is_neutral(self):
         self.assertIsNone(n.frame_from_snapshot(dict(connected=False,mode='mapped SDL',name='Wireless Controller')))
     def test_require_mapped_sony(self):
