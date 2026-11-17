@@ -155,7 +155,10 @@ def launch_helper(installer, parent_pid):
                  '-AppExe', str(Path(sys.executable).resolve()),
                  '-LogPath', str(logfile), '-StatusPath', str(statefile)],
                 close_fds=True,
-                creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
+                # DETACHED_PROCESS removes standard handles and can make
+                # PowerShell exit before logging. CREATE_NO_WINDOW avoids a
+                # visible console while preserving diagnostic output handles.
+                creationflags=subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP,
                 stdin=subprocess.DEVNULL, stdout=errors, stderr=subprocess.STDOUT,
             )
     except OSError as exc:
@@ -183,5 +186,7 @@ def launch_helper(installer, parent_pid):
     # avoid silently exiting while an unknown helper is running.
     if worker.poll() is None:
         worker.terminate()
-    raise RuntimeError('Update worker did not confirm startup. Check ' + str(diagnostic))
+    detail = 'Update worker did not confirm startup after 12 seconds. Check ' + str(diagnostic)
+    statefile.write_text(json.dumps({'state': 'failed', 'detail': detail}), encoding='utf-8')
+    raise RuntimeError(detail)
 
