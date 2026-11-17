@@ -139,6 +139,8 @@ class GfnCachedLibraryTests(unittest.TestCase):
         spec=(ROOT/'build'/'ElmosWorld.spec').read_text(encoding='utf-8')
         self.assertIn('premium_32.css', html)
         self.assertIn('premium_32.css', spec)
+        server=(ROOT/'app'/'server.py').read_text(encoding='utf-8')
+        self.assertIn("u.path=='/premium_32.css'", server)
         self.assertIn('var(--deck-width', css)
         self.assertIn('scroll-snap-align:center', css)
         self.assertIn('object-fit:contain!important', css)
