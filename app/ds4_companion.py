@@ -70,7 +70,8 @@ def status():
                 'exeFound':bool(exe),'viiperRunning':viiper,
                 'backend':'existing installation, unchanged',
                 'message':_last_error if _last_error else (
-                   'Using existing DS4Windows; no duplicate launched' if running and not owned
+                   'Existing VIIPER virtual-controller backend detected; untouched' if viiper and not running
+                   else 'Using existing DS4Windows; no duplicate launched' if running and not owned
                    else 'Elmos World started your existing DS4Windows installation' if owned
                    else 'DS4Windows found; ready for Elmos to open it' if exe
                    else 'DS4Windows was not located in standard folders. Existing controller drivers were not modified.'
@@ -83,7 +84,9 @@ def start_existing():
     with _lock:
         if _owned and _owned.poll() is None:
             return status()
-        if _running_named('DS4Windows.exe'):
+        if _running_named('DS4Windows.exe') or _running_named('viiper.exe'):
+            # VIIPER is a separate backend, not a request to launch a
+            # possibly incompatible classic ViGEmBus mapper alongside it.
             _last_error=''
             return status()
         exe=existing_executable()
