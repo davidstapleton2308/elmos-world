@@ -145,7 +145,6 @@ class NativeInput:
             pad.update()
             last_neutral = True
             while not self._stop.is_set():
-                frame = frame_from_snapshot(self.source.snapshot())
                 source = self.source.snapshot()
                 frame = frame_from_snapshot(source)
                 detected = bool(source.get('connected'))
