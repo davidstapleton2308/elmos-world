@@ -123,7 +123,166 @@ jobs:
           if ($hash -ne 'cf5619bcb51b82e4e1765276e9f67fb1e2d23dff968a653657acf35bafff8bf4') {
             throw 'DS4Windows ZIP checksum mismatch. Refusing to package unverified executable.'
           }
-          Write-Host 'DS4Windows 3.3.3 archive verified. Installer will bundle mapper but will not execute it in CI.'
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $archive = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $zip).Path)
+          try {
+            $entry = $archive.Entries | Where-Object { $_.FullName -match '(^|/)DS4Windows.exe
+
+      - name: Compile desktop application
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --distpath dist --workpath build/work build/ElmosWorld.spec
+          if ($LASTEXITCODE -ne 0) { throw 'PyInstaller failed.' }
+          if (!(Test-Path dist/ElmosWorld/ElmosWorld.exe)) { throw 'Standalone executable missing.' }
+
+      - name: Verify executable is a genuine GUI application
+        shell: pwsh
+        run: |
+          python build/verify_windows_gui.py dist/ElmosWorld/ElmosWorld.exe
+          if ($LASTEXITCODE -ne 0) { throw 'Windows GUI subsystem verification failed.' }
+
+      - name: Smoke-test standalone GUI executable
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path 'dist/ElmosWorld/ElmosWorld.exe').Path
+          $selfTest = Start-Process -FilePath $exe -ArgumentList '--self-test' -Wait -PassThru
+          if ($selfTest.ExitCode -ne 0) { throw "Bundled GUI executable smoke-test failed with exit code $($selfTest.ExitCode)." }
+
+      - name: Preserve executable test diagnostic log
+        if: failure()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path diagnostics -Force | Out-Null
+          $log = Join-Path $env:LOCALAPPDATA 'ElmosWorld/logs/launcher.log'
+          if (Test-Path $log) {
+            Copy-Item $log diagnostics/launcher.log
+          } else {
+            Set-Content diagnostics/launcher.log 'No application diagnostic log found.'
+          }
+
+      - name: Upload diagnostic log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ElmosWorld-Diagnostics
+          path: diagnostics/launcher.log
+          if-no-files-found: warn
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          if ($LASTEXITCODE -ne 0) { throw 'Inno Setup installation failed.' }
+
+      - name: Compile Windows installer
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.release_version.outputs.version }}
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (!(Test-Path $iscc)) { throw 'Inno Setup compiler missing.' }
+          & $iscc build\ElmosWorld.iss
+          if ($LASTEXITCODE -ne 0) { throw 'Installer compilation failed.' }
+          $setup = "dist_setup/ElmosWorld_Setup_$env:VERSION.exe"
+          if (!(Test-Path $setup)) { throw "Installer missing: $setup" }
+
+      - name: Test real installer through detached update worker
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.release_version.outputs.version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $setup = (Resolve-Path "dist_setup/ElmosWorld_Setup_$env:VERSION.exe").Path
+          $worker = (Resolve-Path 'app/apply_update.ps1').Path
+          $log = Join-Path $env:RUNNER_TEMP 'elmos-update-worker.log'
+          $status = Join-Path $env:RUNNER_TEMP 'elmos-update-status.json'
+          $installedApp = Join-Path $env:LOCALAPPDATA 'Programs/Elmos World/ElmosWorld.exe'
+          # Simulate the race: Elmos World already exited before the worker checks its PID.
+          # The worker must verify the REAL installed application, not a Windows utility.
+          & powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $worker -Installer $setup -ParentId 2147483600 -AppExe $installedApp -LogPath $log -StatusPath $status
+          if ($LASTEXITCODE -ne 0) {
+            if (Test-Path $log) { Get-Content $log }
+            throw 'Detached update worker failed to install the Windows release.'
+          }
+          $outcome = Get-Content -LiteralPath $status -Raw | ConvertFrom-Json
+          if ($outcome.state -ne 'complete') { throw "Update worker did not complete: $($outcome.detail)" }
+          $installedApp = Join-Path $env:LOCALAPPDATA 'Programs/Elmos World/ElmosWorld.exe'
+          if (-not (Test-Path -LiteralPath $installedApp)) { throw "Installer did not install the desktop app: $installedApp" }
+          $check = Start-Process -FilePath $installedApp -ArgumentList '--self-test' -Wait -PassThru
+          if ($check.ExitCode -ne 0) { throw 'Installed application failed its executable self-test.' }
+          Write-Host 'PASS: installer worker installed the update and completed.'
+      - name: Integration-test hidden PowerShell worker launched by Python app
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.release_version.outputs.version }}
+        run: |
+          $setup = (Resolve-Path "dist_setup/ElmosWorld_Setup_$env:VERSION.exe").Path
+          $installedApp = Join-Path $env:LOCALAPPDATA 'Programs/Elmos World/ElmosWorld.exe'
+          # The prior installer test deliberately relaunched Elmos World.
+          # The real application's Update & Restart closes it before upgrade.
+          # Reproduce that handoff by closing ONLY runner-created Elmos processes.
+          Get-Process -Name ElmosWorld -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          Start-Sleep -Seconds 2
+          if (Get-Process -Name ElmosWorld -ErrorAction SilentlyContinue) {
+            throw 'Previous Elmos World process is still running on the CI machine.'
+          }
+          python build/test_detached_worker.py $setup $installedApp
+          if ($LASTEXITCODE -ne 0) { throw 'Actual hidden background update process failed.' }
+
+      - name: Package portable build and SHA-256 checksum
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.release_version.outputs.version }}
+        run: |
+          $setup = "dist_setup/ElmosWorld_Setup_$env:VERSION.exe"
+          $checksum = "$setup.sha256"
+          $sha = (Get-FileHash $setup -Algorithm SHA256).Hash.ToLowerInvariant()
+          Set-Content -Path $checksum -Value "$sha  ElmosWorld_Setup_$env:VERSION.exe" -Encoding ascii
+          Compress-Archive -Path 'dist/ElmosWorld/*' -DestinationPath "dist_setup/ElmosWorld_Portable_$env:VERSION.zip" -Force
+          $subject = git log -1 --format=%s
+          @("Elmos World v$env:VERSION", "", "Changes in this build:", "- $subject", "", "Windows installer, portable ZIP, and SHA-256 checksum are included.", "Run the installer or update through Settings > Update Center.") | Set-Content 'dist_setup/RELEASE_NOTES.md' -Encoding utf8
+
+      - name: Upload downloadable build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ElmosWorld-Windows-Setup
+          path: dist_setup/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish next GitHub release
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.release_version.outputs.version }}
+        run: |
+          $tag = "v$env:VERSION"
+          $setup = "dist_setup/ElmosWorld_Setup_$env:VERSION.exe"
+          # This repository's release files are offered to Smart App Control PCs.
+          # Never publish an unsigned setup as an automatically installable update.
+          $signature = Get-AuthenticodeSignature -LiteralPath $setup
+          $exeSignature = Get-AuthenticodeSignature -LiteralPath 'dist/ElmosWorld/ElmosWorld.exe'
+          if ($signature.Status -ne 'Valid' -or $exeSignature.Status -ne 'Valid') {
+            Write-Warning 'UNSIGNED PERSONAL BUILD: Smart App Control will likely block this release.'
+            Write-Warning 'Use only on a personal Windows PC whose owner knowingly accepts unsigned apps.'
+            Write-Warning 'Do not mistake the SHA-256 checksum for a trusted code-signing identity.'
+            $notes = 'dist_setup/RELEASE_NOTES.md'
+            Add-Content -LiteralPath $notes -Encoding UTF8 -Value @(
+              ''
+              'IMPORTANT: This build is unsigned. Smart App Control may block its installer or app.'
+              'This release is for the repository owner''s personal computer; it is not a trusted signed installer.'
+              'Never disable Microsoft Defender or application-control policies just to install this release.'
+            )
+          }
+          $checksum = "$setup.sha256"
+          $portable = "dist_setup/ElmosWorld_Portable_$env:VERSION.zip"
+          gh release create "$tag" "$setup" "$checksum" "$portable" --latest --target "${{ github.sha }}" --title "Elmos World $env:VERSION" --notes-file 'dist_setup/RELEASE_NOTES.md' --repo "${{ github.repository }}"
+          if ($LASTEXITCODE -ne 0) { throw 'GitHub release publication failed.' }
+ } | Select-Object -First 1
+            if (-not $entry) { throw 'Pinned DS4Windows archive does not contain the expected DS4Windows.exe' }
+          } finally { $archive.Dispose() }
+          Write-Host 'DS4Windows 3.3.3 archive SHA-256 and expected executable verified; bundling only (no execution in CI).'
 
       - name: Compile desktop application
         shell: pwsh
