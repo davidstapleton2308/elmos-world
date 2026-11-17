@@ -749,6 +749,7 @@ class Engine:
                     'available':has_shortcut or synced,
                     'directLaunch':has_shortcut or bool(synced and v.get('shortName')),'synced':synced,
                     'store':v.get('store',''),'images':v.get('images') or {},
+                    'artwork':v.get('artwork') or {},'artChecked':bool(v.get('artLookupAt')),
                     'steamId':v.get('steamId')})
    return sorted(results,key=lambda x:(x['name'].casefold(),x['store'].casefold()))
  def gfn_sync_cache(self):
@@ -789,6 +790,33 @@ class Engine:
    return {'ok':True,'added':added,'updated':updated,
            'total':len(self.gfn_list()), 'scanned':result['scanned'],
            'message':result['message'],'games':self.gfn_list()}
+ def gfn_polish_art(self,gameid):
+  """Best-effort exact-match artwork metadata. Never updates NVIDIA or game files."""
+  from gfn_artwork import resolve_art
+  now=time.time()
+  with self.lock:
+   item=self.local.setdefault('gfnGames',{}).get(gameid)
+   if not item:raise ValueError('Cloud game not found.')
+   previous=item.get('artwork') or {}
+   # Avoid repeated external queries: successful images persist, misses retry weekly.
+   if item.get('artLookupAt') and now-float(item['artLookupAt'])<604800:
+    return {'ok':True,'id':gameid,'artwork':previous,
+            'steamId':item.get('steamId'),'cached':True}
+   name=item['name']
+   api_key=self.cfg.get('api_key','').strip()
+  resolved=resolve_art(name,api_key)
+  resolved_art={k:v for k,v in resolved.items() if k in ('portrait','hero') and isinstance(v,str)}
+  with self.lock:
+   current=self.local.setdefault('gfnGames',{}).get(gameid)
+   if not current or current.get('name')!=name:
+    return {'ok':False,'message':'Cloud game was renamed during artwork lookup.'}
+   if resolved_art:current['artwork']={**(current.get('artwork') or {}),**resolved_art}
+   if resolved.get('steamId') and not current.get('steamId'):
+    current['steamId']=int(resolved['steamId'])
+   current['artLookupAt']=now
+   self.save_local()
+   return {'ok':True,'id':gameid,'artwork':current.get('artwork') or {},
+           'steamId':current.get('steamId'),'cached':False}
  def gfn_import(self,path,title=None):
   from geforce_library import import_shortcut
   with self.lock:
