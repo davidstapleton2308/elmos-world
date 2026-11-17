@@ -145,7 +145,7 @@ class Handler(BaseHTTPRequestHandler):
     # This ends only the launcher process; game processes are not terminated.
     out={'ok':True,'quitting':True}
     def quit_after_reply():
-     try:ds4_companion.stop_owned(game_active=bool(active_game_process()))
+     try:ds4_companion.stop_owned(game_active=False)
      finally:os._exit(0)
     threading.Timer(0.75,quit_after_reply).start()
    elif action=='/api/update-config':
@@ -159,7 +159,7 @@ class Handler(BaseHTTPRequestHandler):
     out={'ok':True,'restarting':True}
     # Send the response first, then exit so the detached helper can install.
     def exit_for_update():
-     try:ds4_companion.stop_owned(game_active=bool(active_game_process()))
+     try:ds4_companion.stop_owned(game_active=False)
      finally:os._exit(0)
     threading.Timer(1.4,exit_for_update).start()
    elif action=='/api/pick':out={'path':choose_file(body.get('kind'))}
@@ -443,7 +443,8 @@ if __name__=='__main__':
  monitor.return_handler=show_game_menu
  monitor.menu_input_handler=global_native_menu.gamepad
  monitor.start()
- # Reuse the existing controller stack. Do not install/replace any kernel drivers.
+ # Prepare classic DS4Windows + ViGEmBus once if needed, then run the
+ # managed mapper alongside Elmos. On later starts, detection skips driver setup.
  threading.Thread(target=ds4_companion.start_existing,daemon=True,
                   name='Elmos DS4 companion discovery').start()
  try:
@@ -464,7 +465,7 @@ if __name__=='__main__':
    if closing.is_set():return
    closing.set()
    def finish():
-    try:ds4_companion.stop_owned(game_active=bool(active_game_process()))
+    try:ds4_companion.stop_owned(game_active=False)
     except Exception as exc:print('DS4 companion stop:',exc)
     try:server.shutdown()
     except Exception as exc:print('Server shutdown:',exc)
@@ -473,7 +474,7 @@ if __name__=='__main__':
     os._exit(0)
    threading.Thread(target=finish,daemon=True,name='Elmos close cleanup').start()
    # Bounded fallback if the underlying WebView backend deadlocks during close.
-   threading.Timer(3.0,lambda:os._exit(0)).start()
+   threading.Timer(9.0,lambda:os._exit(0)).start()
   window.events.closed += on_window_closed
   engine.on_session_exit=restore_elmos_after_game_exit
   try:webview.start(start_input_services)
@@ -484,7 +485,7 @@ if __name__=='__main__':
    except Exception:pass
    try:global_native_menu.stop()
    except Exception:pass
-   try:ds4_companion.stop_owned(game_active=bool(active_game_process()))
+   try:ds4_companion.stop_owned(game_active=False)
    except Exception:pass
   # Once the desktop GUI has returned, never leave an invisible process
   # or mutex behind because a third-party native worker is still alive.
