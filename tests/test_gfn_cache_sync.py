@@ -133,6 +133,29 @@ class GfnCachedLibraryTests(unittest.TestCase):
         self.assertTrue(result['directLaunch'])
         launch.assert_called_once()
 
+    def test_geforce_deck_uses_home_screen_dimensions_and_full_cover(self):
+        css=(ROOT/'app'/'premium_32.css').read_text(encoding='utf-8')
+        html=(ROOT/'app'/'index.html').read_text(encoding='utf-8')
+        spec=(ROOT/'build'/'ElmosWorld.spec').read_text(encoding='utf-8')
+        self.assertIn('premium_32.css', html)
+        self.assertIn('premium_32.css', spec)
+        self.assertIn('var(--deck-width', css)
+        self.assertIn('scroll-snap-align:center', css)
+        self.assertIn('object-fit:contain!important', css)
+        self.assertIn('background-image:var(--gfn-cover,none)', css)
+        self.assertIn('#gfnView>.gfn-hero', css)
+        self.assertIn('#gfnView>.gfn-bottom', css)
+
+    def test_geforce_wheel_and_controller_navigation_match_main_deck(self):
+        script=(ROOT/'app'/'app.js').read_text(encoding='utf-8')
+        self.assertIn("('gfnView').addEventListener('wheel'",script)
+        self.assertIn("('gfnCards').addEventListener('scroll'",script)
+        self.assertIn('function gfnSelectCentered()', script)
+        self.assertIn('function gfnCenterCard(card)', script)
+        self.assertIn("screen==='gfn'&&!modal&&['left','right'].includes(dir)",script)
+        self.assertNotIn('card.onpointerenter=()=>gfnSelect',script)
+        self.assertNotIn("card?.scrollIntoView({inline:'center'",script)
+
     def test_frontend_exposes_explicit_sync_without_api_signin(self):
         html=(ROOT/'app'/'index.html').read_text(encoding='utf-8')
         js=(ROOT/'app'/'app.js').read_text(encoding='utf-8')
