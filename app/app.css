@@ -686,3 +686,18 @@ html[data-screen="library"] .add-btn{padding:9px 14px;border-radius:9px;backgrou
 .smart-row strong{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .smart-row span{font-size:11px;opacity:.8}.smart-row small{grid-column:1 / -1;opacity:.7;line-height:1.4;overflow-wrap:anywhere}
 @media(max-width:750px){.smart-row{grid-template-columns:1fr}.smart-row small{grid-column:1}}
+
+/* Emulator library management — native Obsidian/Forest styling */
+.emu-library-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(235px,1fr));gap:18px;margin:20px 0 38px}
+.emu-library-card{position:relative;text-align:left;min-height:235px;display:flex;flex-direction:column;align-items:flex-start;gap:11px;padding:26px;border-radius:19px;border:1px solid #375344;background:radial-gradient(circle at 80% 12%,#28473780,transparent 55%),linear-gradient(145deg,#1d302b,#111b1d);box-shadow:0 20px 40px #0005;transition:transform .18s,border-color .18s}
+.emu-library-card:hover,.emu-library-card:focus-visible{transform:translateY(-4px);border-color:#a6e9b1}
+.emu-library-symbol{display:inline-flex;align-items:center;justify-content:center;width:54px;height:54px;border-radius:14px;background:#294936;color:#baffc8;font-size:34px}
+.emu-library-card strong{font-size:21px;letter-spacing:-.04em}
+.emu-library-platform,.emu-library-count{color:#a9bdaf;font-size:12px}
+.emu-library-open{margin-top:auto;font-weight:800;font-size:12px;color:#c1f6cc}
+.emu-library-status{position:absolute;right:18px;top:24px;color:#b0d9bb;letter-spacing:.13em;font-size:9px;font-weight:800}
+.emu-manage-heading{display:flex;gap:18px;align-items:center;border:1px solid #365545;background:#1a3027;border-radius:14px;padding:18px;margin-bottom:18px}
+.emu-manage-heading strong{display:block;font-size:16px}
+.emu-manage-heading small{display:block;color:#a0b5a8;font-size:11px;word-break:break-all;margin-top:6px}
+.emu-manage-label{color:#b6eec5;letter-spacing:2px;font-size:10px;font-weight:800;margin:24px 0 12px}
+@media(max-width:650px){.emu-library-grid{grid-template-columns:1fr}}
