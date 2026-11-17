@@ -60,10 +60,10 @@ def _candidates():
     return paths
 
 
-# Archive is from SourceForge's Ryochan7 project mirror. The fixed digest
-# matches the original Chocolatey verification of DS4Windows 3.3.3 x64.
-ARCHIVE_URL = ('https://sourceforge.net/projects/ds4windows.mirror/files/'
-               'v3.3.3/DS4Windows_3.3.3_x64.zip/download')
+# Archive is the verified ds4windowsapp GitHub Ryochan7 release asset. Its
+# GitHub asset SHA-256 matches the historical Chocolatey 3.3.3 checksum.
+ARCHIVE_URL = ('https://github.com/ds4windowsapp/DS4Windows/releases/download/'
+               'ryochan7/ds4windows-3-3-3.zip')
 ARCHIVE_SHA256 = 'cf5619bcb51b82e4e1765276e9f67fb1e2d23dff968a653657acf35bafff8bf4'
 MAX_ARCHIVE_BYTES = 12_000_000
 MAX_EXTRACT_BYTES = 110_000_000
