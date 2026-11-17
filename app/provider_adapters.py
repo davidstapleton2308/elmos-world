@@ -28,7 +28,7 @@ def providers():
    [pf86/'Steam/steam.exe',pf/'Steam/steam.exe']),
   Provider('Epic Games','Epic Launcher detection only. Manifest discovery/import requires a separate opt-in adapter.',
    [pf86/'Epic Games/Launcher/Portal/Binaries/Win64/EpicGamesLauncher.exe',pf/'Epic Games/Launcher/Portal/Binaries/Win64/EpicGamesLauncher.exe']),
-  Provider('GeForce NOW','Separate cloud shortcut collection is available; account-library sync is not implemented.',
+  Provider('GeForce NOW','GeForce NOW My Library cache sync is available in Elmos World; official account API access is not used.',
    [local/'NVIDIA Corporation/GeForceNOW/CEF/GeForceNOW.exe',pf86/'NVIDIA Corporation/GeForceNOW/CEF/GeForceNOW.exe',pf/'NVIDIA Corporation/GeForceNOW/CEF/GeForceNOW.exe',local/'NVIDIA Corporation/GeForceNOW/GeForceNOW.exe',pf86/'NVIDIA Corporation/GeForceNOW/GeForceNOW.exe',pf/'NVIDIA Corporation/GeForceNOW/GeForceNOW.exe'])
  ]
 
