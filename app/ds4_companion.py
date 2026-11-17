@@ -16,6 +16,7 @@ import io
 import os
 import subprocess
 import threading
+import sys
 from pathlib import Path
 
 _lock = threading.RLock()
@@ -142,7 +143,26 @@ def install_missing_user_component():
         if staging:
             shutil.rmtree(staging,ignore_errors=True)
 
+def bundled_executable():
+    """Controller runtime shipped with the *Elmos World* release.
+
+    This is an embedded distribution payload, not a separately downloaded
+    installer. Windows may still require a one-time signed USB/IP driver setup.
+    """
+    roots = [Path(__file__).resolve().parent / 'ElmosInput']
+    if getattr(sys, 'frozen', False):
+        roots.append(Path(sys.executable).resolve().parent / '_internal' / 'ElmosInput')
+    for root in roots:
+        if root.is_dir():
+            matches = [p for p in root.rglob('DS4Windows.exe') if p.is_file()]
+            if len(matches) == 1:
+                return matches[0]
+    return None
+
 def existing_executable():
+    shipped = bundled_executable()
+    if shipped:
+        return shipped
     for p in _candidates():
         if p.is_file():
             return p
@@ -164,7 +184,7 @@ def status():
         return {'available':os.name=='nt',
                 'running':running or owned,'startedByElmos':owned,
                 'exeFound':bool(exe),'viiperRunning':viiper,
-                'backend':'existing installation, unchanged',
+                'backend':'bundled VIIPER runtime' if bundled_executable() else 'existing installation, unchanged',
                 'message':_last_error if _last_error else (
                    'Existing VIIPER virtual-controller backend detected; untouched' if viiper and not running
                    else 'Using existing DS4Windows; no duplicate launched' if running and not owned
@@ -187,26 +207,20 @@ def start_existing():
             return status()
         exe=existing_executable()
         if not exe:
-            try:
-                install_missing_user_component()
-                exe=existing_executable()
-            except (OSError,ValueError,zipfile.BadZipFile) as exc:
-                _last_error='Verified DS4Windows download unavailable: '+str(exc)[:160]
-                return status()
-        if not exe:
-            _last_error='Controller executable unavailable; drivers were left unchanged.'
+            # Never download a controller application or elevate a driver
+            # implicitly just because the player opened Elmos World.
+            _last_error='No bundled controller runtime was found; existing controller devices are unchanged.'
             return status()
-        # With classic 3.3.3 use its matching ViGEmBus 1.22 bus, but never
-        # replace an existing VIIPER/USB-IP controller stack.
-        from elmos_input_driver import install_if_missing
-        try:
-            driver=install_if_missing()
-        except (OSError,ValueError) as exc:
-            _last_error='Could not prepare verified driver: '+str(exc)[:160]
-            return status()
-        if driver['status'] not in ('already-installed','installed'):
-            _last_error='Controller driver is not ready ('+driver['status']+'). '+driver.get('message','Windows might require a restart.')
-            return status()
+        shipped=bundled_executable()
+        if shipped is None:
+            # An installed external mapper may already have its driver.
+            # Do not install the retired ViGEmBus during a routine game launch.
+            _last_error=''
+        else:
+            # The matching VIIPER backend/USB-IP driver payload accompanies
+            # the shipped runtime. First-time driver setup is explicitly
+            # handled by upstream Windows setup; it cannot bypass UAC.
+            _last_error=''
         # Start the preserved classic mapper only after its virtual output bus is ready.
         try:
             _owned=subprocess.Popen([str(exe)],cwd=str(exe.parent),
