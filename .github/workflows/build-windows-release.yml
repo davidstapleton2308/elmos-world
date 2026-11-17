@@ -12,9 +12,11 @@ on:
 permissions:
   contents: write
 
+# Keep production releases serialized, but never let an old experimental
+# driver/dependency build block testing newer controller code.
 concurrency:
-  group: elmos-world-public-release
-  cancel-in-progress: false
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   windows-installer:
