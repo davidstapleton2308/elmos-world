@@ -292,7 +292,7 @@ function gfnSelect(id,center=false){
  const hero=gfnArtFor(g,'hero');
  $('gfnHero').style.backgroundImage=hero?`linear-gradient(90deg,#0a1110 0%,rgba(10,17,16,.86) 27%,rgba(10,17,16,.13) 84%),url("${hero}")`:'';
  $('gfnHeroTitle').textContent=g.name;
- $('gfnHeroText').textContent=(g.store?g.store+' · ':'')+(g.directLaunch?'GeForce NOW · Direct game shortcut':g.synced?'Synced My Library · Opens GeForce NOW app':'Shortcut missing · Reimport to play');
+ $('gfnHeroText').textContent=(g.store?g.store+' · ':'')+(g.directLaunch?'GeForce NOW · Direct cloud game launch':g.synced?'Synced My Library · Opens GeForce NOW app':'Shortcut missing · Reimport to play');
  $('gfnPlay').textContent=g.directLaunch?'▶ Play on GeForce NOW':g.synced?'▶ Open in GeForce NOW':'Shortcut unavailable';
  $('gfnPlay').disabled=!g.available;
  $('gfnPlay').onclick=()=>gfnLaunch(g);
@@ -338,7 +338,7 @@ async function gfnSync(){
 async function gfnLaunch(g){
  if(!g?.available)return notify('This cloud game is unavailable. Sync My Library or import its NVIDIA shortcut.',true);
  const r=await safe(()=>api('/api/gfn-launch',{id:g.id}));
- if(r){notify(g.directLaunch?'Launching '+g.name+' through NVIDIA…':'Opening GeForce NOW. Select '+g.name+' in your synced library.');if(window.pywebview?.api?.minimize)window.pywebview.api.minimize().catch(()=>{});}
+ if(r){notify(r.directLaunch?'Launching '+g.name+' directly through GeForce NOW…':'Opening GeForce NOW. Select '+g.name+' in your synced library.');if(window.pywebview?.api?.minimize)window.pywebview.api.minimize().catch(()=>{});}
 }
 async function gfnImport(){
  const path=await pick('gfn-shortcut');if(!path)return;
