@@ -17,14 +17,12 @@ function Set-UpdateState([string]$State, [string]$Detail) {
     Set-Content -LiteralPath $StatusPath -Encoding UTF8
 }
 function Restart-InstalledApp {
-  if (Test-Path -LiteralPath $AppExe -PathType Leaf) {
-    try {
-      Start-Process -FilePath $AppExe | Out-Null
-      Write-UpdateLog 'Relaunch requested.'
-    } catch {
-      Write-UpdateLog ('Relaunch failed: ' + $_.Exception.Message)
-    }
+  if (-not (Test-Path -LiteralPath $AppExe -PathType Leaf)) {
+    throw "Cannot relaunch Elmos World: installed executable not found at $AppExe"
   }
+  $app = Start-Process -FilePath $AppExe -PassThru
+  if ($null -eq $app) { throw 'Windows did not return a process for the app relaunch.' }
+  Write-UpdateLog ('Relaunch started; PID ' + $app.Id)
 }
 try {
   New-Item -ItemType Directory -Path (Split-Path -Parent $LogPath) -Force | Out-Null
@@ -58,8 +56,9 @@ try {
   if ([int]$test.ExitCode -ne 0) {
     throw "Installed Elmos World failed its startup self-test (exit $($test.ExitCode))."
   }
-  Set-UpdateState 'complete' 'Installed update verified; restarting Elmos World'
+  Set-UpdateState 'installing' 'Installation verified; starting updated Elmos World'
   Restart-InstalledApp
+  Set-UpdateState 'complete' 'Updated Elmos World launched successfully'
   Write-UpdateLog 'Update worker finished normally'
   exit 0
 }
