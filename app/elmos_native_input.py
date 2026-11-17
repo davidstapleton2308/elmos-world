@@ -103,8 +103,18 @@ class NativeInput:
                 return
             from elmos_input_driver import is_installed
             if not is_installed():
-                self._publish(message='ViGEmBus is not installed. Install the signed bus driver to enable Xbox 360 output.')
-                return
+                if os.environ.get('ELMOS_INPUT_DISABLE_SETUP') == '1':
+                    self._publish(message='ViGEmBus missing (driver installation disabled in CI).')
+                    return
+                self._publish(message='ViGEmBus missing; requesting Windows approval for verified driver setup.')
+                from elmos_input_driver import install_if_missing
+                setup = install_if_missing()
+                if setup.get('status') not in ('installed', 'already-installed'):
+                    self._publish(message='ViGEmBus setup incomplete: ' + setup.get('message', setup.get('status', 'unknown')))
+                    return
+                if not is_installed():
+                    self._publish(message='ViGEmBus driver setup finished but Windows cannot detect it yet; restart may be needed.')
+                    return
             # Another mapper can fight over the same physical device or create double input.
             # Never terminate or modify a separately started program.
             from subprocess import run, CREATE_NO_WINDOW
