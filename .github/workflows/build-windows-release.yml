@@ -83,9 +83,16 @@ jobs:
           python -m pip install --disable-pip-version-check -r build/requirements-windows.txt
           if ($LASTEXITCODE -ne 0) { throw 'Dependencies installation failed.' }
 
+      - name: Prepare bundled Elmos Input compatibility runtime
+        shell: pwsh
+        run: |
+          ./build/prepare_elmos_input.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Elmos Input bundle staging failed.' }
+
       - name: Compile desktop application
         shell: pwsh
         run: |
+          $env:ELMOS_REQUIRE_INPUT_BUNDLE='1'
           python -m PyInstaller --noconfirm --clean --distpath dist --workpath build/work build/ElmosWorld.spec
           if ($LASTEXITCODE -ne 0) { throw 'PyInstaller failed.' }
           if (!(Test-Path dist/ElmosWorld/ElmosWorld.exe)) { throw 'Standalone executable missing.' }
