@@ -7,6 +7,7 @@ instance, or assumes those backends are interchangeable.
 from __future__ import annotations
 
 import csv
+import io
 import os
 import subprocess
 import threading
