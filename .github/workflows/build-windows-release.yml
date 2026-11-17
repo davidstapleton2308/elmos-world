@@ -80,11 +80,18 @@ jobs:
           python -m unittest discover -s tests -p 'test_smart_discovery*.py' -v
           if ($LASTEXITCODE -ne 0) { throw 'Smart Discovery regression tests failed.' }
 
-      - name: Install Windows build dependencies
+      - name: Install Windows build dependencies (no driver setup in CI)
         shell: pwsh
+        timeout-minutes: 8
+        env:
+          VGAMEPAD_SKIP_VIGEMBUS_INSTALL: 'true'
         run: |
-          python -m pip install --disable-pip-version-check -r build/requirements-windows.txt
+          $ErrorActionPreference = 'Stop'
+          # A dependency must never launch an interactive kernel driver setup on CI.
+          python -m pip install --disable-pip-version-check --no-input -r build/requirements-windows.txt
           if ($LASTEXITCODE -ne 0) { throw 'Dependencies installation failed.' }
+          python -m pip show vgamepad
+          if ($LASTEXITCODE -ne 0) { throw 'vgamepad was not installed.' }
 
       - name: Compile desktop application
         shell: pwsh
