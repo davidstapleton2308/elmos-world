@@ -93,6 +93,22 @@ jobs:
           python -m pip show vgamepad
           if ($LASTEXITCODE -ne 0) { throw 'vgamepad was not installed.' }
 
+      - name: Bundle checksum-verified signed ViGEmBus installer (no driver installation in CI)
+        shell: pwsh
+        timeout-minutes: 5
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Path 'app/drivers' -Force | Out-Null
+          $setup = 'app/drivers/ViGEmBus_1.22.0_x64_x86_arm64.exe'
+          $source = 'https://github.com/nefarius/ViGEmBus/releases/download/v1.22.0/ViGEmBus_1.22.0_x64_x86_arm64.exe'
+          Invoke-WebRequest -Uri $source -OutFile $setup -MaximumRedirection 8 -TimeoutSec 120
+          if (!(Test-Path $setup)) { throw 'ViGEmBus installer was not downloaded into the build.' }
+          $hash = (Get-FileHash -Path $setup -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($hash -ne '89220a7865076b342892f98865f3499fb7c4cfd673159e89d352c360fd014c6a') {
+            throw 'ViGEmBus vendor installer checksum mismatch! Do not bundle untrusted drivers.'
+          }
+          Write-Host 'Signed ViGEmBus installer downloaded and verified for runtime packaging; NOT executed in CI.'
+
       - name: Compile desktop application
         shell: pwsh
         run: |

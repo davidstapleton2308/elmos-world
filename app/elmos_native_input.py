@@ -125,7 +125,9 @@ class NativeInput:
                         self._publish(driverState='installing',
                                       message='ViGEmBus missing; downloading verified driver and requesting Windows UAC approval…')
                         try:
-                            setup = install_if_missing()
+                            def on_setup_progress(stage, detail):
+                                self._publish(driverState=stage, message=detail)
+                            setup = install_if_missing(progress=on_setup_progress)
                             outcome = str(setup.get('status') or 'error')
                             if outcome in ('installed','already-installed') and is_installed():
                                 self._publish(driverInstalled=True, driverState='installed')
@@ -135,8 +137,8 @@ class NativeInput:
                                                   '. Select Start Elmos Input to retry; restart Windows if requested.')
                         except Exception as exc:
                             self._publish(driverState='error',
-                                          message='ViGEmBus setup failed: ' + str(exc)[:180] +
-                                                  '. Select Start Elmos Input to retry.')
+                                          message='ViGEmBus setup failed: ' + str(exc)[:350] +
+                                                  '. Select Retry Elmos Input to try again.')
                 self._stop.wait(0.5)
             if self._stop.is_set():
                 return

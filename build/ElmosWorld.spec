@@ -12,6 +12,9 @@ ASSETS = [
     'premium_30.css', 'premium_31.css', 'premium_32.css', 'premium_33.css',
 ]
 datas = [(str(APP / f), '.') for f in ASSETS]
+# The native ViGEmBus kernel driver is signed and distributed by its publisher.
+# Bundle its checksum-verified installer so restricted Wi-Fi cannot block setup.
+datas.append((str(APP / 'drivers' / 'ViGEmBus_1.22.0_x64_x86_arm64.exe'), 'drivers'))
 binaries = []
 hiddenimports = [
     'server', 'update_center', 'backend', 'gfn_cache_sync', 'elmos_native_input', 'elmos_input_driver', 'game_media', 'game_descriptions', 'game_discovery',

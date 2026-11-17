@@ -10,6 +10,8 @@ import os
 from pathlib import Path
 import subprocess
 import urllib.request
+import urllib.error
+import time
 
 VIGEM_URL='https://github.com/nefarius/ViGEmBus/releases/download/v1.22.0/ViGEmBus_1.22.0_x64_x86_arm64.exe'
 VIGEM_SHA256='89220a7865076b342892f98865f3499fb7c4cfd673159e89d352c360fd014c6a'
@@ -33,21 +35,34 @@ def is_installed():
         return False
 
 
+def bundled_driver_file():
+    """Verified installer shipped with the official Elmos World Windows build."""
+    return Path(__file__).resolve().parent / 'drivers' / 'ViGEmBus_1.22.0_x64_x86_arm64.exe'
+
 def managed_driver_file():
     local=Path(os.environ.get('LOCALAPPDATA',str(Path.home()/'AppData'/'Local')))
     return local/'ElmosWorld'/'ElmosInput'/'installers'/'ViGEmBus_1.22.0_x64_x86_arm64.exe'
 
-def download_verified():
+def download_verified(progress=None):
     """Download once from official publisher, and verify Microsoft manifest SHA."""
+    bundled=bundled_driver_file()
+    if bundled.is_file():
+        if hashlib.sha256(bundled.read_bytes()).hexdigest()!=VIGEM_SHA256:
+            raise ValueError('Bundled ViGEmBus driver checksum mismatch: refusing installation')
+        if progress: progress('downloaded', 'Verified ViGEmBus installer bundled with Elmos World; no extra download needed')
+        return bundled
     target=managed_driver_file()
     target.parent.mkdir(parents=True,exist_ok=True)
     if target.is_file() and hashlib.sha256(target.read_bytes()).hexdigest()==VIGEM_SHA256:
+        if progress: progress('downloaded', 'Verified cached ViGEmBus installer is ready')
         return target
+    if progress: progress('downloading', 'Downloading ViGEmBus 1.22.0 from the publisher GitHub release')
     temp=target.with_suffix('.partial')
     digest=hashlib.sha256()
     size=0
     try:
-        with urllib.request.urlopen(VIGEM_URL,timeout=20) as source, temp.open('wb') as out:
+        request=urllib.request.Request(VIGEM_URL, headers={'User-Agent':'ElmosWorld-ViGEmBusInstaller/1.0'})
+        with urllib.request.urlopen(request,timeout=45) as source, temp.open('wb') as out:
             while True:
                 chunk=source.read(131072)
                 if not chunk:break
@@ -58,16 +73,23 @@ def download_verified():
         if digest.hexdigest()!=VIGEM_SHA256:
             raise ValueError('ViGEmBus installer checksum mismatch; refusing to execute')
         temp.replace(target)
+        if progress: progress('downloaded', 'ViGEmBus download finished; SHA-256 verified')
         return target
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        raise RuntimeError(
+            'Cannot download ViGEmBus from the official GitHub release: '
+            + str(exc)[:180] + '. Check your internet/VPN connection and retry.'
+        ) from exc
     finally:
         try:temp.unlink(missing_ok=True)
         except OSError:pass
 
-def install_if_missing():
+def install_if_missing(progress=None):
     """Start verified setup; Windows itself handles any necessary UAC approval."""
     if os.name!='nt':return {'status':'unavailable'}
     if is_installed():return {'status':'already-installed'}
-    installer=download_verified()
+    installer=download_verified(progress=progress)
+    if progress: progress('awaiting-approval', 'Driver verified. Approve the Windows administrator prompt to install ViGEmBus')
     # The published Winget switches perform a quiet driver setup. They do not
     # suppress Windows UAC or force a reboot, and should never be treated as
     # proof installation succeeded until the driver re-check passes.
@@ -77,11 +99,14 @@ def install_if_missing():
     # No separate Elmos confirmation is required; no credentials are collected.
     quoted=str(installer).replace("'","''")
     command=(
+        "$ErrorActionPreference='Stop'; try { "
         f"$p=Start-Process -FilePath '{quoted}' -ArgumentList '{switches}' "
-        f"-Verb RunAs -Wait -PassThru; exit $p.ExitCode"
+        "-Verb RunAs -Wait -PassThru -ErrorAction Stop; "
+        "exit $p.ExitCode "
+        "} catch { [Console]::Error.WriteLine($_.Exception.Message); exit 91 }"
     )
     try:
-        p=subprocess.run(['powershell.exe','-NoProfile','-NonInteractive',
+        p=subprocess.run(['powershell.exe','-NoProfile',
                           '-Command',command],capture_output=True,text=True,
                          timeout=180,creationflags=hidden)
     except subprocess.TimeoutExpired:
@@ -89,8 +114,15 @@ def install_if_missing():
     except OSError as exc:
         return {'status':'error','message':str(exc)[:170]}
     if p.returncode not in (0,3010):
+        detail=(p.stderr or p.stdout or '').strip().replace('\\n',' ').replace('\\r',' ')[:220]
         return {'status':'not-installed','message':
-                'Windows driver setup was cancelled or failed; no other driver was changed'}
-    if is_installed():
-        return {'status':'installed','rebootSuggested':p.returncode==3010}
-    return {'status':'reboot-pending','rebootSuggested':True}
+                ('Windows denied or failed ViGEmBus driver setup (exit '+str(p.returncode)+')'
+                 + (': '+detail if detail else '. Check the Windows UAC prompt'))}
+    if progress: progress('verifying-install', 'Driver installer finished; verifying Windows service registration')
+    # Windows can take a moment to register a newly installed kernel driver.
+    for _ in range(8):
+        if is_installed():
+            return {'status':'installed','rebootSuggested':p.returncode==3010}
+        time.sleep(0.75)
+    return {'status':'reboot-pending', 'rebootSuggested':True,
+            'message':'Driver installer exited successfully but the ViGEmBus service is not yet visible; restart Windows, then reopen Elmos World'}
