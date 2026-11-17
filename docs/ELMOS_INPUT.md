@@ -1,58 +1,66 @@
-# Elmos Input — managed classic DS4Windows Xbox 360 profile
+# Elmos Input — our native Sony-to-Xbox 360 engine
 
-## Why we changed the engine
-On the owner's Windows laptop, ViGEmBus was installed and RUNNING, yet the
-custom vgamepad bridge never demonstrated working controller input in Sekiro.
-A previous DS4Windows 3.3.3 + ViGEmBus Xbox 360 profile **did** work.
-Elmos World therefore uses the known classic DS4Windows mapper instead of
-running its own competing XInput feeder. The older code remains for reference
-but is **not started** by the launcher.
+Elmos World now owns the runtime bridge. **No DS4Windows executable is
+launched, downloaded, or bundled.** The prior DS4Windows 3.3.3 experiment was
+removed from the application and build workflow.
 
-This classic engine uses ViGEmBus, not the newer VIIPER runtime. A Windows
-device named "VIIPER Controller" can be left behind by a different controller
-stack and is NOT proof that the old classic DS4Windows program produced it.
+## Architecture
 
-## Automatic lifecycle
-- Elmos World starts the controller engine when the desktop launcher opens.
-- The verified portable DS4Windows 3.3.3 archive ships inside the official
-  Elmos World Windows installer. It is extracted once under:
-  %LOCALAPPDATA%\ElmosWorld\ElmosInput\classic-ds4windows-3.3.3
-- The archive digest is pinned to sha256
-  cf5619bcb51b82e4e1765276e9f67fb1e2d23dff968a653657acf35bafff8bf4
-  from ds4windowsapp/DS4Windows GitHub release "ryochan7".
-  Archive owner is a mirror, not the original upstream publisher.
-- Elmos checks the ViGEmBus driver and installs it only if absent, through
-  regular Windows UAC.
-- It launches DS4Windows minimized, starts the controller service using
-  the classic DS4Windows command protocol, and keeps the process alive
-  independently of which game is running.
-- When Elmos closes, it stops **only its own started process**. Any
-  external DS4Windows instance is left untouched and blocks duplicate launch.
-- No HidHide installation, hiding, auto-start tasks, extra privilege
-  prompts for routine launches, or changes to Steam Input.
+1. The Elmos-owned `controller_input.py` SDL reader monitors the physical Sony
+   controller, including the standard Windows **raw SDL joystick** layout.
+2. `elmos_native_input.py` converts Sony controls to Xbox 360 semantic reports.
+3. The `vgamepad` Python ViGEmClient binding sends reports to the existing
+   **ViGEmBus** Windows kernel driver. Only the driver is third-party installed.
+4. Elmos starts one virtual Xbox target at launcher startup and tears down that
+   target when Elmos closes. It doesn't start or terminate other mappers.
 
-## Profile and first-run caveat
-The bundled classic release provides Xbox 360 output using the classic
-DS4Windows profile system. On a new machine, DS4Windows may present a
-first-run configuration prompt. Choose the per-user settings location and
-create/select the Default Xbox 360 output profile if needed. Once configured,
-DS4Windows reuses that profile on subsequent Elmos launches.
+No extra mapper UI, DS4Windows, HidHide, VIIPER driver installation, autostart
+task, admin consent for normal use, or change to game installations.
 
-This wrapper is not yet hardware-verified. Use joy.cpl and a game like Sekiro
-to test face buttons, sticks, triggers, D-pad, disconnect/reconnect, launch,
-and close. The original Wireless Controller can remain visible in Windows:
-HidHide is not installed. Double input is game-specific, and the game should
-use the Xbox 360 output when available.
+## Root cause corrected
 
-## Diagnostics
-Elmos World > Settings > Elmos Input shows backend, stage, and last error.
-Elmos writes messages to %LOCALAPPDATA%\ElmosWorld\logs\launcher.log .
-If no virtual Xbox appears, inspect the DS4Windows log from its chosen
-settings folder. Do not assume running ViGEmBus alone creates a virtual pad.
+The original Elmos bridge refused to map *any* raw SDL joystick: 
+`frame_from_snapshot` returned `None` unless the controller's SDL mode was
+exactly `mapped SDL`. On many Windows Bluetooth PS4 connections SDL
+exposes the physical DualShock as `raw SDL joystick`, leaving the virtual
+Xbox device with no input. The launcher also used Xbox-oriented button indices
+for raw PS4 devices, mapping Square to A and L3 to Guide incorrectly.
 
-## License and provenance
-DS4Windows classic is third-party GPL-3.0 software, not an OpenAI or Elmos
-implementation. Its upstream archive/license and source pointers are at
-https://github.com/ds4windowsapp/DS4Windows/releases/tag/ryochan7 .
-The packaged ZIP must be redistributed with its license and notices intact;
-the package is used unmodified. The local Elmos wrapper is separate.
+Both mapped SDL and common **raw Windows DS4** layouts are now accepted:
+- Face buttons: Cross → A, Circle → B, Square → X, Triangle → Y
+- Share/Options → Back/Start; L1/R1 → bumpers; L3/R3 → stick clicks; PS → Guide
+- Left/right sticks use raw axes 0–3, invert Y for Xbox output
+- L2/R2 use raw axes 4/5, or digital fallback when axes unavailable
+- Hat 0 → D-pad
+
+The mapping follows the documented physical DS4 → virtual Xbox semantics
+reviewed in the open-source DS4Windows `Xbox360OutDevice` implementation
+(CircumSpector/DS4Windows). No code was copied or bundled from that project.
+
+## Driver
+
+Only the signed ViGEmBus 1.22.0 Windows driver requires one-time Windows
+approval. If already installed and running, Elmos reuses it. Its publisher
+release is pinned with a checksum in `app/elmos_input_driver.py`.
+The main software never attempts to hide the physical controller.
+
+An *external* DS4Windows process should be closed before native bridge testing,
+since competing virtual outputs would make results ambiguous. Elmos never
+terminates it automatically.
+
+## Testing and diagnostics
+
+GitHub Actions can verify the native mappings, lifecycle code, PyInstaller
+packaging and update worker, but it cannot test your laptop's Bluetooth
+controller. For the hardware test:
+1. Close separate controller-mapping apps, connect the PS4 controller over
+   Bluetooth and open updated Elmos World.
+2. Settings → Elmos Input should show `forwarding-input` and identify the DS4.
+3. Check `joy.cpl` for the virtual Xbox 360 controller. Test sticks, D-pad,
+   face buttons, triggers and PS/Guide. Then test Sekiro.
+4. If the virtual Xbox isn't present or doesn't respond, check
+   `%LOCALAPPDATA%\ElmosWorld\logs\launcher.log` for the exact
+   `[Elmos Input]` stage and exception.
+
+Seeing Wireless Controller in Windows Device Manager is expected: ViGEmBus
+does not hide physical hardware. It is not proof of double input in a game.
