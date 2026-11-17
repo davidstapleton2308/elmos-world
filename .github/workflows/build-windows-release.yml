@@ -185,7 +185,7 @@ jobs:
           retention-days: 30
 
       - name: Publish next GitHub release
-        if: github.event_name != 'pull_request'
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
