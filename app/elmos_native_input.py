@@ -29,13 +29,67 @@ def clamp(value, low, high):
     except (ValueError, TypeError):
         return 0.0
 
-def frame_from_snapshot(snapshot):
-    """Pure, testable Sony SDL -> Xbox 360 semantic mapping."""
-    if not snapshot.get('connected') or snapshot.get('mode') != 'mapped SDL':
+def _sony_device(snapshot):
+    """Reject ViGEm/VIIPER/Xbox virtual outputs to prevent feedback loops."""
+    name = str(snapshot.get('name') or '').casefold()
+    return any(key in name for key in ('wireless controller', 'dualshock', 'dualsense', 'sony')) and not any(
+        key in name for key in ('xbox', 'viiper', 'vigem'))
+
+
+def _raw_ds4_frame(snapshot):
+    """Decode standard Windows SDL raw DirectInput DualShock 4 joystick layout.
+
+    Classic DS4Windows parses physical Cross/Circle/Square/Triangle into
+    Xbox A/B/X/Y and triggers into analog bytes (see its Xbox360OutDevice).
+    Here the DS4 raw SDL layout is mapped independently, with no DS4Windows
+    code or process: 0 Square, 1 Cross, 2 Circle, 3 Triangle, 4/5 shoulders,
+    8 Share, 9 Options, 10/11 stick clicks, 12 PS; hat0 = D-pad.
+    The axes are LX, LY, RX, RY, L2, R2 in the common 6-axis layout.
+    """
+    raw = snapshot.get('rawButtons') or []
+    axes = snapshot.get('rawAxes') or []
+    hats = snapshot.get('hats') or []
+    if len(raw) < 12 or len(axes) < 4:
         return None
-    # Don't inadvertently feed virtual Xbox devices back into themselves.
-    name = str(snapshot.get('name') or '').lower()
-    if not any(x in name for x in ('wireless controller', 'dualshock', 'dualsense', 'sony')):
+    button = lambda index: index < len(raw) and bool(raw[index])
+    hat = hats[0] if hats and len(hats[0]) == 2 else [0, 0]
+    buttons = {
+        'x': button(0), 'a': button(1), 'b': button(2), 'y': button(3),
+        'lb': button(4), 'rb': button(5),
+        'back': button(8), 'start': button(9),
+        'l3': button(10), 'r3': button(11),
+        'guide': button(12),
+        'up': hat[1] > 0, 'down': hat[1] < 0,
+        'left': hat[0] < 0, 'right': hat[0] > 0,
+    }
+    # In the common SDL raw layout trigger axes rest at -1 and top out at
+    # +1. Digital L2/R2 buttons are a fallback for 4-axis controllers.
+    triggers = []
+    for index, digital in ((4, 6), (5, 7)):
+        if index < len(axes):
+            triggers.append(clamp((clamp(axes[index], -1, 1) + 1) / 2, 0, 1))
+        else:
+            triggers.append(1.0 if button(digital) else 0.0)
+    return {
+        'buttons': [value for key, value in BUTTONS.items() if buttons.get(key)],
+        'axes': [clamp(value, -1, 1) for value in axes[:4]],
+        'triggers': triggers,
+        'name': str(snapshot.get('name') or '')[:90],
+    }
+
+
+def frame_from_snapshot(snapshot):
+    """Convert a physical Sony snapshot into a ViGEm Xbox 360 report.
+
+    Accept SDL GameController mappings *and* the standard Windows raw DS4
+    layout. Previous Elmos Input silently rejected every raw SDL joystick,
+    which could leave Xbox output present but entirely motionless.
+    """
+    if not snapshot.get('connected') or not _sony_device(snapshot):
+        return None
+    if snapshot.get('mode') == 'raw SDL joystick':
+        return _raw_ds4_frame(snapshot)
+    if snapshot.get('mode') != 'mapped SDL':
         return None
     axes = snapshot.get('axes') or [0, 0, 0, 0]
     if len(axes) < 4:
@@ -50,6 +104,7 @@ def frame_from_snapshot(snapshot):
         'triggers': [clamp(v, 0, 1) for v in triggers],
         'name': str(snapshot.get('name') or '')[:90],
     }
+
 
 def apply_frame(pad, vg, frame):
     pad.reset()
@@ -221,8 +276,8 @@ class NativeInput:
                         pad.reset()
                         pad.update()
                         last_neutral = True
-                    if detected and mode != 'mapped SDL':
-                        message = 'Xbox 360 virtual device is ready, but your DS4 is only detected as a raw SDL joystick; controller mapping is required'
+                    if detected and mode == 'raw SDL joystick':
+                        message = 'Sony controller detected in raw SDL mode, but the expected DS4 button/axis layout is unavailable'
                     elif detected:
                         message = 'Xbox 360 virtual device is ready; input reader did not identify a Sony controller'
                     elif reader_error:
