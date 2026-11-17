@@ -96,7 +96,7 @@ def install_if_missing(progress=None):
         "} catch { [Console]::Error.WriteLine($_.Exception.Message); exit 91 }"
     )
     try:
-        p=subprocess.run(['powershell.exe','-NoProfile','-NonInteractive',
+        p=subprocess.run(['powershell.exe','-NoProfile',
                           '-Command',command],capture_output=True,text=True,
                          timeout=180,creationflags=hidden)
     except subprocess.TimeoutExpired:
