@@ -83,7 +83,7 @@ class DS4Tests(unittest.TestCase):
                 result=ds4_companion.start_existing()
                 download.assert_not_called()
                 driver.assert_called_once()
-                self.assertEqual(result['phase'],'running')
+                self.assertEqual(result['phase'],'starting-controller')
                 ds4_companion._owned=None
                 ds4_companion._owned_exe=None
 
