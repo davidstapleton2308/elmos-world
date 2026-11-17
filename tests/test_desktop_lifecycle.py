@@ -60,6 +60,27 @@ class DesktopLifetimeTests(unittest.TestCase):
         self.assertIn("self._queue.put(('quit',None))",menu)
         self.assertIn('self._tk.destroy()',menu)
 
+    def test_quit_control_available_in_hub_and_settings(self):
+        html=(ROOT/'app'/'index.html').read_text(encoding='utf-8')
+        script=(ROOT/'app'/'app.js').read_text(encoding='utf-8')
+        css=(ROOT/'app'/'premium_33.css').read_text(encoding='utf-8')
+        self.assertIn('id="quitElmos"',html)
+        self.assertIn('id="quitElmosSettings"',html)
+        self.assertIn("('quitElmos').onclick=quitElmosWorld",script)
+        self.assertIn("('quitElmosSettings').onclick=quitElmosWorld",script)
+        self.assertIn("api('/api/quit',{})",script)
+        self.assertIn('.rail-bottom .quit-elmos',css)
+
+    def test_quit_is_authenticated_and_releases_launcher_without_killing_game(self):
+        source=(ROOT/'app'/'server.py').read_text(encoding='utf-8')
+        handler=source[source.index("   if action=='/api/quit':"):
+                       source.index("   elif action=='/api/update-config':")]
+        self.assertIn("'quitting':True",handler)
+        self.assertIn("threading.Timer(0.75,lambda:os._exit(0)).start()",handler)
+        self.assertNotIn('close_active_game',handler)
+        self.assertNotIn('TerminateProcess',handler)
+        self.assertLess(source.index("if not self.valid():return self.error(403"),source.index("if action=='/api/quit':"))
+
     def test_installer_waits_for_prior_instance_before_reinstall(self):
         script=(ROOT/'app'/'apply_update.ps1').read_text(encoding='utf-8')
         self.assertIn('Get-Process -Id $ParentId',script)
