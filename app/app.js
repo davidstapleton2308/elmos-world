@@ -1105,7 +1105,7 @@ async function checkElmosUpdate(){
 $('updateSaveRepo').onclick=async()=>{const r=await safe(()=>api('/api/update-config',{repository:$('updateRepository').value}));if(r){notify('GitHub repository saved');await checkElmosUpdate();}};
 $('updateCheck').onclick=checkElmosUpdate;
 $('updateInstall').onclick=async()=>{if(!updateReady)return;
- if(!confirm('Download the verified update, back up settings, close Elmos World, and install the new version? Close any game first.'))return;
+ // Update & Restart is the user's explicit approval: no extra browser popup.
  const b=$('updateInstall');b.disabled=true;b.textContent='Downloading & verifying…';
  try{const result=await api('/api/update-install',{});if(result.restarting){$('updateStatus').textContent='Installer ready. Elmos World is closing for the update…';return;}}
  catch(e){notify(e.message,true);$('updateStatus').textContent=e.message;}
