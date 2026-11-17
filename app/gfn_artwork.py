@@ -21,7 +21,6 @@ def normalized_title(title):
     title = title.replace('\u00ae', '').replace('\u2122', '').replace('\u00a9', '')
     title = title.replace('\u2019', "'").replace('\u2018', "'")
     title = title.casefold()
-    title = re.sub(r'\b(?:remastered|definitive edition)\b', '', title) if False else title
     words = re.findall(r'[a-z0-9]+', title)
     return ' '.join(ROMANS.get(w, w) for w in words)
 
@@ -106,6 +105,7 @@ def steam_store_match(title):
 def resolve_art(title, key=''):
     """Exact matches from optional artwork provider first; public Steam fallback."""
     title = ' '.join(str(title or '').split())[:140]
+    title = title.replace('\u00ae', '').replace('\u2122', '').replace('\u2019', "'")
     if len(title) < 2 or not normalized_title(title):
         return {}
     if key:
