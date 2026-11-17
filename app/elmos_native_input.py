@@ -111,6 +111,7 @@ class NativeInput:
         return self.status()
     def _run(self):
         pad = None
+        rumble_registered = False
         try:
             if os.name != 'nt':
                 self._publish(message='Xbox emulation requires Windows')
@@ -199,7 +200,6 @@ class NativeInput:
                     self.source.queue_rumble(large_motor / 255, small_motor / 255)
                 except Exception:
                     pass
-            rumble_registered = False
             try:
                 pad.register_notification(callback_function=on_rumble)
                 rumble_registered = True
