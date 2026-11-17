@@ -36,7 +36,7 @@ class DriverSafetyTests(unittest.TestCase):
 
     def test_uac_is_not_bypassed(self):
         s=(ROOT/'app'/'elmos_input_driver.py').read_text(encoding='utf-8')
-        self.assertIn("'-Verb RunAs",s)
+        self.assertIn("-Verb RunAs -Wait -PassThru",s)
         self.assertIn("if is_installed():return",s)
         self.assertIn("'/exenoui /qn /norestart'",s)
         self.assertNotIn('ConsentPromptBehaviorAdmin',s)
