@@ -164,6 +164,16 @@ jobs:
           $check = Start-Process -FilePath $installedApp -ArgumentList '--self-test' -Wait -PassThru
           if ($check.ExitCode -ne 0) { throw 'Installed application failed its executable self-test.' }
           Write-Host 'PASS: installer worker installed the update and completed.'
+      - name: Integration-test hidden PowerShell worker launched by Python app
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.release_version.outputs.version }}
+        run: |
+          $setup = (Resolve-Path "dist_setup/ElmosWorld_Setup_$env:VERSION.exe").Path
+          $installedApp = Join-Path $env:LOCALAPPDATA 'Programs/Elmos World/ElmosWorld.exe'
+          python build/test_detached_worker.py $setup $installedApp
+          if ($LASTEXITCODE -ne 0) { throw 'Actual hidden background update process failed.' }
+
       - name: Package portable build and SHA-256 checksum
         shell: pwsh
         env:
