@@ -5,6 +5,9 @@ on:
     branches:
       - main
   workflow_dispatch:
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: write
@@ -182,6 +185,7 @@ jobs:
           retention-days: 30
 
       - name: Publish next GitHub release
+        if: github.event_name != 'pull_request'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
