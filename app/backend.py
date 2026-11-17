@@ -949,6 +949,20 @@ class Engine:
    if not p.is_file() or p.suffix.lower()!='.exe':raise RuntimeError('Select an existing emulator .exe.')
    eid=norm(name).replace(' ','-') or secrets.token_hex(3)
    self.extra['emulators'][eid]={'name':name,'exe':str(p),'platform':platform};self.save();return eid
+ def assign_rom_emulator(self, gameid, emulator):
+  """Change only emulator association; preserve library ID and artwork."""
+  with self.lock:
+   if emulator not in self.extra.get('emulators', {}):
+    raise RuntimeError('Choose a connected emulator.')
+   rom = self.extra.get('roms', {}).get(gameid)
+   if rom is None:
+    raise RuntimeError('Only ISO / ROM library entries can be assigned. Add a game file first.')
+   if not Path(rom.get('path', '')).is_file():
+    raise RuntimeError('Game file is missing. Locate the ISO / ROM first.')
+   rom['emulator'] = emulator
+   self.save()
+   return {'ok': True, 'id': gameid, 'emulator': emulator}
+
  def add_rom(self,name,path,emulator):
   with self.lock:
    p=Path(path)
