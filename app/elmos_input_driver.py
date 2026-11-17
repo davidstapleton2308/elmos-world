@@ -16,28 +16,21 @@ VIGEM_SHA256='89220a7865076b342892f98865f3499fb7c4cfd673159e89d352c360fd014c6a'
 VIGEM_MAX_SIZE=8_000_000
 
 def is_installed():
-    """Check the driver service, and recognizable uninstall entries for ViGEmBus."""
-    if os.name != 'nt':return False
+    """Only a registered Windows kernel service proves ViGEmBus is installed.
+
+    A stale Apps & Features/uninstall registry key is NOT evidence of a working
+    bus; the previous implementation could skip setup for a broken installation.
+    """
+    if os.name != 'nt':
+        return False
     hidden=getattr(subprocess,'CREATE_NO_WINDOW',0)
     try:
-        p=subprocess.run(['sc.exe','query','ViGEmBus'],capture_output=True,
+        p=subprocess.run(['sc.exe','query','ViGEmBus'], capture_output=True,
                          text=True,timeout=5,creationflags=hidden)
-        if p.returncode==0 and 'SERVICE_NAME:' in p.stdout:
-            return True
+        return p.returncode == 0 and 'SERVICE_NAME:' in p.stdout.upper() and 'VIGEMBUS' in p.stdout.upper()
     except (OSError,subprocess.SubprocessError):
-        pass
-    try:
-        # Registry is supplemental: a partial uninstall entry is not proof of a
-        # functioning bus driver, but may avoid changing a user-managed install.
-        p=subprocess.run(['reg.exe','query',
-             r'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall',
-             '/s','/f','ViGEm Bus Driver'],capture_output=True,text=True,
-             timeout=8,creationflags=hidden)
-        if p.returncode==0 and 'ViGEm Bus Driver' in p.stdout:
-            return True
-    except (OSError,subprocess.SubprocessError):
-        pass
-    return False
+        return False
+
 
 def managed_driver_file():
     local=Path(os.environ.get('LOCALAPPDATA',str(Path.home()/'AppData'/'Local')))
