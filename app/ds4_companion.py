@@ -174,19 +174,26 @@ def _command(exe, action):
               startupinfo=startup,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
 
 def _connect_default_profile(proc, exe):
+    global _setup_phase, _last_error
     """Once DS4 is running, start input and select the existing Default profile.
 
     Never replace a player's existing XML profile or generate fake profile data.
     """
     for attempt in range(20):
         if proc.poll() is not None:
-            _log('Controller app exited before it became ready')
+            _last_error='DS4Windows exited during startup; check its .NET runtime and first-run setup'
+            _setup_phase='error'
+            _log(_last_error)
             return
         if _running_named('DS4Windows.exe'):
             break
         time.sleep(0.25)
     time.sleep(1.25)
-    if proc.poll() is not None:return
+    if proc.poll() is not None:
+        _last_error='DS4Windows stopped before its controller service was started'
+        _setup_phase='error'
+        _log(_last_error)
+        return
     try:
         _command(exe,'start').wait(timeout=3)
         _log('Requested DS4Windows controller start')
@@ -200,6 +207,9 @@ def _connect_default_profile(proc, exe):
             _log('Requested existing Default profile for controller 1')
         else:
             _log('Default.xml not found; preserving DS4Windows automatic profile selection')
+        if proc.poll() is None:
+            _setup_phase='running'
+            _log('Managed DS4Windows process remains running')
     except (OSError,subprocess.SubprocessError) as exc:
         _log('Unable to request controller profile: '+str(exc)[:140])
 
@@ -287,7 +297,6 @@ def start_existing():
                              args=(_owned,exe), daemon=True,
                              name='Elmos DS4 default profile').start()
             _last_error=''
-            _setup_phase='running'
         except (OSError,ValueError) as exc:
             _last_error='Could not start DS4Windows: '+str(exc)[:170]
             _setup_phase='error'
