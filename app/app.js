@@ -1222,7 +1222,9 @@ function renderElmosInput(r){
  $('inputStatus').textContent=r.message+(r.device?' · '+r.device:'')+
   (r.virtualConnected?' · Virtual Xbox 360: active':'')+
   (r.controllerMode?' · Physical input: '+r.controllerMode:'')+
-  (r.driverState?' · ViGEmBus: '+r.driverState:'');
+  (r.driverState?' · ViGEmBus: '+r.driverState:'')+
+  (r.stage?' · Bridge stage: '+r.stage:'')+
+  (r.lastError?' · Error: '+r.lastError:'');
  $('inputStart').hidden=!!r.virtualConnected;
  $('inputStart').textContent=r.running?'Retry Elmos Input':'Start Elmos Input';
 }

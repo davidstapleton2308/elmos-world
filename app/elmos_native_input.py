@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 import threading
 import time
+import traceback
 
 BUTTONS = {
     'a': 'XUSB_GAMEPAD_A', 'b': 'XUSB_GAMEPAD_B',
@@ -73,13 +74,23 @@ class NativeInput:
                            driverInstalled=False, driverState='unknown',
                            controllerDetected=False, controllerMode='none', readerError='',
                            backend='ViGEmBus / Xbox 360',
-                           message='Elmos Input not started', device='')
+                           message='Elmos Input not started', device='',
+                           stage='idle', lastError='')
     def status(self):
         with self._lock:
             return dict(self._state)
     def _publish(self, **values):
         with self._lock:
+            previous = (self._state.get('stage'), self._state.get('message'),
+                        self._state.get('virtualConnected'))
             self._state.update(values)
+            current = (self._state.get('stage'), self._state.get('message'),
+                       self._state.get('virtualConnected'))
+        # Launcher redirects stdout to LocalAppData/ElmosWorld/logs/launcher.log.
+        # Log only transitions, not every 10ms input frame.
+        if previous != current:
+            print('[Elmos Input] ' + str(current[0]) + ': ' + str(current[1]) +
+                  ' | virtualConnected=' + str(current[2]), flush=True)
     def start(self):
         with self._lock:
             if self._thread is not None and self._thread.is_alive():
@@ -100,12 +111,13 @@ class NativeInput:
         return self.status()
     def _run(self):
         pad = None
+        rumble_registered = False
         try:
             if os.name != 'nt':
                 self._publish(message='Xbox emulation requires Windows')
                 return
             from elmos_input_driver import is_installed, install_if_missing
-            self._publish(running=True, driverState='checking',
+            self._publish(running=True, driverState='checking', stage='driver-check',
                           message='Checking ViGEmBus driver…')
             # The Elmos-owned input worker stays alive for the entire app
             # session. Initial setup happens once on startup; a failed or
@@ -113,6 +125,7 @@ class NativeInput:
             while not self._stop.is_set():
                 if is_installed():
                     self._publish(driverInstalled=True, driverState='installed',
+                                  stage='driver-ready',
                                   message='ViGEmBus installed; connecting virtual Xbox 360 controller…')
                     break
                 self._publish(driverInstalled=False)
@@ -144,34 +157,56 @@ class NativeInput:
                 return
             # vgamepad creates a global ViGEmClient bus connection at import time.
             # Import it only after the bus is confirmed available.
+            self._publish(stage='loading-vgamepad',
+                          message='Loading bundled vgamepad ViGEmClient library…')
             try:
                 import vgamepad as vg
-            except (ImportError, OSError, RuntimeError) as exc:
-                self._publish(message='ViGEmClient initialization failed: ' + str(exc)[:160])
+            except Exception as exc:
+                self._publish(stage='error', driverState='installed', lastError=repr(exc),
+                              message='ViGEmClient initialization failed: ' + str(exc)[:250])
+                traceback.print_exc()
                 return
+            self._publish(stage='vgamepad-loaded', message='ViGEmClient library loaded successfully')
             # Another mapper can fight over the same physical device or create double input.
             # Never terminate or modify a separately started program.
             from subprocess import run, CREATE_NO_WINDOW
-            result = run(['tasklist.exe', '/FI', 'IMAGENAME eq DS4Windows.exe', '/NH'],
-                         capture_output=True, text=True, timeout=4,
-                         creationflags=CREATE_NO_WINDOW)
+            try:
+                result = run(['tasklist.exe', '/FI', 'IMAGENAME eq DS4Windows.exe', '/NH'],
+                             capture_output=True, text=True, timeout=4,
+                             creationflags=CREATE_NO_WINDOW)
+            except Exception as exc:
+                self._publish(stage='error', lastError=repr(exc),
+                              message='Cannot check for conflicting DS4Windows process: ' + str(exc)[:170])
+                traceback.print_exc()
+                return
             if 'ds4windows.exe' in result.stdout.lower():
-                self._publish(message='Close the separate DS4Windows process before enabling Elmos Input.')
+                self._publish(stage='conflicting-mapper',
+                              message='Close DS4Windows.exe before enabling Elmos Input.')
                 return
             # Create the XInput target FIRST, independently of the physical
             # controller mapping. Previously an SDL raw joystick prevented any
             # Xbox 360 device from appearing in joy.cpl.
+            self._publish(stage='creating-xbox',
+                          message='Creating a virtual Xbox 360 gamepad through ViGEmBus…')
             pad = vg.VX360Gamepad()
-            self._publish(running=True, virtualConnected=True,
+            # An XInput device must remain active even if optional vibration
+            # feedback cannot be registered by this particular Windows stack.
+            pad.reset()
+            pad.update()
+            self._publish(stage='xbox-created', running=True, virtualConnected=True,
                           message='Virtual Xbox 360 controller created; waiting for DualShock input')
             def on_rumble(client, target, large_motor, small_motor, led, user_data):
                 try:
                     self.source.queue_rumble(large_motor / 255, small_motor / 255)
                 except Exception:
                     pass
-            pad.register_notification(callback_function=on_rumble)
-            pad.reset()
-            pad.update()
+            try:
+                pad.register_notification(callback_function=on_rumble)
+                rumble_registered = True
+            except Exception as exc:
+                # Rumble is optional: no vibration support must never make
+                # the virtual Xbox controller disappear from Windows.
+                print('[Elmos Input] Optional rumble registration failed: ' + repr(exc), flush=True)
             last_neutral = True
             while not self._stop.is_set():
                 source = self.source.snapshot()
@@ -201,25 +236,29 @@ class NativeInput:
                     continue
                 apply_frame(pad, vg, frame)
                 last_neutral = False
-                self._publish(connected=True, running=True, virtualConnected=True,
+                self._publish(stage='forwarding-input', connected=True, running=True, virtualConnected=True,
                               controllerDetected=True, controllerMode=mode,
                               readerError=reader_error,
                               message='Elmos Input is sending Xbox 360 controller reports',
                               device=frame['name'])
                 self._stop.wait(0.01)
         except Exception as exc:
-            self._publish(message='Xbox 360 bridge error: ' + str(exc)[:220], connected=False)
+            self._publish(stage='error', lastError=repr(exc),
+                          message='Xbox 360 bridge error: ' + str(exc)[:250], connected=False)
+            traceback.print_exc()
         finally:
             if pad is not None:
                 try:
                     self.source.queue_rumble(0, 0)
-                    pad.unregister_notification()
+                    if rumble_registered:
+                        pad.unregister_notification()
                     pad.reset()
                     pad.update()
                     del pad
                 except Exception:
                     pass
-            self._publish(running=False, connected=False, virtualConnected=False)
+            self._publish(running=False, connected=False, virtualConnected=False,
+                          stage='stopped' if self._stop.is_set() else self._state.get('stage'))
 
 from controller_input import monitor
 native_input = NativeInput(monitor)
