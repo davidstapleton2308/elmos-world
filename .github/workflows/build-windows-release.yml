@@ -109,28 +109,6 @@ jobs:
           }
           Write-Host 'Signed ViGEmBus installer downloaded and verified for runtime packaging; NOT executed in CI.'
 
-      - name: Bundle pinned classic DS4Windows 3.3.3 Xbox mapper
-        shell: pwsh
-        timeout-minutes: 5
-        run: |
-          $ErrorActionPreference = 'Stop'
-          New-Item -ItemType Directory -Path 'app/engines' -Force | Out-Null
-          $zip = 'app/engines/ds4windows-3-3-3.zip'
-          $source = 'https://github.com/ds4windowsapp/DS4Windows/releases/download/ryochan7/ds4windows-3-3-3.zip'
-          Invoke-WebRequest -Uri $source -OutFile $zip -MaximumRedirection 8 -TimeoutSec 120
-          if (!(Test-Path $zip)) { throw 'Archived DS4Windows mapper was not downloaded' }
-          $hash = (Get-FileHash -Path $zip -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($hash -ne 'cf5619bcb51b82e4e1765276e9f67fb1e2d23dff968a653657acf35bafff8bf4') {
-            throw 'DS4Windows ZIP checksum mismatch. Refusing to package unverified executable.'
-          }
-          Add-Type -AssemblyName System.IO.Compression.FileSystem
-          $archive = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $zip).Path)
-          try {
-            $entry = $archive.Entries | Where-Object { $_.FullName -match '(^|/)DS4Windows.exe$' } | Select-Object -First 1
-            if (-not $entry) { throw 'Pinned DS4Windows archive does not contain the expected DS4Windows.exe' }
-          } finally { $archive.Dispose() }
-          Write-Host 'DS4Windows 3.3.3 archive SHA-256 and executable verified; bundling only.'
-
       - name: Compile desktop application
         shell: pwsh
         run: |
