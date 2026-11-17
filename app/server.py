@@ -185,6 +185,7 @@ class Handler(BaseHTTPRequestHandler):
    elif action=='/api/gfn-rename':out=engine.gfn_rename(body.get('id',''),body.get('title',''))
    elif action=='/api/gfn-remove':out=engine.gfn_remove(body.get('id',''))
    elif action=='/api/gfn-art':out=engine.gfn_match_art(body.get('id',''))
+   elif action=='/api/gfn-polish-art':out=engine.gfn_polish_art(body.get('id',''))
    elif action=='/api/gfn-launch':out=engine.gfn_launch(body.get('id',''))
    elif action=='/api/uninstall-preview':out=engine.uninstall_preview(body['id'])
    elif action=='/api/uninstall-confirm':out=engine.uninstall_confirm(body['id'],body.get('token',''),body.get('confirmation',''))
