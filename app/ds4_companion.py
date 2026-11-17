@@ -143,6 +143,12 @@ def existing_executable():
     for p in _candidates():
         if p.is_file():
             return p
+    # Verified archives may contain a versioned subfolder.
+    managed=managed_root()/'DS4Windows'
+    if managed.exists():
+        matches=[p for p in managed.rglob('DS4Windows.exe') if p.is_file()]
+        if len(matches)==1:
+            return matches[0]
     return None
 
 def status():
