@@ -17,6 +17,7 @@ BUTTONS = {
     'rb': 'XUSB_GAMEPAD_RIGHT_SHOULDER',
     'back': 'XUSB_GAMEPAD_BACK', 'start': 'XUSB_GAMEPAD_START',
     'guide': 'XUSB_GAMEPAD_GUIDE',
+    'l3': 'XUSB_GAMEPAD_LEFT_THUMB', 'r3': 'XUSB_GAMEPAD_RIGHT_THUMB',
     'up': 'XUSB_GAMEPAD_DPAD_UP', 'down': 'XUSB_GAMEPAD_DPAD_DOWN',
     'left': 'XUSB_GAMEPAD_DPAD_LEFT', 'right': 'XUSB_GAMEPAD_DPAD_RIGHT',
 }
@@ -96,11 +97,6 @@ class NativeInput:
             if os.name != 'nt':
                 self._publish(message='Xbox emulation requires Windows')
                 return
-            try:
-                import vgamepad as vg
-            except ImportError:
-                self._publish(message='vgamepad dependency missing from Elmos World build')
-                return
             from elmos_input_driver import is_installed
             if not is_installed():
                 if os.environ.get('ELMOS_INPUT_DISABLE_SETUP') == '1':
@@ -115,6 +111,13 @@ class NativeInput:
                 if not is_installed():
                     self._publish(message='ViGEmBus driver setup finished but Windows cannot detect it yet; restart may be needed.')
                     return
+            # vgamepad creates a global ViGEmClient bus connection at import time.
+            # Import it only after the bus is confirmed available.
+            try:
+                import vgamepad as vg
+            except (ImportError, OSError, RuntimeError) as exc:
+                self._publish(message='ViGEmClient initialization failed: ' + str(exc)[:160])
+                return
             # Another mapper can fight over the same physical device or create double input.
             # Never terminate or modify a separately started program.
             from subprocess import run, CREATE_NO_WINDOW
@@ -128,6 +131,9 @@ class NativeInput:
                 frame = frame_from_snapshot(self.source.snapshot())
                 if frame is None:
                     if pad is not None:
+                        self.source.queue_rumble(0, 0)
+                        try: pad.unregister_notification()
+                        except Exception: pass
                         pad.reset()
                         pad.update()
                         del pad
@@ -138,6 +144,11 @@ class NativeInput:
                     continue
                 if pad is None:
                     pad = vg.VX360Gamepad()
+                    # ViGEm receives rumble commands from games. Queue them to
+                    # the SDL reader; only that thread touches the physical pad.
+                    def on_rumble(client, target, large_motor, small_motor, led, user_data):
+                        self.source.queue_rumble(large_motor / 255, small_motor / 255)
+                    pad.register_notification(callback_function=on_rumble)
                 apply_frame(pad, vg, frame)
                 self._publish(connected=True, running=True,
                               message='Elmos Input is sending Xbox 360 controller reports',
@@ -148,6 +159,8 @@ class NativeInput:
         finally:
             if pad is not None:
                 try:
+                    self.source.queue_rumble(0, 0)
+                    pad.unregister_notification()
                     pad.reset()
                     pad.update()
                     del pad
