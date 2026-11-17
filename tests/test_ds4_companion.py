@@ -63,6 +63,53 @@ class DS4Tests(unittest.TestCase):
                 self.assertEqual(run.call_args.args[0],[str(exe),'-command','shutdown'])
                 proc.terminate.assert_not_called()
 
+    def test_already_installed_components_are_checked_without_download(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            exe=Path(tmp)/'DS4Windows.exe'
+            exe.write_bytes(b'test')
+            proc=MagicMock()
+            proc.pid=4321
+            proc.poll.return_value=None
+            with patch.object(ds4_companion.os,'name','nt'), \
+                 patch.object(ds4_companion,'existing_executable',return_value=exe), \
+                 patch.object(ds4_companion,'_running_named',return_value=[]), \
+                 patch.object(ds4_companion,'install_missing_user_component') as download, \
+                 patch('elmos_input_driver.install_if_missing',return_value={'status':'already-installed'}) as driver, \
+                 patch.object(ds4_companion.subprocess,'STARTUPINFO') as startup, \
+                 patch.object(ds4_companion.subprocess,'Popen',return_value=proc), \
+                 patch.object(ds4_companion.threading,'Thread') as thread:
+                ds4_companion._owned=None
+                ds4_companion._owned_exe=None
+                result=ds4_companion.start_existing()
+                download.assert_not_called()
+                driver.assert_called_once()
+                self.assertEqual(result['phase'],'running')
+                ds4_companion._owned=None
+                ds4_companion._owned_exe=None
+
+    def test_missing_ds4_and_driver_are_installed_independently(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            exe=Path(tmp)/'DS4Windows.exe'
+            exe.write_bytes(b'test')
+            proc=MagicMock()
+            proc.pid=4322
+            proc.poll.return_value=None
+            with patch.object(ds4_companion.os,'name','nt'), \
+                 patch.object(ds4_companion,'existing_executable',side_effect=[None,exe,exe]), \
+                 patch.object(ds4_companion,'_running_named',return_value=[]), \
+                 patch.object(ds4_companion,'install_missing_user_component') as download, \
+                 patch('elmos_input_driver.install_if_missing',return_value={'status':'installed'}) as driver, \
+                 patch.object(ds4_companion.subprocess,'STARTUPINFO'), \
+                 patch.object(ds4_companion.subprocess,'Popen',return_value=proc), \
+                 patch.object(ds4_companion.threading,'Thread'):
+                ds4_companion._owned=None
+                ds4_companion._owned_exe=None
+                ds4_companion.start_existing()
+                download.assert_called_once()
+                driver.assert_called_once()
+                ds4_companion._owned=None
+                ds4_companion._owned_exe=None
+
     def test_close_ui_not_called_for_shutdown(self):
         src=(ROOT/'app'/'ds4_companion.py').read_text(encoding='utf-8')
         self.assertIn("startup.wShowWindow = 7",src)
