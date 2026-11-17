@@ -52,6 +52,7 @@ class Handler(BaseHTTPRequestHandler):
   if u.path=='/premium_28.css':return self.send_file(HERE/'premium_28.css','text/css; charset=utf-8')
   if u.path=='/premium_30.css':return self.send_file(HERE/'premium_30.css','text/css; charset=utf-8')
   if u.path=='/premium_31.css':return self.send_file(HERE/'premium_31.css','text/css; charset=utf-8')
+  if u.path=='/premium_32.css':return self.send_file(HERE/'premium_32.css','text/css; charset=utf-8')
   if u.path=='/app.js':return self.send_file(HERE/'app.js','text/javascript; charset=utf-8')
   if u.path=='/graphite_weave.svg':return self.send_file(HERE/'graphite_weave.svg','image/svg+xml',cache=True)
   if not self.valid():return self.error(403,'Unauthorized local request')
