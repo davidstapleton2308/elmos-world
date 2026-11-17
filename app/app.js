@@ -279,11 +279,11 @@ let gfnAutoSyncAttempted=false;
 const gfnItems=()=>state.gfnGames||[];
 const gfnNormalize=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
 function gfnArtFor(g,slot){
- const cached=g.images||{}; if(slot==='portrait'&&(cached.portrait||cached.hero))return cached.portrait||cached.hero; if(slot!=='portrait'&&(cached.hero||cached.portrait))return cached.hero||cached.portrait;
+ const cached=g.images||{}; if(slot==='portrait'&&cached.portrait)return cached.portrait; if(slot!=='portrait'&&cached.hero)return cached.hero;
  const local=(state.games||[]).find(x=>gfnNormalize(x.name)===gfnNormalize(g.name));
  if(local){const url=art(local,slot==='portrait'?'portrait':'hero')||art(local,'wide');if(url)return url;}
  if(g.steamId){const id=encodeURIComponent(g.steamId);return slot==='portrait'?`https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/${id}/library_600x900.jpg`:`https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/${id}/library_hero.jpg`;}
- return '';
+ return slot==='portrait'?(cached.hero||''):(cached.portrait||'');
 }
 function gfnSelectedItem(){return gfnItems().find(x=>x.id===gfnSelected)||null;}
 function gfnCenterCard(card){
@@ -293,7 +293,8 @@ function gfnCenterCard(card){
  root.scrollTo({left:Math.max(0,left),behavior:document.documentElement.dataset.motion==='reduced'?'instant':'smooth'});
 }
 function gfnSelectCentered(){
- if(screen!=='gfn'||performance.now()<gfnProgrammaticUntil)return;
+ if(screen!=='gfn')return;
+ if(performance.now()<gfnProgrammaticUntil){clearTimeout(gfnCenterTimer);gfnCenterTimer=setTimeout(gfnSelectCentered,Math.ceil(gfnProgrammaticUntil-performance.now())+30);return;}
  const root=$('gfnCards');if(!root?.clientWidth)return;
  const center=root.getBoundingClientRect().left+root.clientWidth/2;
  let nearest=null,dist=Infinity;
@@ -326,6 +327,9 @@ function renderGfn(){
  return `<button class="gfn-card" data-gfn="${esc(g.id)}"><span class="gfn-poster">${image?`<img loading="lazy" decoding="async" src="${esc(image)}" alt="" onerror="this.style.display='none'">`:''}<span class="gfn-monogram">${monogram}</span></span><strong>${esc(g.name)}</strong><small>${esc(g.store||'GEFORCE NOW')+' · '+(g.directLaunch?'DIRECT PLAY':g.synced?'SYNCED':'SHORTCUT MISSING')}</small></button>`;
  }).join('')||'<div class="gfn-empty">No cloud games synced yet. Open GeForce NOW My Library, scroll through it, then select Sync My Library.</div>';
  for(const card of root.querySelectorAll('.gfn-card')){
+  const poster=card.querySelector('.gfn-poster');const game=gfnItems().find(x=>x.id===card.dataset.gfn);
+  const background=game?gfnArtFor(game,'portrait'):'';
+  if(poster&&background)poster.style.setProperty('--gfn-cover','url("'+background.replace(/\\/g,'').replace(/"/g,'%22')+'")');
   card.onfocus=()=>gfnSelect(card.dataset.gfn,false);
   // Hover does not hijack centered selection during mouse-wheel scrolling.
   card.onclick=()=>gfnSelect(card.dataset.gfn,true);
