@@ -94,6 +94,13 @@
  overflow:hidden!important;
  box-shadow:0 14px 34px rgba(0,0,0,.34)!important;
 }
+/* Preserve all of the cover artwork while filling the entire frame with a
+   softened continuation of the same image when NVIDIA only caches wide art. */
+#gfnView #gfnCards .gfn-card .gfn-poster::before{
+ content:"";position:absolute;inset:-12px;z-index:1;pointer-events:none;
+ background-image:var(--gfn-cover,none);background-size:cover;background-position:center;
+ filter:blur(16px) brightness(.52);opacity:.85;transform:scale(1.05);
+}
 #gfnView #gfnCards .gfn-card.active .gfn-poster,
 #gfnView #gfnCards .gfn-card.selected .gfn-poster,
 #gfnView #gfnCards .gfn-card:focus-visible .gfn-poster{
@@ -101,7 +108,7 @@
 }
 #gfnView #gfnCards .gfn-poster img{
  position:absolute!important;inset:0;width:100%!important;height:100%!important;
- display:block;object-fit:cover!important;object-position:center!important;
+ display:block;object-fit:contain!important;object-position:center!important;
  background:transparent!important;border:0!important;
  z-index:2;
 }
