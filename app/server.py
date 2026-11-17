@@ -138,7 +138,13 @@ class Handler(BaseHTTPRequestHandler):
   try:
    body=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0'))) or b'{}')
    action=urlsplit(self.path).path
-   if action=='/api/update-config':
+   if action=='/api/quit':
+    # The user explicitly chose Quit in the hub. Respond before exiting so
+    # the WebView receives an acknowledgement rather than a network error.
+    # This ends only the launcher process; game processes are not terminated.
+    out={'ok':True,'quitting':True}
+    threading.Timer(0.75,lambda:os._exit(0)).start()
+   elif action=='/api/update-config':
     out={'repository':update_center.configure(body.get('repository',''))}
    elif action=='/api/update-install':
     if active_game_process():raise RuntimeError('Finish your running game before updating.')
