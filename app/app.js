@@ -275,7 +275,7 @@ function deleteHiddenDialog(){
 }
 // Separate GeForce NOW collection. No change to the local-games carousel.
 let gfnSelected=localStorage.getItem('elmo-gfn-selected')||'',gfnCenterTimer=null,gfnProgrammaticUntil=0;
-let gfnAutoSyncAttempted=false,gfnArtEnrichBusy=false;
+let gfnAutoSyncAttempted=false,gfnArtEnrichBusy=false,gfnHeroImageToken=0;
 const gfnItems=()=>state.gfnGames||[];
 const gfnNormalize=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
 function gfnArtFor(g,slot){
@@ -291,6 +291,23 @@ function gfnArtFor(g,slot){
  if(local){const wide=art(local,'hero')||art(local,'wide');if(wide)return wide;}
  if(g.steamId)return `https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/${encodeURIComponent(g.steamId)}/library_hero.jpg`;
  return cached.hero||cached.portrait||(local&&art(local,'portrait'))||'';
+}
+function gfnUpdateHeroScene(g){
+ const cached=g.images||{},enhanced=g.artwork||{};
+ const local=(state.games||[]).find(x=>gfnNormalize(x.name)===gfnNormalize(g.name));
+ const steam=g.steamId?`https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/${encodeURIComponent(g.steamId)}/library_hero.jpg`:'';
+ const choices=[...new Set([enhanced.hero,local&&(art(local,'hero')||art(local,'wide')),steam,cached.hero,cached.portrait,enhanced.portrait].filter(Boolean))];
+ const token=++gfnHeroImageToken,scene=$('gfnHeroScene');
+ const stable=cached.hero||cached.portrait||'';
+ scene.style.backgroundImage=stable?`url("${stable}")`:'';
+ function load(i){
+  if(i>=choices.length||token!==gfnHeroImageToken)return;
+  const url=choices[i],image=new Image();
+  image.onload=()=>{if(token!==gfnHeroImageToken)return;scene.style.backgroundImage=`url("${url}")`;};
+  image.onerror=()=>load(i+1);
+  image.src=url;
+ }
+ load(0);
 }
 function gfnCoverCandidates(g){
  const cached=g.images||{},enhanced=g.artwork||{};
@@ -362,8 +379,7 @@ function gfnSelectCentered(){
 function gfnSelect(id,center=false){
  const g=gfnItems().find(x=>x.id===id);if(!g)return;
  gfnSelected=id;localStorage.setItem('elmo-gfn-selected',id);
- const hero=gfnArtFor(g,'hero');
- $('gfnHeroScene').style.backgroundImage=hero?`url("${hero}")`:'';
+ gfnUpdateHeroScene(g);
  $('gfnHeroTitle').textContent=g.name;
  $('gfnHeroText').textContent=(g.store?g.store+' · ':'')+(g.directLaunch?'GeForce NOW · Direct cloud game launch':g.synced?'Synced My Library · Opens GeForce NOW app':'Shortcut missing · Reimport to play');
  $('gfnPlay').textContent=g.directLaunch?'▶ Play on GeForce NOW':g.synced?'▶ Open in GeForce NOW':'Shortcut unavailable';
@@ -390,7 +406,7 @@ function renderGfn(){
   card.ondblclick=()=>{const game=gfnSelectedItem();if(game)gfnLaunch(game)};
  }
  if(games.length){if(!games.some(x=>x.id===gfnSelected))gfnSelected=games[0].id;gfnSelect(gfnSelected,true);if(screen==='gfn'){requestAnimationFrame(()=>gfnSelect(gfnSelected,true));setTimeout(gfnEnhanceCovers,400)}}
- else{$('gfnHeroScene').style.backgroundImage='';$('gfnHeroTitle').textContent='Your games. In the cloud.';$('gfnHeroText').textContent='Sync your connected Steam, Epic, Ubisoft and other GeForce NOW games into Elmos World.';$('gfnPlay').textContent='▶ Open GeForce NOW';$('gfnPlay').disabled=false;$('gfnPlay').onclick=gfnOpenApp;}
+ else{gfnHeroImageToken++;$('gfnHeroScene').style.backgroundImage='';$('gfnHeroTitle').textContent='Your games. In the cloud.';$('gfnHeroText').textContent='Sync your connected Steam, Epic, Ubisoft and other GeForce NOW games into Elmos World.';$('gfnPlay').textContent='▶ Open GeForce NOW';$('gfnPlay').disabled=false;$('gfnPlay').onclick=gfnOpenApp;}
 }
 async function gfnOpenApp(){
  const provider=(state.platforms||[]).find(x=>x.name==='GeForce NOW'&&x.installed);
