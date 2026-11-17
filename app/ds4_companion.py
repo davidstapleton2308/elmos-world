@@ -46,13 +46,16 @@ def _candidates():
     env_program=Path(os.environ.get('ProgramFiles',r'C:\Program Files'))
     env_roaming=Path(os.environ.get('APPDATA',str(home/'AppData'/'Roaming')))
     paths=[
-        env_local/'ElmosWorld'/'ElmosInput'/'DS4Windows'/'DS4Windows.exe',
-        env_local/'ElmosWorld'/'ElmosInput'/'DS4Windows'/'DS4Windows'/'DS4Windows.exe',
         Path(r'C:\Gaming\Controller-Test\DS4Windows\DS4Windows.exe'),
         env_program/'DS4Windows'/'DS4Windows.exe',
         env_local/'Programs'/'DS4Windows'/'DS4Windows.exe',
         env_local/'DS4Windows'/'DS4Windows.exe',
         env_roaming/'DS4Windows'/'DS4Windows.exe',
+    ]
+    # Preserve already-working external install before any managed download.
+    paths += [
+        env_local/'ElmosWorld'/'ElmosInput'/'DS4Windows'/'DS4Windows.exe',
+        env_local/'ElmosWorld'/'ElmosInput'/'DS4Windows'/'DS4Windows'/'DS4Windows.exe',
     ]
     # Archive layouts can contain a nested x64 subdirectory.
     paths += [Path(r'C:\Gaming\Controller-Test\DS4Windows')/sub/'DS4Windows.exe'
@@ -193,7 +196,18 @@ def start_existing():
         if not exe:
             _last_error='Controller executable unavailable; drivers were left unchanged.'
             return status()
-        # Never launch unknown EXEs outside the recognized user installation roots.
+        # With classic 3.3.3 use its matching ViGEmBus 1.22 bus, but never
+        # replace an existing VIIPER/USB-IP controller stack.
+        from elmos_input_driver import install_if_missing
+        try:
+            driver=install_if_missing()
+        except (OSError,ValueError) as exc:
+            _last_error='Could not prepare verified driver: '+str(exc)[:160]
+            return status()
+        if driver['status'] not in ('already-installed','installed'):
+            _last_error='Controller driver is not ready ('+driver['status']+'). '+driver.get('message','Windows might require a restart.')
+            return status()
+        # Start the preserved classic mapper only after its virtual output bus is ready.
         try:
             _owned=subprocess.Popen([str(exe)],cwd=str(exe.parent),
                         creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
