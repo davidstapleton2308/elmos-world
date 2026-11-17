@@ -1137,6 +1137,20 @@ function padHandle(pad,source){
   if(buttons.b&&!prevPad.b)closeGameMenu();
   prevPad={a:!!buttons.a,b:!!buttons.b};return;
  }
+ if(hubExitOpen){
+  if(!document.hasFocus()){prevPad={};gateUntilRelease=true;return}
+  const buttons=pad.buttons||{};
+  if(buttons.b&&!prevPad.b)cancelHubExit();
+  else if(buttons.a&&!prevPad.a)document.activeElement?.click?.();
+  else if((buttons.left&&!prevPad.left)||(buttons.right&&!prevPad.right)||
+          (buttons.up&&!prevPad.up)||(buttons.down&&!prevPad.down)){
+   const next=document.activeElement===$('hubExitNo')?$('hubExitYes'):$('hubExitNo');
+   next.focus({preventScroll:true});
+  }
+  prevPad={a:!!buttons.a,b:!!buttons.b,left:!!buttons.left,
+           right:!!buttons.right,up:!!buttons.up,down:!!buttons.down};
+  return;
+ }
  if(gameInputSuspended||!document.hasFocus()){prevPad={};lastNav='';gateUntilRelease=true;return}
  if(!connected){document.body.classList.remove('controller-active');prevPad={};lastNav='';gateUntilRelease=true;lastRightScrollTime=0;return}
  const buttons=Object.assign({},pad.buttons||{}),axes=pad.axes||[0,0];
@@ -1152,7 +1166,7 @@ function padHandle(pad,source){
  if(dir&&(dir!==lastNav||now>repeatAt)){document.body.classList.add('controller-active');menuSound();navSpatial(dir);repeatAt=now+(dir!==lastNav?260:155)}
  lastNav=dir;
  if(held('a')&&!prevPad.a){document.body.classList.add('controller-active');if(!padControls().includes(document.activeElement))padFocusFirst();else document.activeElement.click?.()}
- if(held('b')&&!prevPad.b){if(!$('mediaViewer').hidden)closeViewer();else if(modal)closeDialog();else if(screen==='detail')open('library');else if(screen!=='library')open('library');else padFocusFirst()}
+ if(held('b')&&!prevPad.b)backFromController()
  if(held('start')&&!prevPad.start){if(screen==='detail')$('playSelected').click();else if(screen==='library')$('featuredPlay').click()}
  if(held('lb')&&!prevPad.lb)cycleTopNav(-1);
  if(held('rb')&&!prevPad.rb)cycleTopNav(1);
@@ -1196,25 +1210,57 @@ function setupControllerEditor(){syncNativeMenuButtons();const options=Array.fro
  $('controllerRefresh').onclick=()=>pollController();
 }
 function applyVisualPreferences(){document.documentElement.dataset.theme=elmoTheme;document.documentElement.dataset.motion=elmoMotion;applyAtmosphere();$('themeChoice').value=elmoTheme;$('motionChoice').value=elmoMotion}
+let hubExitOpen=false,hubExitRestoreFocus=null,hubExitBusy=false;
+function openHubExit(){
+ if(hubExitOpen||modal||screen!=='library'||gameInputSuspended)return;
+ hubExitRestoreFocus=document.activeElement;
+ hubExitOpen=true;
+ $('hubExitOverlay').classList.remove('hidden');
+ $('hubExitNo').focus({preventScroll:true});
+}
+function cancelHubExit(){
+ if(!hubExitOpen||hubExitBusy)return;
+ hubExitOpen=false;
+ $('hubExitOverlay').classList.add('hidden');
+ const restore=hubExitRestoreFocus;
+ hubExitRestoreFocus=null;
+ if(restore?.isConnected)restore.focus({preventScroll:true});
+}
 async function quitElmosWorld(){
- const controls=[$('quitElmos'),$('quitElmosSettings')].filter(Boolean);
- if(controls.some(b=>b.disabled))return;
- controls.forEach(b=>b.disabled=true);
+ if(hubExitBusy)return;
+ hubExitBusy=true;
+ $('hubExitYes').disabled=true;$('hubExitNo').disabled=true;
  try{
   const result=await api('/api/quit',{});
   if(!result?.quitting)throw new Error('The launcher did not acknowledge the exit request.');
-  // Native process is ending. Leave this button disabled to avoid duplicate requests.
  }catch(e){
-  controls.forEach(b=>b.disabled=false);
+  hubExitBusy=false;
+  $('hubExitYes').disabled=false;$('hubExitNo').disabled=false;
   notify('Could not quit Elmos World: '+e.message,true);
  }
 }
-$('quitElmos').onclick=quitElmosWorld;
-$('quitElmosSettings').onclick=quitElmosWorld;
+$('hubExitYes').onclick=quitElmosWorld;
+$('hubExitNo').onclick=cancelHubExit;
+function backFromController(){
+ if(hubExitOpen){cancelHubExit();return;}
+ if(!$('mediaViewer').hidden){closeViewer();return;}
+ if(modal){closeDialog();return;}
+ if(screen==='detail'){open('library');return;}
+ if(screen!=='library'){open('library');return;}
+ const focused=document.activeElement;
+ const chosen=document.querySelector('#gameCards .game-card.selected')||
+              document.querySelector('#gameCards .game-card');
+ if(focused===chosen||focused===$('featuredPlay')||(!chosen&&focused===document.body)){
+  openHubExit();
+ }else{
+  padFocusFirst();
+ }
+}
+
 function fullscreenToggle(){if(window.pywebview?.api?.toggle_fullscreen)window.pywebview.api.toggle_fullscreen().catch(()=>{});else if(document.fullscreenElement)document.exitFullscreen?.();else document.documentElement.requestFullscreen?.().catch(()=>{});}
 $('deleteHiddenButton').onclick=deleteHiddenDialog;
 $('gfnSync').onclick=gfnSync;$('gfnImport').onclick=gfnImport;$('gfnDiscover').onclick=gfnDiscover;$('gfnManage').onclick=gfnManage;$('gfnPrev').onclick=()=>gfnMove(-1);$('gfnNext').onclick=()=>gfnMove(1);
-$('logoHome').onclick=()=>open('library');document.querySelectorAll('.rail-link').forEach(b=>b.onclick=()=>open(b.dataset.screen));$('featuredDetails').onclick=()=>{};$('nextFeature').onclick=()=>moveCarousel(1);$('backToLibrary').onclick=()=>open('library');$('search').oninput=()=>{open('library');renderLibrary()};document.querySelectorAll('[data-sort]').forEach(b=>b.onclick=()=>{sort=b.dataset.sort;document.querySelectorAll('[data-sort]').forEach(x=>x.classList.toggle('active',x===b));renderLibrary()});$('rescan').onclick=async()=>{await reload(true);notify('Library refreshed. Existing games remain unchanged.')};$('queueRescan').onclick=async()=>{await reload(true);notify('Scan complete.')};$('addGame').onclick=addGame;$('newEmulator').onclick=addEmulator;$('newRom').onclick=addRom;$('closeDialog').onclick=closeDialog;$('dialogBackdrop').onclick=e=>{if(e.target===$('dialogBackdrop'))closeDialog()};window.addEventListener('keydown',e=>{if(e.key==='F11'){e.preventDefault();fullscreenToggle()}if(e.key==='Escape'){if(!$('mediaViewer').hidden){e.preventDefault();closeViewer();return;}if(sessionState==='menu'){e.preventDefault();closeGameMenu()}else if(modal)closeDialog();else if(screen==='detail')open('library')}if(!$('mediaViewer').hidden&&['ArrowLeft','ArrowRight'].includes(e.key)){e.preventDefault();moveViewer(e.key==='ArrowRight'?1:-1);return;}if(screen==='detail'&&!modal&&document.activeElement?.closest('#detailShots')&&['ArrowLeft','ArrowRight'].includes(e.key)){e.preventDefault();galleryMove(e.key==='ArrowRight'?1:-1);return;}if(e.key==='Backspace'&&document.activeElement.tagName!=='INPUT'&&document.activeElement.tagName!=='TEXTAREA'&&screen==='detail')open('library')});$('carouselPrev').onclick=()=>moveCarousel(-1);$('carouselNext').onclick=()=>moveCarousel(1);
+$('logoHome').onclick=()=>open('library');document.querySelectorAll('.rail-link').forEach(b=>b.onclick=()=>open(b.dataset.screen));$('featuredDetails').onclick=()=>{};$('nextFeature').onclick=()=>moveCarousel(1);$('backToLibrary').onclick=()=>open('library');$('search').oninput=()=>{open('library');renderLibrary()};document.querySelectorAll('[data-sort]').forEach(b=>b.onclick=()=>{sort=b.dataset.sort;document.querySelectorAll('[data-sort]').forEach(x=>x.classList.toggle('active',x===b));renderLibrary()});$('rescan').onclick=async()=>{await reload(true);notify('Library refreshed. Existing games remain unchanged.')};$('queueRescan').onclick=async()=>{await reload(true);notify('Scan complete.')};$('addGame').onclick=addGame;$('newEmulator').onclick=addEmulator;$('newRom').onclick=addRom;$('closeDialog').onclick=closeDialog;$('dialogBackdrop').onclick=e=>{if(e.target===$('dialogBackdrop'))closeDialog()};window.addEventListener('keydown',e=>{if(e.key==='F11'){e.preventDefault();fullscreenToggle()}if(e.key==='Escape'&&hubExitOpen){e.preventDefault();cancelHubExit();return;}if(e.key==='Escape'){if(!$('mediaViewer').hidden){e.preventDefault();closeViewer();return;}if(sessionState==='menu'){e.preventDefault();closeGameMenu()}else if(modal)closeDialog();else if(screen==='detail')open('library')}if(!$('mediaViewer').hidden&&['ArrowLeft','ArrowRight'].includes(e.key)){e.preventDefault();moveViewer(e.key==='ArrowRight'?1:-1);return;}if(screen==='detail'&&!modal&&document.activeElement?.closest('#detailShots')&&['ArrowLeft','ArrowRight'].includes(e.key)){e.preventDefault();galleryMove(e.key==='ArrowRight'?1:-1);return;}if(e.key==='Backspace'&&!['INPUT','TEXTAREA'].includes(document.activeElement.tagName)){if(hubExitOpen){e.preventDefault();cancelHubExit()}else if(!modal){e.preventDefault();backFromController()}}});$('carouselPrev').onclick=()=>moveCarousel(-1);$('carouselNext').onclick=()=>moveCarousel(1);
 function moveCarousel(delta){
  const list=visibleGames();if(!list.length)return;
  const index=Math.max(0,list.findIndex(g=>g.id===selected));
