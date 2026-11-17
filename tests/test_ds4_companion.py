@@ -46,6 +46,80 @@ class DS4Tests(unittest.TestCase):
         self.assertNotIn('HidHideSetup.exe',s)
         self.assertIn("viiper.exe",s)
 
+    def test_elmos_owned_shutdown_uses_ipc_instead_of_gui_close(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            exe=Path(tmp)/'DS4Windows.exe'
+            exe.write_bytes(b'test')
+            proc=MagicMock()
+            proc.pid=1234
+            proc.poll.side_effect=[None,0,0]
+            with patch.object(ds4_companion,'_owned',proc), \
+                 patch.object(ds4_companion,'_owned_exe',exe), \
+                 patch.object(ds4_companion.subprocess,'Popen') as run:
+                result=ds4_companion.stop_owned()
+                self.assertTrue(result['stopped'])
+                self.assertIn('graceful',result['reason'])
+                run.assert_called_once()
+                self.assertEqual(run.call_args.args[0],[str(exe),'-command','shutdown'])
+                proc.terminate.assert_not_called()
+
+    def test_already_installed_components_are_checked_without_download(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            exe=Path(tmp)/'DS4Windows.exe'
+            exe.write_bytes(b'test')
+            proc=MagicMock()
+            proc.pid=4321
+            proc.poll.return_value=None
+            with patch.dict(ds4_companion.os.environ,{'ELMOS_INPUT_DISABLE_SETUP':'0'}), \
+                 patch.object(ds4_companion.os,'name','nt'), \
+                 patch.object(ds4_companion,'existing_executable',return_value=exe), \
+                 patch.object(ds4_companion,'_running_named',return_value=[]), \
+                 patch.object(ds4_companion,'install_missing_user_component') as download, \
+                 patch('elmos_input_driver.install_if_missing',return_value={'status':'already-installed'}) as driver, \
+                 patch.object(ds4_companion.subprocess,'STARTUPINFO') as startup, \
+                 patch.object(ds4_companion.subprocess,'Popen',return_value=proc), \
+                 patch.object(ds4_companion.threading,'Thread') as thread:
+                ds4_companion._owned=None
+                ds4_companion._owned_exe=None
+                result=ds4_companion.start_existing()
+                download.assert_not_called()
+                driver.assert_called_once()
+                self.assertEqual(result['phase'],'starting-controller')
+                ds4_companion._owned=None
+                ds4_companion._owned_exe=None
+
+    def test_missing_ds4_and_driver_are_installed_independently(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            exe=Path(tmp)/'DS4Windows.exe'
+            exe.write_bytes(b'test')
+            proc=MagicMock()
+            proc.pid=4322
+            proc.poll.return_value=None
+            with patch.dict(ds4_companion.os.environ,{'ELMOS_INPUT_DISABLE_SETUP':'0'}), \
+                 patch.object(ds4_companion.os,'name','nt'), \
+                 patch.object(ds4_companion,'existing_executable',side_effect=[None,exe,exe]), \
+                 patch.object(ds4_companion,'_running_named',return_value=[]), \
+                 patch.object(ds4_companion,'install_missing_user_component') as download, \
+                 patch('elmos_input_driver.install_if_missing',return_value={'status':'installed'}) as driver, \
+                 patch.object(ds4_companion.subprocess,'STARTUPINFO'), \
+                 patch.object(ds4_companion.subprocess,'Popen',return_value=proc), \
+                 patch.object(ds4_companion.threading,'Thread'):
+                ds4_companion._owned=None
+                ds4_companion._owned_exe=None
+                ds4_companion.start_existing()
+                download.assert_called_once()
+                driver.assert_called_once()
+                ds4_companion._owned=None
+                ds4_companion._owned_exe=None
+
+    def test_close_ui_not_called_for_shutdown(self):
+        src=(ROOT/'app'/'ds4_companion.py').read_text(encoding='utf-8')
+        self.assertIn("startup.wShowWindow = 7",src)
+        self.assertIn("ShowWindowAsync(hwnd,0)",src)
+        self.assertNotIn("PostMessageW(hwnd,0x0010",src)
+        self.assertNotIn("CloseMainWindow",src)
+        self.assertIn("install_if_missing()",src)
+
     def test_known_hash_matches_historical_verified_classic_build(self):
         self.assertEqual(ds4_companion.ARCHIVE_SHA256,
         'cf5619bcb51b82e4e1765276e9f67fb1e2d23dff968a653657acf35bafff8bf4')

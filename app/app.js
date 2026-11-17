@@ -1219,10 +1219,11 @@ function setupControllerEditor(){syncNativeMenuButtons();const options=Array.fro
 }
 function renderDs4Companion(r){
  if(!r)return;
- $('ds4Status').textContent=r.message+
+ $('ds4Status').textContent=(r.phase && r.phase!=='idle'?'['+r.phase+'] ':'')+r.message+
    (r.viiperRunning?' · VIIPER detected':'')+
    (r.startedByElmos?' · Managed with Elmos World':'');
- $('ds4Start').hidden=!!r.running||!!r.viiperRunning||!r.exeFound;
+ $('ds4Start').hidden=!!r.running||!!r.viiperRunning;
+ $('ds4Start').textContent=r.exeFound?'Start / Repair Elmos Input':'Install and Start Elmos Input';
 }
 async function refreshDs4Companion(){
  try{renderDs4Companion(await api('/api/ds4-status',{}))}

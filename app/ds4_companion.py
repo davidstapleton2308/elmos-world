@@ -16,12 +16,14 @@ import io
 import os
 import subprocess
 import threading
+import time
 from pathlib import Path
 
 _lock = threading.RLock()
 _owned = None
 _owned_exe = None
 _last_error = ''
+_setup_phase = 'idle'
 
 def _running_named(name):
     """Return current process IDs, without touching unrelated processes."""
@@ -154,108 +156,235 @@ def existing_executable():
             return matches[0]
     return None
 
+def _log(message):
+    try:
+        path=managed_root().parent/'logs'/'controller-setup.log'
+        path.parent.mkdir(parents=True,exist_ok=True)
+        with path.open('a',encoding='utf-8') as output:
+            output.write(time.strftime('%Y-%m-%d %H:%M:%S')+' '+message+'\n')
+    except OSError:
+        pass
+
+def _command(exe, action):
+    """Issue classic DS4Windows IPC command without a console or WM_CLOSE."""
+    startup=subprocess.STARTUPINFO()
+    startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    startup.wShowWindow=0
+    return subprocess.Popen([str(exe),'-command',action],cwd=str(Path(exe).parent),
+              startupinfo=startup,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
+
+def _connect_default_profile(proc, exe):
+    global _setup_phase, _last_error
+    """Once DS4 is running, start input and select the existing Default profile.
+
+    Never replace a player's existing XML profile or generate fake profile data.
+    """
+    for attempt in range(20):
+        if proc.poll() is not None:
+            _last_error='DS4Windows exited during startup; check its .NET runtime and first-run setup'
+            _setup_phase='error'
+            _log(_last_error)
+            return
+        if _running_named('DS4Windows.exe'):
+            break
+        time.sleep(0.25)
+    time.sleep(1.25)
+    if proc.poll() is not None:
+        _last_error='DS4Windows stopped before its controller service was started'
+        _setup_phase='error'
+        _log(_last_error)
+        return
+    try:
+        _command(exe,'start').wait(timeout=3)
+        _log('Requested DS4Windows controller start')
+        paths=[
+            managed_root()/'DS4Windows'/'Profiles'/'Default.xml',
+            Path(exe).parent/'Profiles'/'Default.xml',
+            Path(os.environ.get('APPDATA',str(Path.home())))/'DS4Windows'/'Profiles'/'Default.xml',
+        ]
+        if any(p.is_file() for p in paths):
+            _command(exe,'LoadProfile.1.Default').wait(timeout=3)
+            _log('Requested existing Default profile for controller 1')
+        else:
+            _log('Default.xml not found; preserving DS4Windows automatic profile selection')
+        if proc.poll() is None:
+            _setup_phase='running'
+            _log('Managed DS4Windows process remains running')
+    except (OSError,subprocess.SubprocessError) as exc:
+        _log('Unable to request controller profile: '+str(exc)[:140])
+
 def status():
-    with _lock:
-        current=_owned
-        owned=bool(current and current.poll() is None)
-        exe=existing_executable()
-        running=bool(_running_named('DS4Windows.exe'))
-        viiper=bool(_running_named('viiper.exe'))
-        return {'available':os.name=='nt',
-                'running':running or owned,'startedByElmos':owned,
-                'exeFound':bool(exe),'viiperRunning':viiper,
-                'backend':'existing installation, unchanged',
-                'message':_last_error if _last_error else (
-                   'Existing VIIPER virtual-controller backend detected; untouched' if viiper and not running
-                   else 'Using existing DS4Windows; no duplicate launched' if running and not owned
-                   else 'Elmos World started your existing DS4Windows installation' if owned
-                   else 'DS4Windows found; ready for Elmos to open it' if exe
-                   else 'DS4Windows was not located in standard folders. Existing controller drivers were not modified.'
-                )}
+    current=_owned
+    owned=bool(current and current.poll() is None)
+    exe=existing_executable()
+    running=bool(_running_named('DS4Windows.exe'))
+    viiper=bool(_running_named('viiper.exe'))
+    return {'available':os.name=='nt',
+            'running':running or owned,'startedByElmos':owned,
+            'exeFound':bool(exe),'viiperRunning':viiper,
+            'backend':'classic DS4Windows + ViGEmBus',
+            'phase':_setup_phase,
+            'message':_last_error if _last_error else (
+               'Existing VIIPER virtual-controller backend detected; untouched' if viiper and not running
+               else 'Using existing DS4Windows; no duplicate launched' if running and not owned
+               else 'Elmos World started your existing DS4Windows installation' if owned
+               else 'DS4Windows found; ready for Elmos to open it' if exe
+               else 'DS4Windows was not located in standard folders. Existing controller drivers were not modified.'
+            )}
 
 def start_existing():
-    global _owned, _owned_exe, _last_error
+    global _owned, _owned_exe, _last_error, _setup_phase
     if os.name!='nt' or os.environ.get('ELMOS_INPUT_DISABLE_SETUP')=='1':
         return status()
     with _lock:
         if _owned and _owned.poll() is None:
             return status()
-        if _running_named('DS4Windows.exe') or _running_named('viiper.exe'):
-            # VIIPER is a separate backend, not a request to launch a
-            # possibly incompatible classic ViGEmBus mapper alongside it.
-            _last_error=''
-            return status()
+        # Check both dependencies independently on each startup and update.
+        # Downloads are skipped when the proper files / driver are present.
+        _setup_phase='checking'
+        _log('Checking DS4Windows and ViGEmBus')
         exe=existing_executable()
         if not exe:
+            _setup_phase='installing-ds4'
             try:
                 install_missing_user_component()
                 exe=existing_executable()
+                _log('DS4Windows verified download completed')
             except (OSError,ValueError,zipfile.BadZipFile) as exc:
-                _last_error='Verified DS4Windows download unavailable: '+str(exc)[:160]
+                _last_error='DS4Windows setup failed: '+str(exc)[:170]
+                _setup_phase='error'
+                _log(_last_error)
                 return status()
         if not exe:
-            _last_error='Controller executable unavailable; drivers were left unchanged.'
+            _last_error='DS4Windows.exe was not found after extraction'
+            _setup_phase='error'
+            _log(_last_error)
             return status()
-        # With classic 3.3.3 use its matching ViGEmBus 1.22 bus, but never
-        # replace an existing VIIPER/USB-IP controller stack.
         from elmos_input_driver import install_if_missing
         try:
+            _setup_phase='checking-driver'
             driver=install_if_missing()
         except (OSError,ValueError) as exc:
-            _last_error='Could not prepare verified driver: '+str(exc)[:160]
+            _last_error='ViGEmBus setup failed: '+str(exc)[:170]
+            _setup_phase='error'
+            _log(_last_error)
             return status()
         if driver['status'] not in ('already-installed','installed'):
-            _last_error='Controller driver is not ready ('+driver['status']+'). '+driver.get('message','Windows might require a restart.')
+            _last_error='ViGEmBus not ready ('+driver['status']+'). '+driver.get('message','Restart Windows if required.')
+            _setup_phase='restart-required' if driver['status']=='reboot-pending' else 'error'
+            _log(_last_error)
             return status()
-        # Start the preserved classic mapper only after its virtual output bus is ready.
+        _log('ViGEmBus setup status: '+driver['status'])
+        if _running_named('DS4Windows.exe') or _running_named('viiper.exe'):
+            _last_error=''
+            _setup_phase='external-running'
+            _log('Controller mapper already running; leaving external process untouched')
+            return status()
         try:
+            startup = subprocess.STARTUPINFO()
+            startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            startup.wShowWindow = 7
             _owned=subprocess.Popen([str(exe)],cwd=str(exe.parent),
-                        creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
+                        creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0),
+                        startupinfo=startup)
             _owned_exe=exe
+            _setup_phase='starting-controller'
+            _log('Started managed DS4Windows PID '+str(_owned.pid))
+            threading.Thread(target=_hide_owned_main_window,
+                             args=(_owned,), daemon=True,
+                             name='Elmos DS4 UI minimizer').start()
+            threading.Thread(target=_connect_default_profile,
+                             args=(_owned,exe), daemon=True,
+                             name='Elmos DS4 default profile').start()
             _last_error=''
         except (OSError,ValueError) as exc:
-            _last_error='Could not start existing DS4Windows: '+str(exc)[:180]
+            _last_error='Could not start DS4Windows: '+str(exc)[:170]
+            _setup_phase='error'
+            _log(_last_error)
     return status()
 
+def _hide_owned_main_window(proc):
+    """Hide only DS4Windows's main window; leave any first-run/setup dialogs.
+
+    A GUI program can ignore STARTUPINFO's initial show preference, so check
+    a few times as its main window initializes. No other app is touched.
+    """
+    if os.name != 'nt':
+        return
+    try:
+        import ctypes
+        from ctypes import wintypes
+        user32=ctypes.WinDLL('user32',use_last_error=True)
+        fn=ctypes.WINFUNCTYPE(wintypes.BOOL,wintypes.HWND,wintypes.LPARAM)
+        @fn
+        def hide(hwnd,_):
+            pid=wintypes.DWORD(0)
+            user32.GetWindowThreadProcessId(hwnd,ctypes.byref(pid))
+            if pid.value != proc.pid:
+                return True
+            length=user32.GetWindowTextLengthW(hwnd)
+            if not length or length > 200:
+                return True
+            buf=ctypes.create_unicode_buffer(length+1)
+            user32.GetWindowTextW(hwnd,buf,len(buf))
+            if buf.value.strip().lower().startswith('ds4windows'):
+                user32.ShowWindowAsync(hwnd,0)  # SW_HIDE, not WM_CLOSE
+            return True
+        for _ in range(25):
+            if proc.poll() is not None:
+                break
+            user32.EnumWindows(hide,0)
+            time.sleep(0.15)
+    except (OSError,ValueError):
+        pass
+
+
 def stop_owned(game_active=False):
-    """Stop only the process created by this launcher, preserving other apps."""
-    global _owned, _owned_exe
+    """Shut down only the DS4Windows instance launched by Elmos World.
+
+    Use DS4Windows's documented IPC shutdown command rather than WM_CLOSE,
+    which can show a confirmation dialog. If IPC fails, terminate *only*
+    our own child process; never stop an external DS4Windows instance.
+    """
+    global _owned, _owned_exe, _last_error
     with _lock:
         proc=_owned
+        exe=_owned_exe
         if not proc:
             return {'stopped':False,'reason':'not owned'}
         if proc.poll() is not None:
             _owned=None;_owned_exe=None
-            return {'stopped':False,'reason':'already exited'}
+            return {'stopped':True,'reason':'already exited'}
         if game_active:
-            # Games launched independently may still need this output device.
             return {'stopped':False,'reason':'game in progress'}
+        graceful=False
         try:
-            # Ask its top-level window to close; never forcefully terminate a
-            # third-party driver/service or a pre-existing DS4Windows process.
-            _close_owned_window(proc.pid)
-            try:proc.wait(timeout=1.5)
-            except subprocess.TimeoutExpired:
-                # Avoid an orphan only if this is exactly the child we launched.
+            if exe and Path(exe).is_file():
+                cmd=_command(exe,'shutdown')
+                try:cmd.wait(timeout=2.0)
+                except subprocess.TimeoutExpired:pass
+                try:
+                    proc.wait(timeout=3.0)
+                    graceful=True
+                except subprocess.TimeoutExpired:
+                    pass
+            if proc.poll() is None:
                 proc.terminate()
-                try:proc.wait(timeout=1.0)
-                except subprocess.TimeoutExpired: pass
-        except (OSError,ValueError):
-            pass
-        _owned=None;_owned_exe=None
-        return {'stopped':proc.poll() is not None,'reason':'Elmos-owned DS4Windows closed'}
-
-def _close_owned_window(pid):
-    if os.name != 'nt':return
-    import ctypes
-    from ctypes import wintypes
-    user32=ctypes.windll.user32
-    callback_type=ctypes.WINFUNCTYPE(wintypes.BOOL,wintypes.HWND,wintypes.LPARAM)
-    @callback_type
-    def scan(hwnd,_):
-        current=wintypes.DWORD(0)
-        user32.GetWindowThreadProcessId(hwnd,ctypes.byref(current))
-        if current.value==pid:
-            user32.PostMessageW(hwnd,0x0010,0,0) # WM_CLOSE
-        return True
-    user32.EnumWindows(scan,0)
+                try:proc.wait(timeout=2.0)
+                except subprocess.TimeoutExpired:
+                    _last_error='Managed DS4Windows did not exit after shutdown request'
+        except (OSError,ValueError) as exc:
+            _last_error='DS4Windows shutdown error: '+str(exc)[:160]
+            if proc.poll() is None:
+                try:
+                    proc.terminate()
+                    proc.wait(timeout=2.0)
+                except (OSError,subprocess.TimeoutExpired):
+                    pass
+        stopped=proc.poll() is not None
+        _log('Managed DS4Windows stop: '+('success' if stopped else 'failed'))
+        if stopped:
+            _owned=None;_owned_exe=None
+        return {'stopped':stopped,
+                'reason':'graceful IPC shutdown' if graceful else
+                         ('managed process terminated' if stopped else 'shutdown failed')}
