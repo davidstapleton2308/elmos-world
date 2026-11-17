@@ -16,7 +16,7 @@ VIGEM_SHA256='89220a7865076b342892f98865f3499fb7c4cfd673159e89d352c360fd014c6a'
 VIGEM_MAX_SIZE=8_000_000
 
 def is_installed():
-    """Check the driver service, and recognizable uninstall entries for ViGEmBus."""
+    """Check the actual registered ViGEmBus service, not a stale installer entry."""
     if os.name != 'nt':return False
     hidden=getattr(subprocess,'CREATE_NO_WINDOW',0)
     try:
@@ -26,17 +26,8 @@ def is_installed():
             return True
     except (OSError,subprocess.SubprocessError):
         pass
-    try:
-        # Registry is supplemental: a partial uninstall entry is not proof of a
-        # functioning bus driver, but may avoid changing a user-managed install.
-        p=subprocess.run(['reg.exe','query',
-             r'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall',
-             '/s','/f','ViGEm Bus Driver'],capture_output=True,text=True,
-             timeout=8,creationflags=hidden)
-        if p.returncode==0 and 'ViGEm Bus Driver' in p.stdout:
-            return True
-    except (OSError,subprocess.SubprocessError):
-        pass
+    # An uninstall registry entry can persist after a broken uninstall.
+    # Do not treat the registry alone as proof that the virtual bus works.
     return False
 
 def managed_driver_file():
