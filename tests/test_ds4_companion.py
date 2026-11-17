@@ -70,7 +70,8 @@ class DS4Tests(unittest.TestCase):
             proc=MagicMock()
             proc.pid=4321
             proc.poll.return_value=None
-            with patch.object(ds4_companion.os,'name','nt'), \
+            with patch.dict(ds4_companion.os.environ,{'ELMOS_INPUT_DISABLE_SETUP':'0'}), \
+                 patch.object(ds4_companion.os,'name','nt'), \
                  patch.object(ds4_companion,'existing_executable',return_value=exe), \
                  patch.object(ds4_companion,'_running_named',return_value=[]), \
                  patch.object(ds4_companion,'install_missing_user_component') as download, \
@@ -94,7 +95,8 @@ class DS4Tests(unittest.TestCase):
             proc=MagicMock()
             proc.pid=4322
             proc.poll.return_value=None
-            with patch.object(ds4_companion.os,'name','nt'), \
+            with patch.dict(ds4_companion.os.environ,{'ELMOS_INPUT_DISABLE_SETUP':'0'}), \
+                 patch.object(ds4_companion.os,'name','nt'), \
                  patch.object(ds4_companion,'existing_executable',side_effect=[None,exe,exe]), \
                  patch.object(ds4_companion,'_running_named',return_value=[]), \
                  patch.object(ds4_companion,'install_missing_user_component') as download, \
