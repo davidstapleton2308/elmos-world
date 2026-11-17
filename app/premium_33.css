@@ -1,0 +1,112 @@
+/* GeForce NOW Art Director — separate art from UI; fit every source aspect on purpose.
+   Designed from the actual screenshots: source logos must not compete with our title,
+   and a landscape tile cannot masquerade as a 2:3 game cover. */
+#gfnView>.gfn-hero{
+ background:#080d0e!important;
+ background-image:radial-gradient(ellipse at 83% 22%,rgba(70,104,89,.17),transparent 55%)!important;
+ overflow:hidden;
+}
+#gfnView>.gfn-hero .gfn-hero-scene{
+ position:absolute;inset:0;width:100%;z-index:0;
+ background-repeat:no-repeat;background-position:63% 48%;
+ background-size:cover;
+ -webkit-mask-image:linear-gradient(90deg,transparent 0%,transparent 36%,rgba(0,0,0,.18) 48%,rgba(0,0,0,.79) 69%,#000 88%);
+ mask-image:linear-gradient(90deg,transparent 0%,transparent 36%,rgba(0,0,0,.18) 48%,rgba(0,0,0,.79) 69%,#000 88%);
+ transform:scale(1.016);
+ transition:background-image .20s ease-out;
+}
+#gfnView>.gfn-hero .gfn-shade{
+ z-index:1!important;
+ background:
+  linear-gradient(0deg,#080d0e 0%,rgba(8,13,14,.33) 20%,transparent 55%),
+  linear-gradient(90deg,#080d0e 0%,rgba(8,13,14,.99) 20%,rgba(8,13,14,.82) 38%,rgba(8,13,14,.15) 78%,transparent 100%)!important;
+}
+#gfnView>.gfn-hero .gfn-hero-content{
+ z-index:3;max-width:min(540px,49vw)!important;
+ text-align:left;
+}
+#gfnView #gfnHeroTitle{
+ max-width:100%!important;
+ text-wrap:balance;
+ font-size:clamp(34px,min(4.9vw,8vh),72px)!important;
+ line-height:1.055;
+ text-shadow:0 4px 19px #020506aa;
+}
+#gfnView #gfnHeroText{max-width:470px;line-height:1.45;color:#b9cfc3}
+#gfnView .gfn-actions{max-width:760px}
+#gfnView .gfn-actions button{box-shadow:0 8px 18px rgba(0,0,0,.22)}
+/* Two intentional cover treatments:
+   Real 2:3 artwork fills the poster, while a landscape-only NVIDIA scene becomes
+   a custom cover: cropped cinematic top, integrated title/footer, no gray gutters. */
+#gfnView #gfnCards .gfn-poster{
+ isolation:isolate;background:#0d1719!important;
+ aspect-ratio:2/3!important;overflow:hidden!important;
+}
+#gfnView #gfnCards .gfn-poster::before{
+ z-index:0!important;
+ inset:-18px!important;
+ filter:blur(15px) brightness(.62) saturate(1.23)!important;
+ background-image:var(--gfn-cover,none);
+ background-size:cover!important;background-position:center!important;
+ opacity:1!important;
+}
+#gfnView #gfnCards .gfn-poster::after{
+ content:"";pointer-events:none;
+ position:absolute;inset:0;z-index:1;
+ background:linear-gradient(0deg,rgba(2,6,8,.78) 0%,rgba(2,6,8,0) 32%);
+ opacity:0;
+}
+#gfnView #gfnCards .gfn-poster img{
+ z-index:2!important;
+ inset:0!important;width:100%!important;height:100%!important;
+ object-fit:cover!important;object-position:center!important;
+}
+#gfnView #gfnCards .gfn-poster .gfn-art-label{
+ display:none;position:absolute;z-index:5;
+ left:13px;right:13px;bottom:13px;
+ color:#f5f7f2;text-align:left;line-height:1.08;
+ font-weight:800;font-size:clamp(15px,1.46vw,21px);
+ letter-spacing:-.035em;overflow-wrap:break-word;
+ text-shadow:0 2px 10px rgba(0,0,0,.75);
+}
+#gfnView #gfnCards .gfn-poster.is-landscape::after{
+ opacity:1!important;
+ background:linear-gradient(0deg,rgba(3,7,9,.98) 0%,rgba(3,7,9,.92) 23%,rgba(3,7,9,.48) 52%,transparent 78%);
+ z-index:3;
+}
+#gfnView #gfnCards .gfn-poster.is-landscape img{
+ inset:0 0 auto!important;
+ width:100%!important;height:63%!important;max-height:none!important;
+ object-fit:cover!important;object-position:center!important;
+ -webkit-mask-image:linear-gradient(180deg,black 0%,black 72%,transparent 100%);
+ mask-image:linear-gradient(180deg,black 0%,black 72%,transparent 100%);
+}
+#gfnView #gfnCards .gfn-poster.is-landscape .gfn-art-label{display:block}
+#gfnView #gfnCards .gfn-poster.has-image .gfn-monogram{display:none!important}
+#gfnView #gfnCards .gfn-poster.is-landscape .gfn-monogram{display:none!important}
+#gfnView #gfnCards .gfn-poster .gfn-monogram{
+ z-index:0!important;background:linear-gradient(135deg,#25382d,#111a1c 70%);
+}
+/* Uncropped provider logos are replaced by original typography over artwork,
+   and all side covers remain visible rather than almost-black silhouettes. */
+#gfnView #gfnCards .gfn-card:not(.selected){
+ opacity:.76!important;filter:brightness(.91) saturate(.93)!important;
+}
+#gfnView #gfnCards .gfn-card.selected,
+#gfnView #gfnCards .gfn-card.active{
+ opacity:1!important;filter:none!important;
+}
+@media(max-width:1100px){
+ #gfnView>.gfn-hero .gfn-hero-content{max-width:min(570px,54vw)!important}
+ #gfnView #gfnHeroTitle{font-size:clamp(32px,4.8vw,58px)!important}
+}
+@media(max-width:740px){
+ #gfnView>.gfn-hero .gfn-hero-content{max-width:83vw!important}
+ #gfnView>.gfn-hero .gfn-hero-scene{
+  opacity:.65;
+  -webkit-mask-image:linear-gradient(90deg,transparent 0%,transparent 12%,#000 87%);
+  mask-image:linear-gradient(90deg,transparent 0%,transparent 12%,#000 87%);
+ }
+ #gfnView>.gfn-hero .gfn-shade{background:linear-gradient(90deg,#080d0e 0%,rgba(8,13,14,.92) 45%,rgba(8,13,14,.23) 100%)!important}
+ #gfnView #gfnHeroTitle{font-size:clamp(31px,6vw,48px)!important}
+}
