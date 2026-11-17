@@ -1221,8 +1221,10 @@ function renderElmosInput(r){
  if(!r)return;
  $('inputStatus').textContent=r.message+(r.device?' · '+r.device:'')+
   (r.virtualConnected?' · Virtual Xbox 360: active':'')+
-  (r.controllerMode?' · Physical input: '+r.controllerMode:'');
- $('inputStart').hidden=!!r.running;
+  (r.controllerMode?' · Physical input: '+r.controllerMode:'')+
+  (r.driverState?' · ViGEmBus: '+r.driverState:'');
+ $('inputStart').hidden=!!r.virtualConnected;
+ $('inputStart').textContent=r.running?'Retry Elmos Input':'Start Elmos Input';
 }
 async function refreshElmosInput(){
  try{renderElmosInput(await api('/api/input-status',{}))}
