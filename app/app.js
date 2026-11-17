@@ -1230,6 +1230,9 @@ async function refreshElmosInput(){
  try{renderElmosInput(await api('/api/input-status',{}))}
  catch(e){$('inputStatus').textContent='Could not inspect Elmos Input: '+e.message;}
 }
+// Driver installation may take a moment or require Windows approval.
+// Keep Settings synchronized instead of showing a stale 'checking' message.
+setInterval(()=>{if(screen==='settings')refreshElmosInput()},1500);
 function applyVisualPreferences(){document.documentElement.dataset.theme=elmoTheme;document.documentElement.dataset.motion=elmoMotion;applyAtmosphere();$('themeChoice').value=elmoTheme;$('motionChoice').value=elmoMotion}
 let hubExitOpen=false,hubExitRestoreFocus=null,hubExitBusy=false;
 function openHubExit(){
