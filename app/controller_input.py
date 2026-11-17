@@ -140,7 +140,21 @@ class ControllerMonitor:
                 if not mapped:
                     b=lambda n:raw_buttons[n] if n<len(raw_buttons) else False
                     hat=hats[0] if hats else [0,0]
-                    buttons={'a':b(self.navigation_map['a']),'b':b(self.navigation_map['b']),'x':b(2),'y':b(3),'lb':b(4),'rb':b(5),'back':b(8),'start':b(9),'guide':b(self.guide_index),'l3':b(11),'r3':b(12),'up':hat[1]>0,'down':hat[1]<0,'left':hat[0]<0,'right':hat[0]>0}
+                    sony=any(k in current.get_name().lower() for k in ('wireless controller','dualshock','dualsense','sony'))
+                    if sony:
+                        # Physical DS4 DirectInput raw button indices differ
+                        # from Xbox: Cross=1, Circle=2, Square=0, Triangle=3,
+                        # L3=10, R3=11, PS=12. The old raw UI layout wrongly
+                        # treated Square as A and L3 as the PS/Guide button.
+                        buttons={'a':b(1),'b':b(2),'x':b(0),'y':b(3),
+                                 'lb':b(4),'rb':b(5),'back':b(8),'start':b(9),
+                                 'guide':b(12),'l3':b(10),'r3':b(11),
+                                 'up':hat[1]>0,'down':hat[1]<0,
+                                 'left':hat[0]<0,'right':hat[0]>0}
+                        axes=[raw_axes[i] if len(raw_axes)>i else 0 for i in range(4)]
+                        triggers=[max(0., min(1., (raw_axes[i]+1.)/2.)) if len(raw_axes)>i else float(b(i+2)) for i in (4,5)]
+                    else:
+                        buttons={'a':b(self.navigation_map['a']),'b':b(self.navigation_map['b']),'x':b(2),'y':b(3),'lb':b(4),'rb':b(5),'back':b(8),'start':b(9),'guide':b(self.guide_index),'l3':b(11),'r3':b(12),'up':hat[1]>0,'down':hat[1]<0,'left':hat[0]<0,'right':hat[0]>0}
                 with self.lock:
                     rumble=self._rumble_request
                     self._rumble_request=None
