@@ -81,6 +81,11 @@ class DiscoveryFixtureTests(unittest.TestCase):
         folder=self.downloads/'Xenia Canary';folder.mkdir()
         touch(folder/'xenia_canary.exe')
         touch(folder/'xenia-canary-config.toml',100)
+        # Discovery must wait until files stop changing before marking
+        # even a recognized emulator as ready for any automated action.
+        old_time=time.time()-300
+        for path in [folder,*folder.rglob('*')]:
+            os.utime(path,(old_time,old_time))
         item=self.look(folder)
         self.assertEqual(item['kind'],'emulator')
         self.assertEqual(item['action'],'ready',item)
