@@ -740,9 +740,54 @@ class Engine:
    return {'ok':True,'removed':len(ids),'message':f'{len(ids)} hidden game(s) forgotten. Files on disk were not deleted.'}
  def gfn_list(self):
   with self.lock:
-   return [{'id':k,'name':v['name'],'shortcut':v['shortcut'], 'available':Path(v['shortcut']).is_file(),
-            'steamId':v.get('steamId')}
-           for k,v in self.local.setdefault('gfnGames',{}).items()]
+   results=[]
+   for k,v in self.local.setdefault('gfnGames',{}).items():
+    shortcut=v.get('shortcut','')
+    has_shortcut=bool(shortcut and Path(shortcut).is_file())
+    synced=bool(v.get('variantId'))
+    results.append({'id':k,'name':v['name'],'shortcut':shortcut,
+                    'available':has_shortcut or synced,
+                    'directLaunch':has_shortcut,'synced':synced,
+                    'store':v.get('store',''),'images':v.get('images') or {},
+                    'steamId':v.get('steamId')})
+   return sorted(results,key=lambda x:(x['name'].casefold(),x['store'].casefold()))
+ def gfn_sync_cache(self):
+  """Explicitly refresh cloud games from locally cached selected variants."""
+  from gfn_cache_sync import scan_cache
+  result=scan_cache()
+  if not result['games']:
+   return {'ok':True,'added':0,'updated':0,'total':len(self.gfn_list()),
+           'message':result['message'],'games':self.gfn_list()}
+  added=updated=0
+  with self.lock:
+   collection=self.local.setdefault('gfnGames',{})
+   for game in result['games']:
+    key='gfn-sync:'+game['variantId']
+    for k,v in collection.items():
+     if v.get('variantId')==game['variantId']:
+      key=k
+      break
+    if key not in collection:
+     normalized=lambda name:''.join(c for c in str(name).casefold() if c.isalnum())
+     matches=[k for k,v in collection.items() if not v.get('variantId') and
+              normalized(v.get('name',''))==normalized(game['name'])]
+     if len(matches)==1:
+      key=matches[0]
+    current=collection.get(key)
+    if current is None:
+     collection[key]={'name':game['name'],'shortcut':'','steamId':None}
+     current=collection[key]
+     added+=1
+    else:
+     updated+=1
+    current['variantId']=game['variantId']
+    current['parentGameId']=game.get('parentGameId','')
+    current['store']=game['store']
+    current['images']=game.get('images',{})
+   self.save_local()
+   return {'ok':True,'added':added,'updated':updated,
+           'total':len(self.gfn_list()), 'scanned':result['scanned'],
+           'message':result['message'],'games':self.gfn_list()}
  def gfn_import(self,path,title=None):
   from geforce_library import import_shortcut
   with self.lock:
@@ -784,7 +829,22 @@ class Engine:
   with self.lock:
    item=self.local.setdefault('gfnGames',{}).get(gameid)
    if not item:raise ValueError('Cloud game not found.')
-   return launch_shortcut(item)
+   shortcut=item.get('shortcut','')
+   if shortcut and Path(shortcut).is_file():
+    return launch_shortcut(item)
+   if item.get('variantId'):
+    from provider_adapters import discover
+    provider=next((p for p in discover() if p.get('name')=='GeForce NOW' and p.get('installed') and p.get('launcherPath')),None)
+    if not provider:
+     raise RuntimeError('GeForce NOW application was not detected. Open it to play this cloud game.')
+    target=Path(provider['launcherPath'])
+    if not target.is_file() or target.suffix.lower()!='.exe':
+     raise RuntimeError('GeForce NOW executable is missing.')
+    if sys.platform!='win32':
+     return {'ok':True,'dryRun':True,'name':item['name'],'directLaunch':False}
+    subprocess.Popen([str(target)],cwd=str(target.parent),close_fds=True)
+    return {'ok':True,'name':item['name'],'directLaunch':False}
+   raise RuntimeError('This GeForce NOW shortcut is missing. Reimport it from NVIDIA.')
  def set_hidden(self,gameid,hidden):
   with self.lock:
    if not self.find(gameid):raise RuntimeError('Game not found')
