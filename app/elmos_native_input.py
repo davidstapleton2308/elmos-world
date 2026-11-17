@@ -68,7 +68,9 @@ class NativeInput:
         self._lock = threading.RLock()
         self._stop = threading.Event()
         self._thread = None
-        self._state = dict(running=False, connected=False, backend='ViGEmBus / Xbox 360',
+        self._state = dict(running=False, connected=False, virtualConnected=False,
+                           controllerDetected=False, controllerMode='none', readerError='',
+                           backend='ViGEmBus / Xbox 360',
                            message='Elmos Input not started', device='')
     def status(self):
         with self._lock:
@@ -124,33 +126,56 @@ class NativeInput:
             result = run(['tasklist.exe', '/FI', 'IMAGENAME eq DS4Windows.exe', '/NH'],
                          capture_output=True, text=True, timeout=4,
                          creationflags=CREATE_NO_WINDOW)
-            if 'DS4Windows.exe' in result.stdout:
+            if 'ds4windows.exe' in result.stdout.lower():
                 self._publish(message='Close the separate DS4Windows process before enabling Elmos Input.')
                 return
+            # Create the XInput target FIRST, independently of the physical
+            # controller mapping. Previously an SDL raw joystick prevented any
+            # Xbox 360 device from appearing in joy.cpl.
+            pad = vg.VX360Gamepad()
+            self._publish(running=True, virtualConnected=True,
+                          message='Virtual Xbox 360 controller created; waiting for DualShock input')
+            def on_rumble(client, target, large_motor, small_motor, led, user_data):
+                try:
+                    self.source.queue_rumble(large_motor / 255, small_motor / 255)
+                except Exception:
+                    pass
+            pad.register_notification(callback_function=on_rumble)
+            pad.reset()
+            pad.update()
+            last_neutral = True
             while not self._stop.is_set():
                 frame = frame_from_snapshot(self.source.snapshot())
+                source = self.source.snapshot()
+                frame = frame_from_snapshot(source)
+                detected = bool(source.get('connected'))
+                mode = str(source.get('mode') or 'none')
+                reader_error = str(source.get('error') or '')[:220]
                 if frame is None:
-                    if pad is not None:
-                        self.source.queue_rumble(0, 0)
-                        try: pad.unregister_notification()
+                    if not last_neutral:
+                        try: self.source.queue_rumble(0, 0)
                         except Exception: pass
                         pad.reset()
                         pad.update()
-                        del pad
-                        pad = None
-                    self._publish(connected=False, running=True,
-                                  message='Waiting for a mapped DualShock 4 or DualSense controller', device='')
+                        last_neutral = True
+                    if detected and mode != 'mapped SDL':
+                        message = 'Xbox 360 virtual device is ready, but your DS4 is only detected as a raw SDL joystick; controller mapping is required'
+                    elif detected:
+                        message = 'Xbox 360 virtual device is ready; input reader did not identify a Sony controller'
+                    elif reader_error:
+                        message = 'Xbox 360 virtual device is ready; ' + reader_error
+                    else:
+                        message = 'Xbox 360 virtual device is ready; waiting for DualShock 4'
+                    self._publish(connected=False, running=True, virtualConnected=True,
+                                  controllerDetected=detected, controllerMode=mode,
+                                  readerError=reader_error, message=message, device='')
                     self._stop.wait(0.04)
                     continue
-                if pad is None:
-                    pad = vg.VX360Gamepad()
-                    # ViGEm receives rumble commands from games. Queue them to
-                    # the SDL reader; only that thread touches the physical pad.
-                    def on_rumble(client, target, large_motor, small_motor, led, user_data):
-                        self.source.queue_rumble(large_motor / 255, small_motor / 255)
-                    pad.register_notification(callback_function=on_rumble)
                 apply_frame(pad, vg, frame)
-                self._publish(connected=True, running=True,
+                last_neutral = False
+                self._publish(connected=True, running=True, virtualConnected=True,
+                              controllerDetected=True, controllerMode=mode,
+                              readerError=reader_error,
                               message='Elmos Input is sending Xbox 360 controller reports',
                               device=frame['name'])
                 self._stop.wait(0.01)
@@ -166,7 +191,7 @@ class NativeInput:
                     del pad
                 except Exception:
                     pass
-            self._publish(running=False, connected=False)
+            self._publish(running=False, connected=False, virtualConnected=False)
 
 from controller_input import monitor
 native_input = NativeInput(monitor)
