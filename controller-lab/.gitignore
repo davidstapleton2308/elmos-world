@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+.pytest_cache/
+*.py[cod]
+.cache/
+runtime/
+bridge/bin/
+bridge/obj/
+bridge/publish/
+dist/
