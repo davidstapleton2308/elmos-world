@@ -35,12 +35,22 @@ def is_installed():
         return False
 
 
+def bundled_driver_file():
+    """Verified installer shipped with the official Elmos World Windows build."""
+    return Path(__file__).resolve().parent / 'drivers' / 'ViGEmBus_1.22.0_x64_x86_arm64.exe'
+
 def managed_driver_file():
     local=Path(os.environ.get('LOCALAPPDATA',str(Path.home()/'AppData'/'Local')))
     return local/'ElmosWorld'/'ElmosInput'/'installers'/'ViGEmBus_1.22.0_x64_x86_arm64.exe'
 
 def download_verified(progress=None):
     """Download once from official publisher, and verify Microsoft manifest SHA."""
+    bundled=bundled_driver_file()
+    if bundled.is_file():
+        if hashlib.sha256(bundled.read_bytes()).hexdigest()!=VIGEM_SHA256:
+            raise ValueError('Bundled ViGEmBus driver checksum mismatch: refusing installation')
+        if progress: progress('downloaded', 'Verified ViGEmBus installer bundled with Elmos World; no extra download needed')
+        return bundled
     target=managed_driver_file()
     target.parent.mkdir(parents=True,exist_ok=True)
     if target.is_file() and hashlib.sha256(target.read_bytes()).hexdigest()==VIGEM_SHA256:
