@@ -18,8 +18,8 @@ class BundledInputTests(unittest.TestCase):
             exe.parent.mkdir(parents=True)
             exe.write_bytes(b'test executable')
             with patch.object(ds4_companion, '__file__', str(root/'ds4_companion.py')):
-                self.assertEqual(ds4_companion.bundled_executable(),exe)
-                self.assertEqual(ds4_companion.existing_executable(),exe)
+                self.assertEqual(ds4_companion.bundled_executable().resolve(),exe.resolve())
+                self.assertEqual(ds4_companion.existing_executable().resolve(),exe.resolve())
 
     def test_missing_runtime_does_not_download_or_install_drivers(self):
         with patch.object(ds4_companion.os, 'name','nt'), \
