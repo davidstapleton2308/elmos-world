@@ -26,6 +26,14 @@ class NativeInputTests(unittest.TestCase):
             buttons={'l3':True,'r3':True},axes=[0,0,0,0]))
         self.assertIn('XUSB_GAMEPAD_LEFT_THUMB',frame['buttons'])
         self.assertIn('XUSB_GAMEPAD_RIGHT_THUMB',frame['buttons'])
+    def test_retry_driver_setup_is_requested_without_second_worker(self):
+        from unittest.mock import MagicMock
+        engine=n.NativeInput(MagicMock())
+        engine._thread=MagicMock()
+        engine._thread.is_alive.return_value=True
+        engine.start()
+        self.assertTrue(engine._retry_setup.is_set())
+        engine._thread.start.assert_not_called()
     def test_disconnect_is_neutral(self):
         self.assertIsNone(n.frame_from_snapshot(dict(connected=False,mode='mapped SDL',name='Wireless Controller')))
     def test_require_mapped_sony(self):
