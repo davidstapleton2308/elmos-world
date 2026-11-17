@@ -504,7 +504,7 @@ function open(name){
   requestAnimationFrame(()=>syncSelectedCard(true));
  }
  if(name==='gfn'){requestAnimationFrame(()=>gfnSelect(gfnSelected,true));if(!gfnAutoSyncAttempted){gfnAutoSyncAttempted=true;gfnSync();}}
- if(name==='settings')refreshDs4Companion();
+ if(name==='settings')refreshElmosInput();
  syncBrowsePreviewVisibility();if(name==='activity'){renderActivity();refreshLaunchTimeline();}
 }
 function revealModalControl(target){
@@ -1209,24 +1209,22 @@ function setupControllerEditor(){syncNativeMenuButtons();const options=Array.fro
  $('saveControllerMap').onclick=()=>{for(const [key,id] of Object.entries({a:'mapA',b:'mapB',start:'mapStart',lb:'mapLb',rb:'mapRb',guide:'mapGuide'}))controllerMap[key]=Number($(id).value);localStorage.setItem('elmo-controller-map',JSON.stringify(controllerMap));syncNativeMenuButtons();api('/api/guide-index',{index:controllerMap.guide}).then(()=>notify('Controller mapping saved. PS button will open the game menu.')).catch(e=>notify('PS mapping could not be saved: '+e.message,true));};
  $('resetControllerMap').onclick=()=>{controllerMap={...controllerMapDefault};localStorage.removeItem('elmo-controller-map');setupControllerEditor();api('/api/guide-index',{index:10}).then(()=>notify('PS4 button mapping restored.')).catch(e=>notify(e.message,true));};
  $('controllerRefresh').onclick=()=>pollController();
- $('ds4Refresh').onclick=refreshDs4Companion;
- $('ds4Start').onclick=async()=>{
-  $('ds4Start').disabled=true;
-  try{renderDs4Companion(await api('/api/ds4-start',{}))}
-  catch(e){$('ds4Status').textContent='Controller companion: '+e.message;}
-  finally{$('ds4Start').disabled=false}
+ $('inputRefresh').onclick=refreshElmosInput;
+ $('inputStart').onclick=async()=>{
+  $('inputStart').disabled=true;
+  try{renderElmosInput(await api('/api/input-start',{}))}
+  catch(e){$('inputStatus').textContent='Controller companion: '+e.message;}
+  finally{$('inputStart').disabled=false}
  };
 }
-function renderDs4Companion(r){
+function renderElmosInput(r){
  if(!r)return;
- $('ds4Status').textContent=r.message+
-   (r.viiperRunning?' · VIIPER detected':'')+
-   (r.startedByElmos?' · Managed with Elmos World':'');
- $('ds4Start').hidden=!!r.running||!!r.viiperRunning||!r.exeFound;
+ $('inputStatus').textContent=r.message+(r.device?' · '+r.device:'');
+ $('inputStart').hidden=!!r.running&&!!r.connected;
 }
-async function refreshDs4Companion(){
- try{renderDs4Companion(await api('/api/ds4-status',{}))}
- catch(e){$('ds4Status').textContent='Could not inspect controller: '+e.message;}
+async function refreshElmosInput(){
+ try{renderElmosInput(await api('/api/input-status',{}))}
+ catch(e){$('inputStatus').textContent='Could not inspect Elmos Input: '+e.message;}
 }
 function applyVisualPreferences(){document.documentElement.dataset.theme=elmoTheme;document.documentElement.dataset.motion=elmoMotion;applyAtmosphere();$('themeChoice').value=elmoTheme;$('motionChoice').value=elmoMotion}
 let hubExitOpen=false,hubExitRestoreFocus=null,hubExitBusy=false;

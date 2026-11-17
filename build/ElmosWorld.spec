@@ -14,7 +14,7 @@ ASSETS = [
 datas = [(str(APP / f), '.') for f in ASSETS]
 binaries = []
 hiddenimports = [
-    'server', 'update_center', 'backend', 'gfn_cache_sync', 'ds4_companion', 'elmos_input_driver', 'game_media', 'game_descriptions', 'game_discovery',
+    'server', 'update_center', 'backend', 'gfn_cache_sync', 'elmos_native_input', 'elmos_input_driver', 'game_media', 'game_descriptions', 'game_discovery',
     'game_uninstall', 'geforce_library', 'gfn_artwork', 'steam_core', 'provider_adapters',
     'controller_input', 'native_game_menu', 'smart_discovery', 'game_metadata', 'tkinter', 'tkinter.filedialog',
     'webview.platforms.winforms', 'webview.platforms.edgechromium',
@@ -22,7 +22,7 @@ hiddenimports = [
 ]
 # These libraries load important components dynamically on Windows. Bundle
 # their data files and native extensions rather than depending on local Python.
-for package in ('webview', 'pygame', 'pythonnet', 'clr_loader'):
+for package in ('webview', 'pygame', 'vgamepad', 'pythonnet', 'clr_loader'):
     pkg_data, pkg_binaries, pkg_hidden = collect_all(package)
     datas += pkg_data
     binaries += pkg_binaries

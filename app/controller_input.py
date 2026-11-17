@@ -16,7 +16,7 @@ class RisingPress:
 class ControllerMonitor:
     def __init__(self):
         self.lock=threading.RLock()
-        self.state=dict(available=False, connected=False, mode='none', name='', buttons={}, axes=[0,0,0,0], rawButtons=[], rawAxes=[], hats=[], devices=[], error='Starting native controller reader…')
+        self.state=dict(available=False, connected=False, mode='none', name='', buttons={}, axes=[0,0,0,0], triggers=[0,0], rawButtons=[], rawAxes=[], hats=[], devices=[], error='Starting native controller reader…')
         self.thread=None
         self._stop=threading.Event()
         self.return_handler=None
@@ -89,7 +89,7 @@ class ControllerMonitor:
                     except Exception:pass
                 if not count:
                     current=None;device_id=None;gamepad=None;ps_press.update(False)
-                    self._publish(available=True,connected=False,mode='none',name='',buttons={},rawButtons=[],rawAxes=[],hats=[],axes=[0,0,0,0],devices=[],error='No joystick detected by SDL. Check Windows joy.cpl or try USB.')
+                    self._publish(available=True,connected=False,mode='none',name='',buttons={},rawButtons=[],rawAxes=[],hats=[],axes=[0,0,0,0],triggers=[0,0],devices=[],error='No joystick detected by SDL. Check Windows joy.cpl or try USB.')
                     time.sleep(.14);continue
                 # Prefer the physical PlayStation controller over virtual Xbox devices.
                 preferred=next((i for i in range(count) if any(x in pygame.joystick.Joystick(i).get_name().lower() for x in ('wireless controller','dualshock','sony','dualsense'))),None)
@@ -120,6 +120,14 @@ class ControllerMonitor:
                                                   ('CONTROLLER_AXIS_RIGHTX',2),('CONTROLLER_AXIS_RIGHTY',3))]
                     except Exception:
                         mapped=False
+                triggers=[0.0,0.0]
+                if mapped:
+                    try:
+                        trigger_axes=('CONTROLLER_AXIS_TRIGGERLEFT','CONTROLLER_AXIS_TRIGGERRIGHT')
+                        triggers=[max(0.0,min(1.0,float(gamepad.get_axis(getattr(pygame,k)))/32767.0))
+                                  for k in trigger_axes]
+                    except Exception:
+                        pass
                 if mapped:
                     # SDL may omit Guide even when the raw joystick exposes the PS button.
                     buttons['guide']=buttons.get('guide',False) or (self.guide_index<len(raw_buttons) and raw_buttons[self.guide_index])
@@ -135,8 +143,8 @@ class ControllerMonitor:
                 if self.menu_input_handler:
                     try:self.menu_input_handler(buttons,axes)
                     except Exception:pass
-                self._publish(available=True,connected=True,mode='mapped SDL' if mapped else 'raw SDL joystick',name=current.get_name(),buttons=buttons,axes=[round(float(x),3) for x in axes[:4]],rawButtons=raw_buttons,rawAxes=raw_axes,hats=hats,devices=devices,error='')
-                time.sleep(.04)
+                self._publish(available=True,connected=True,mode='mapped SDL' if mapped else 'raw SDL joystick',name=current.get_name(),buttons=buttons,axes=[round(float(x),3) for x in axes[:4]],rawButtons=raw_buttons,rawAxes=raw_axes,hats=hats,triggers=triggers,devices=devices,error='')
+                time.sleep(.01)
         except Exception as exc:
             self._publish(error='Controller read error: '+repr(exc),connected=False)
 
