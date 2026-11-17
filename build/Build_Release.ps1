@@ -131,6 +131,9 @@ Write-Host 'Installing build dependencies...'
 if ($LASTEXITCODE -ne 0) { throw 'Python package installation failed. Check the output above.' }
 
 Write-Host 'Compiling ElmosWorld.exe...' -ForegroundColor Cyan
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Root 'build\prepare_elmos_input.ps1')
+if ($LASTEXITCODE -ne 0) { throw 'Could not prepare the verified Elmos Input bundle.' }
+$env:ELMOS_REQUIRE_INPUT_BUNDLE = '1'
 & $BuildPython -m PyInstaller --noconfirm --clean `
   --distpath (Join-Path $Root 'dist') `
   --workpath (Join-Path $Root 'build\work') `
