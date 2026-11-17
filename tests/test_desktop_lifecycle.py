@@ -42,7 +42,7 @@ class DesktopLifetimeTests(unittest.TestCase):
     def test_closed_window_forces_real_process_shutdown(self):
         source=(ROOT/'app'/'server.py').read_text(encoding='utf-8')
         self.assertIn('window.events.closed += on_window_closed',source)
-        self.assertIn("threading.Timer(3.0,lambda:os._exit(0))",source)
+        self.assertIn("threading.Timer(9.0,lambda:os._exit(0))",source)
         self.assertIn('server.shutdown()',source)
         self.assertIn('server.server_close()',source)
         self.assertIn('monitor.stop()',source)
