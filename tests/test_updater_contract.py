@@ -37,6 +37,17 @@ class UpdaterContractTests(unittest.TestCase):
         self.assertIn('if ($app.HasExited)', script)
         self.assertIn("Set-UpdateState 'complete'", script)
 
+    def test_update_and_restart_is_one_click_without_confirm_popup(self):
+        script = (ROOT / 'app' / 'app.js').read_text(encoding='utf-8')
+        start = script.index("('updateInstall').onclick=async()=>")
+        end = script.index('setTimeout(checkElmosUpdate,2600);', start)
+        handler = script[start:end]
+        self.assertNotIn('confirm(', handler)
+        self.assertIn("api('/api/update-install',{})", handler)
+        self.assertIn("if(!updateReady)return", handler)
+        # Check for Updates only performs a check and never silently installs.
+        self.assertIn("('updateCheck').onclick=checkElmosUpdate", script)
+
     def test_ci_does_not_use_whoami_as_installed_app(self):
         workflow = (ROOT / '.github/workflows/build-windows-release.yml').read_text(encoding='utf-8')
         self.assertNotIn('System32/whoami.exe', workflow)
