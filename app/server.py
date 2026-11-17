@@ -152,6 +152,7 @@ class Handler(BaseHTTPRequestHandler):
    elif action=='/api/game-title':out=engine.set_custom_title(body['id'],body['title'])
    elif action=='/api/emulator':out={'id':engine.set_emulator(body['name'],body['exe'],body['platform'])}
    elif action=='/api/rom':out={'id':engine.add_rom(body['name'],body['path'],body['emulator'])}
+   elif action=='/api/rom-emulator':out=engine.assign_rom_emulator(body['id'],body['emulator'])
    elif action=='/api/apply':out=engine.apply(body['id'],body.get('matchId'),body.get('matchName'))
    elif action=='/api/sync':out=engine.sync_new()
    elif action=='/api/remove':out=engine.remove(body['id'])
