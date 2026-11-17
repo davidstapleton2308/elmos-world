@@ -23,6 +23,9 @@ function Restart-InstalledApp {
   $app = Start-Process -FilePath $AppExe -PassThru
   if ($null -eq $app) { throw 'Windows did not return a process for the app relaunch.' }
   Write-UpdateLog ('Relaunch started; PID ' + $app.Id)
+  Start-Sleep -Seconds 3
+  $app.Refresh()
+  if ($app.HasExited) { throw "Updated Elmos World exited immediately (exit code $($app.ExitCode))." }
 }
 try {
   New-Item -ItemType Directory -Path (Split-Path -Parent $LogPath) -Force | Out-Null
