@@ -18,6 +18,8 @@ concurrency:
 
 jobs:
   windows-installer:
+    env:
+      ELMOS_INPUT_DISABLE_SETUP: '1' # CI cannot consent to kernel-driver setup; production defaults to enabled.
     runs-on: windows-2022
     timeout-minutes: 40
     steps:
