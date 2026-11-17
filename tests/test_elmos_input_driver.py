@@ -34,6 +34,14 @@ class DriverSafetyTests(unittest.TestCase):
                     d.download_verified()
             self.assertFalse(file.exists())
 
+    def test_stale_uninstall_record_does_not_skip_driver_install(self):
+        from unittest.mock import MagicMock
+        with patch.object(d.os,'name','nt'), patch.object(d.subprocess,'run',
+             return_value=MagicMock(returncode=1060,stdout='')) as call:
+            self.assertFalse(d.is_installed())
+        self.assertEqual(call.call_count, 1)
+        self.assertEqual(call.call_args.args[0][0], 'sc.exe')
+
     def test_uac_is_not_bypassed(self):
         s=(ROOT/'app'/'elmos_input_driver.py').read_text(encoding='utf-8')
         self.assertIn("-Verb RunAs -Wait -PassThru",s)

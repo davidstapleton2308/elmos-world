@@ -1219,13 +1219,20 @@ function setupControllerEditor(){syncNativeMenuButtons();const options=Array.fro
 }
 function renderElmosInput(r){
  if(!r)return;
- $('inputStatus').textContent=r.message+(r.device?' · '+r.device:'');
- $('inputStart').hidden=!!r.running&&!!r.connected;
+ $('inputStatus').textContent=r.message+(r.device?' · '+r.device:'')+
+  (r.virtualConnected?' · Virtual Xbox 360: active':'')+
+  (r.controllerMode?' · Physical input: '+r.controllerMode:'')+
+  (r.driverState?' · ViGEmBus: '+r.driverState:'');
+ $('inputStart').hidden=!!r.virtualConnected;
+ $('inputStart').textContent=r.running?'Retry Elmos Input':'Start Elmos Input';
 }
 async function refreshElmosInput(){
  try{renderElmosInput(await api('/api/input-status',{}))}
  catch(e){$('inputStatus').textContent='Could not inspect Elmos Input: '+e.message;}
 }
+// Driver installation may take a moment or require Windows approval.
+// Keep Settings synchronized instead of showing a stale 'checking' message.
+setInterval(()=>{if(screen==='settings')refreshElmosInput()},1500);
 function applyVisualPreferences(){document.documentElement.dataset.theme=elmoTheme;document.documentElement.dataset.motion=elmoMotion;applyAtmosphere();$('themeChoice').value=elmoTheme;$('motionChoice').value=elmoMotion}
 let hubExitOpen=false,hubExitRestoreFocus=null,hubExitBusy=false;
 function openHubExit(){
