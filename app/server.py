@@ -7,6 +7,7 @@ from game_media import ScreenshotLibrary
 from controller_input import monitor
 from native_game_menu import NativeGameMenu
 import update_center
+import ds4_companion
 HERE=Path(__file__).parent
 engine=Engine()
 media=ScreenshotLibrary(APP/'game_screenshots', pause_while_playing=lambda:bool(active_game_process()))
@@ -143,7 +144,10 @@ class Handler(BaseHTTPRequestHandler):
     # the WebView receives an acknowledgement rather than a network error.
     # This ends only the launcher process; game processes are not terminated.
     out={'ok':True,'quitting':True}
-    threading.Timer(0.75,lambda:os._exit(0)).start()
+    def quit_after_reply():
+     try:ds4_companion.stop_owned(game_active=bool(active_game_process()))
+     finally:os._exit(0)
+    threading.Timer(0.75,quit_after_reply).start()
    elif action=='/api/update-config':
     out={'repository':update_center.configure(body.get('repository',''))}
    elif action=='/api/update-install':
@@ -154,7 +158,10 @@ class Handler(BaseHTTPRequestHandler):
     update_center.launch_helper(installer,os.getpid())
     out={'ok':True,'restarting':True}
     # Send the response first, then exit so the detached helper can install.
-    threading.Timer(1.4,lambda:os._exit(0)).start()
+    def exit_for_update():
+     try:ds4_companion.stop_owned(game_active=bool(active_game_process()))
+     finally:os._exit(0)
+    threading.Timer(1.4,exit_for_update).start()
    elif action=='/api/pick':out={'path':choose_file(body.get('kind'))}
    elif action=='/api/exe':engine.set_exe(body['id'],body['path']);out={'ok':True}
    elif action=='/api/game-title':out=engine.set_custom_title(body['id'],body['title'])
@@ -187,6 +194,8 @@ class Handler(BaseHTTPRequestHandler):
    elif action=='/api/compatibility':out=engine.set_compatibility_mode(body['id'],body['enabled'])
    elif action=='/api/remove-library':out=engine.remove_game_from_library(body['id'])
    elif action=='/api/hidden-delete':out=engine.delete_hidden_selected(body.get('ids',[]))
+   elif action=='/api/ds4-status':out=ds4_companion.status()
+   elif action=='/api/ds4-start':out=ds4_companion.start_existing()
    elif action=='/api/gfn-sync':out=engine.gfn_sync_cache()
    elif action=='/api/gfn-import':out=engine.gfn_import(body.get('path',''),body.get('title'))
    elif action=='/api/gfn-rename':out=engine.gfn_rename(body.get('id',''),body.get('title',''))
@@ -434,6 +443,9 @@ if __name__=='__main__':
  monitor.return_handler=show_game_menu
  monitor.menu_input_handler=global_native_menu.gamepad
  monitor.start()
+ # Reuse the existing controller stack. Do not install/replace any kernel drivers.
+ threading.Thread(target=ds4_companion.start_existing,daemon=True,
+                  name='Elmos DS4 companion discovery').start()
  try:
   import webview
  except ImportError:
@@ -452,6 +464,8 @@ if __name__=='__main__':
    if closing.is_set():return
    closing.set()
    def finish():
+    try:ds4_companion.stop_owned(game_active=bool(active_game_process()))
+    except Exception as exc:print('DS4 companion stop:',exc)
     try:server.shutdown()
     except Exception as exc:print('Server shutdown:',exc)
     try:server.server_close()
@@ -469,6 +483,8 @@ if __name__=='__main__':
    try:monitor.stop()
    except Exception:pass
    try:global_native_menu.stop()
+   except Exception:pass
+   try:ds4_companion.stop_owned(game_active=bool(active_game_process()))
    except Exception:pass
   # Once the desktop GUI has returned, never leave an invisible process
   # or mutex behind because a third-party native worker is still alive.
