@@ -747,7 +747,7 @@ class Engine:
     synced=bool(v.get('variantId'))
     results.append({'id':k,'name':v['name'],'shortcut':shortcut,
                     'available':has_shortcut or synced,
-                    'directLaunch':has_shortcut,'synced':synced,
+                    'directLaunch':has_shortcut or bool(synced and v.get('shortName')),'synced':synced,
                     'store':v.get('store',''),'images':v.get('images') or {},
                     'steamId':v.get('steamId')})
    return sorted(results,key=lambda x:(x['name'].casefold(),x['store'].casefold()))
@@ -781,6 +781,7 @@ class Engine:
     else:
      updated+=1
     current['variantId']=game['variantId']
+    current['shortName']=game.get('shortName','')
     current['parentGameId']=game.get('parentGameId','')
     current['store']=game['store']
     current['images']=game.get('images',{})
@@ -832,6 +833,9 @@ class Engine:
    shortcut=item.get('shortcut','')
    if shortcut and Path(shortcut).is_file():
     return launch_shortcut(item)
+   if item.get('variantId') and item.get('shortName'):
+    from geforce_library import launch_selected_game
+    return launch_selected_game(item)
    if item.get('variantId'):
     from provider_adapters import discover
     provider=next((p for p in discover() if p.get('name')=='GeForce NOW' and p.get('installed') and p.get('launcherPath')),None)
