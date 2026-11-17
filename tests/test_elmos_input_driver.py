@@ -64,6 +64,26 @@ class DriverSafetyTests(unittest.TestCase):
         self.assertEqual(call.call_count, 1)
         self.assertEqual(call.call_args.args[0][0], 'sc.exe')
 
+    def test_bundled_verified_driver_skips_network(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bundled=Path(tmp)/'ViGEmBus_1.22.0_x64_x86_arm64.exe'
+            bundled.write_bytes(b'verified driver fixture')
+            digest=__import__('hashlib').sha256(bundled.read_bytes()).hexdigest()
+            with patch.object(d, 'bundled_driver_file', return_value=bundled), \
+                 patch.object(d, 'VIGEM_SHA256', digest), \
+                 patch.object(d.urllib.request, 'urlopen') as network:
+                result=d.download_verified()
+            self.assertEqual(result, bundled)
+            network.assert_not_called()
+
+    def test_bundled_driver_must_pass_checksum(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bundled=Path(tmp)/'ViGEmBus_1.22.0_x64_x86_arm64.exe'
+            bundled.write_bytes(b'tampered driver')
+            with patch.object(d, 'bundled_driver_file', return_value=bundled):
+                with self.assertRaisesRegex(ValueError, 'Bundled ViGEmBus driver checksum mismatch'):
+                    d.download_verified()
+
     def test_driver_download_failure_is_actionable(self):
         with tempfile.TemporaryDirectory() as tmp:
             with patch.object(d, 'managed_driver_file', return_value=Path(tmp)/'driver.exe'), \
