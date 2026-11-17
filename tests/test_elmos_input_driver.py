@@ -64,6 +64,31 @@ class DriverSafetyTests(unittest.TestCase):
         self.assertEqual(call.call_count, 1)
         self.assertEqual(call.call_args.args[0][0], 'sc.exe')
 
+    def test_driver_download_failure_is_actionable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(d, 'managed_driver_file', return_value=Path(tmp)/'driver.exe'), \
+                 patch.object(d.urllib.request, 'urlopen',
+                              side_effect=d.urllib.error.URLError('Network blocked')):
+                with self.assertRaisesRegex(RuntimeError, 'Check your internet/VPN connection'):
+                    d.download_verified()
+
+    def test_installer_reports_progress_and_approval(self):
+        from unittest.mock import MagicMock
+        stages=[]
+        def notice(stage, detail): stages.append(stage)
+        service_state=iter([False, True])
+        fake_installer=Path('C:/test/driver.exe')
+        with patch.object(d.os, 'name', 'nt'), \
+             patch.object(d, 'is_installed', side_effect=lambda:next(service_state)), \
+             patch.object(d, 'download_verified', return_value=fake_installer) as dl, \
+             patch.object(d.subprocess, 'run', return_value=MagicMock(returncode=0,stderr='')) as run:
+            result=d.install_if_missing(progress=notice)
+        self.assertEqual(result['status'], 'installed')
+        self.assertIn('awaiting-approval', stages)
+        self.assertIn('verifying-install', stages)
+        dl.assert_called_once_with(progress=notice)
+        self.assertIn('-Verb RunAs', run.call_args.args[0][-1])
+
     def test_uac_is_not_bypassed(self):
         s=(ROOT/'app'/'elmos_input_driver.py').read_text(encoding='utf-8')
         self.assertIn("-Verb RunAs -Wait -PassThru",s)
