@@ -34,6 +34,33 @@ class NativeInputTests(unittest.TestCase):
         engine.start()
         self.assertTrue(engine._retry_setup.is_set())
         engine._thread.start.assert_not_called()
+    def test_optional_rumble_failure_does_not_prevent_virtual_xbox(self):
+        import os
+        import subprocess
+        from unittest.mock import MagicMock
+        import types
+        source=MagicMock()
+        engine=n.NativeInput(source)
+        calls=[0]
+        def snapshot():
+            calls[0]+=1
+            if calls[0]>=2:
+                engine._stop.set()
+            return {'connected':False,'mode':'none','name':'','error':''}
+        source.snapshot.side_effect=snapshot
+        pad=MagicMock()
+        pad.register_notification.side_effect=RuntimeError('rumble unsupported')
+        vg=types.SimpleNamespace(VX360Gamepad=lambda:pad)
+        with patch.object(n.os, 'name', 'nt'), \\
+             patch('elmos_input_driver.is_installed', return_value=True), \\
+             patch.dict(sys.modules, {'vgamepad':vg}), \\
+             patch.object(subprocess, 'run', return_value=MagicMock(stdout='INFO: No tasks are running')):
+            engine._run()
+        self.assertGreaterEqual(pad.update.call_count, 1)
+        pad.unregister_notification.assert_not_called()
+        self.assertFalse(engine.status()['virtualConnected'])
+        self.assertNotIn('Xbox 360 bridge error', engine.status()['message'])
+
     def test_disconnect_is_neutral(self):
         self.assertIsNone(n.frame_from_snapshot(dict(connected=False,mode='mapped SDL',name='Wireless Controller')))
     def test_require_mapped_sony(self):
