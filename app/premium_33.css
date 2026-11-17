@@ -137,3 +137,20 @@
  .rail-bottom .quit-elmos{padding:6px;margin:0;min-width:32px}
  .rail-bottom{width:auto!important;flex-shrink:0}
 }
+
+/* Controller-first root exit, shown only after Back exhausts Library navigation. */
+.hub-exit-overlay{position:fixed;inset:0;z-index:130;display:flex;align-items:center;
+ justify-content:center;padding:24px;background:rgba(2,5,6,.83);
+ backdrop-filter:blur(17px) saturate(.7)}
+.hub-exit-panel{width:min(510px,94vw);padding:clamp(27px,4vw,48px);
+ background:linear-gradient(145deg,#172424,#090f12);
+ border:1px solid rgba(175,216,184,.25);border-radius:24px;
+ box-shadow:0 30px 110px #000c, inset 0 1px rgba(255,255,255,.05);
+ text-align:center}
+.hub-exit-panel h2{font-size:clamp(29px,3.4vw,43px);line-height:1.12;
+ letter-spacing:-.055em;margin:19px auto 10px}
+.hub-exit-panel p{font-size:14px;color:#b3c3bd;line-height:1.65;margin:0 auto 26px}
+.hub-exit-actions{display:flex;justify-content:center;gap:12px;flex-wrap:wrap}
+.hub-exit-actions button{min-width:165px;min-height:50px}
+.hub-exit-panel small{display:block;margin-top:24px;color:#7f948a;font-size:11px}
+.hub-exit-actions button:focus-visible{outline:2px solid #b4f5be;outline-offset:4px}
