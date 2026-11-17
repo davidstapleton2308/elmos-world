@@ -430,12 +430,37 @@ if __name__=='__main__':
  monitor.start()
  try:
   import webview
-  threading.Thread(target=server.serve_forever,daemon=True).start()
-  webview.create_window('Elmos World · Tinkle_0nMe_Elmo',url,width=1470,height=930,min_size=(980,660),background_color='#0a0e10',js_api=WindowBridge(),fullscreen=True)
-  engine.on_session_exit=restore_elmos_after_game_exit
-  webview.start(start_input_services)
-  server.shutdown()
  except ImportError:
+  # Browser-only mode; no native desktop window to close.
   threading.Timer(0.65,lambda:open_app_window(url)).start()
   try:server.serve_forever()
   except KeyboardInterrupt:pass
+  finally:server.server_close()
+ else:
+  threading.Thread(target=server.serve_forever,daemon=True,name='Elmos HTTP').start()
+  window=webview.create_window('Elmos World · Tinkle_0nMe_Elmo',url,width=1470,height=930,min_size=(980,660),background_color='#0a0e10',js_api=WindowBridge(),fullscreen=True)
+  # Closing the window must end the actual process, not leave a hidden
+  # Tk/SDL/WebView shell holding the named mutex and confusing the updater.
+  closing=threading.Event()
+  def on_window_closed():
+   if closing.is_set():return
+   closing.set()
+   def finish():
+    try:server.shutdown()
+    except Exception as exc:print('Server shutdown:',exc)
+    try:server.server_close()
+    except Exception:pass
+    os._exit(0)
+   threading.Thread(target=finish,daemon=True,name='Elmos close cleanup').start()
+   # Bounded fallback if the underlying WebView backend deadlocks during close.
+   threading.Timer(3.0,lambda:os._exit(0)).start()
+  window.events.closed += on_window_closed
+  engine.on_session_exit=restore_elmos_after_game_exit
+  try:webview.start(start_input_services)
+  finally:
+   try:server.shutdown()
+   finally:server.server_close()
+   try:monitor.stop()
+   except Exception:pass
+   try:global_native_menu.stop()
+   except Exception:pass
