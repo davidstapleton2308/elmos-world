@@ -67,8 +67,10 @@ class NativeInput:
         self.source = source
         self._lock = threading.RLock()
         self._stop = threading.Event()
+        self._retry_setup = threading.Event()
         self._thread = None
         self._state = dict(running=False, connected=False, virtualConnected=False,
+                           driverInstalled=False, driverState='unknown',
                            controllerDetected=False, controllerMode='none', readerError='',
                            backend='ViGEmBus / Xbox 360',
                            message='Elmos Input not started', device='')
@@ -81,8 +83,11 @@ class NativeInput:
     def start(self):
         with self._lock:
             if self._thread is not None and self._thread.is_alive():
+                # Start is also the user's explicit retry of driver setup.
+                self._retry_setup.set()
                 return self.status()
             self._stop.clear()
+            self._retry_setup.set()
             self._thread = threading.Thread(target=self._run, name='Elmos native Xbox bridge', daemon=True)
             self._thread.start()
         return self.status()
@@ -99,20 +104,42 @@ class NativeInput:
             if os.name != 'nt':
                 self._publish(message='Xbox emulation requires Windows')
                 return
-            from elmos_input_driver import is_installed
-            if not is_installed():
-                if os.environ.get('ELMOS_INPUT_DISABLE_SETUP') == '1':
-                    self._publish(message='ViGEmBus missing (driver installation disabled in CI).')
-                    return
-                self._publish(message='ViGEmBus missing; requesting Windows approval for verified driver setup.')
-                from elmos_input_driver import install_if_missing
-                setup = install_if_missing()
-                if setup.get('status') not in ('installed', 'already-installed'):
-                    self._publish(message='ViGEmBus setup incomplete: ' + setup.get('message', setup.get('status', 'unknown')))
-                    return
-                if not is_installed():
-                    self._publish(message='ViGEmBus driver setup finished but Windows cannot detect it yet; restart may be needed.')
-                    return
+            from elmos_input_driver import is_installed, install_if_missing
+            self._publish(running=True, driverState='checking',
+                          message='Checking ViGEmBus driver…')
+            # The Elmos-owned input worker stays alive for the entire app
+            # session. Initial setup happens once on startup; a failed or
+            # declined UAC request can be retried from Elmos Input settings.
+            while not self._stop.is_set():
+                if is_installed():
+                    self._publish(driverInstalled=True, driverState='installed',
+                                  message='ViGEmBus installed; connecting virtual Xbox 360 controller…')
+                    break
+                self._publish(driverInstalled=False)
+                if self._retry_setup.is_set():
+                    self._retry_setup.clear()
+                    if os.environ.get('ELMOS_INPUT_DISABLE_SETUP') == '1':
+                        self._publish(driverState='missing',
+                                      message='ViGEmBus missing (driver setup disabled in CI)')
+                    else:
+                        self._publish(driverState='installing',
+                                      message='ViGEmBus missing; downloading verified driver and requesting Windows UAC approval…')
+                        try:
+                            setup = install_if_missing()
+                            outcome = str(setup.get('status') or 'error')
+                            if outcome in ('installed','already-installed') and is_installed():
+                                self._publish(driverInstalled=True, driverState='installed')
+                                break
+                            self._publish(driverState=outcome,
+                                          message='ViGEmBus setup: ' + str(setup.get('message') or outcome) +
+                                                  '. Select Start Elmos Input to retry; restart Windows if requested.')
+                        except Exception as exc:
+                            self._publish(driverState='error',
+                                          message='ViGEmBus setup failed: ' + str(exc)[:180] +
+                                                  '. Select Start Elmos Input to retry.')
+                self._stop.wait(0.5)
+            if self._stop.is_set():
+                return
             # vgamepad creates a global ViGEmClient bus connection at import time.
             # Import it only after the bus is confirmed available.
             try:
