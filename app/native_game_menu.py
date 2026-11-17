@@ -89,6 +89,11 @@ class NativeGameMenu:
     def hide(self):
         with self._guard:self._visible=False;self._input.reset()
         if self._started:self._queue.put(('hide',None))
+ 
+    def stop(self):
+        """Release the hidden Tk overlay when the main Elmos window closes."""
+        self.hide()
+        if self._started:self._queue.put(('quit',None))
 
     def gamepad(self, buttons, axes):
         """Called on the native SDL thread; never calls Tk from that thread."""
@@ -191,6 +196,9 @@ class NativeGameMenu:
         try:
             while True:
                 event,value=self._queue.get_nowait()
+                if event=='quit':
+                    self._tk.destroy()
+                    return
                 if event=='show':
                     self._game_title.configure(text=value)
                     self._index=0;self._paint();self._position()
