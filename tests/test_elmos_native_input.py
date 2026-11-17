@@ -51,10 +51,11 @@ class NativeInputTests(unittest.TestCase):
         pad=MagicMock()
         pad.register_notification.side_effect=RuntimeError('rumble unsupported')
         vg=types.SimpleNamespace(VX360Gamepad=lambda:pad)
-        with patch.object(n.os, 'name', 'nt'), \\
-             patch('elmos_input_driver.is_installed', return_value=True), \\
-             patch.dict(sys.modules, {'vgamepad':vg}), \\
-             patch.object(subprocess, 'run', return_value=MagicMock(stdout='INFO: No tasks are running')):
+        with (patch.object(n.os, 'name', 'nt'),
+              patch('elmos_input_driver.is_installed', return_value=True),
+              patch.dict(sys.modules, {'vgamepad':vg}),
+              patch.object(subprocess, 'run',
+                           return_value=MagicMock(stdout='INFO: No tasks are running'))):
             engine._run()
         self.assertGreaterEqual(pad.update.call_count, 1)
         pad.unregister_notification.assert_not_called()
