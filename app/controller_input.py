@@ -20,6 +20,7 @@ class ControllerMonitor:
         self.thread=None
         self._stop=threading.Event()
         self.return_handler=None
+        self._rumble_request=None
         self.menu_input_handler=None  # foreground-independent native game-menu navigation
         self.navigation_map={'a':0,'b':1}
         self.guide_file=Path(os.environ.get('LOCALAPPDATA', str(Path.home()))) / 'ElmosWorld' / 'controller.json'
@@ -29,6 +30,11 @@ class ControllerMonitor:
             if type(cfg.get('guide_index')) is int and 0 <= cfg['guide_index'] <= 39:
                 self.guide_index=cfg['guide_index']
         except (OSError,ValueError,TypeError): pass
+    def queue_rumble(self, large, small):
+        """Queue motor updates without touching SDL from the ViGEm callback thread."""
+        with self.lock:
+            self._rumble_request=(max(0.0,min(1.0,float(large))),
+                                  max(0.0,min(1.0,float(small))))
     def set_navigation_map(self, mapping):
         if not isinstance(mapping,dict):raise ValueError("Controller map must be an object")
         result={}
@@ -77,7 +83,7 @@ class ControllerMonitor:
         except Exception as exc:
             self._publish(error='SDL initialization failed: '+str(exc));return
         current=None;device_id=None;gamepad=None;ps_press=RisingPress()
-        names={'a':'CONTROLLER_BUTTON_A','b':'CONTROLLER_BUTTON_B','x':'CONTROLLER_BUTTON_X','y':'CONTROLLER_BUTTON_Y','up':'CONTROLLER_BUTTON_DPAD_UP','down':'CONTROLLER_BUTTON_DPAD_DOWN','left':'CONTROLLER_BUTTON_DPAD_LEFT','right':'CONTROLLER_BUTTON_DPAD_RIGHT','lb':'CONTROLLER_BUTTON_LEFTSHOULDER','rb':'CONTROLLER_BUTTON_RIGHTSHOULDER','start':'CONTROLLER_BUTTON_START','back':'CONTROLLER_BUTTON_BACK','guide':'CONTROLLER_BUTTON_GUIDE'}
+        names={'a':'CONTROLLER_BUTTON_A','b':'CONTROLLER_BUTTON_B','x':'CONTROLLER_BUTTON_X','y':'CONTROLLER_BUTTON_Y','up':'CONTROLLER_BUTTON_DPAD_UP','down':'CONTROLLER_BUTTON_DPAD_DOWN','left':'CONTROLLER_BUTTON_DPAD_LEFT','right':'CONTROLLER_BUTTON_DPAD_RIGHT','lb':'CONTROLLER_BUTTON_LEFTSHOULDER','rb':'CONTROLLER_BUTTON_RIGHTSHOULDER','start':'CONTROLLER_BUTTON_START','back':'CONTROLLER_BUTTON_BACK','guide':'CONTROLLER_BUTTON_GUIDE','l3':'CONTROLLER_BUTTON_LEFTSTICK','r3':'CONTROLLER_BUTTON_RIGHTSTICK'}
         codes={n:getattr(pygame,c,getattr(controller,c,None)) for n,c in names.items()}
         try:
             while not self._stop.is_set():
@@ -134,7 +140,19 @@ class ControllerMonitor:
                 if not mapped:
                     b=lambda n:raw_buttons[n] if n<len(raw_buttons) else False
                     hat=hats[0] if hats else [0,0]
-                    buttons={'a':b(self.navigation_map['a']),'b':b(self.navigation_map['b']),'x':b(2),'y':b(3),'lb':b(4),'rb':b(5),'back':b(8),'start':b(9),'guide':b(self.guide_index),'up':hat[1]>0,'down':hat[1]<0,'left':hat[0]<0,'right':hat[0]>0}
+                    buttons={'a':b(self.navigation_map['a']),'b':b(self.navigation_map['b']),'x':b(2),'y':b(3),'lb':b(4),'rb':b(5),'back':b(8),'start':b(9),'guide':b(self.guide_index),'l3':b(11),'r3':b(12),'up':hat[1]>0,'down':hat[1]<0,'left':hat[0]<0,'right':hat[0]>0}
+                with self.lock:
+                    rumble=self._rumble_request
+                    self._rumble_request=None
+                if rumble is not None:
+                    try:
+                        if rumble==(0.0,0.0):
+                            current.stop_rumble()
+                        else:
+                            current.rumble(rumble[0],rumble[1],250)
+                    except (AttributeError,pygame.error):
+                        # Some Bluetooth drivers do not expose rumble via SDL.
+                        pass
                 # PS/Guide by itself opens the Elmos menu; no Options chord.
                 # Edge-triggered so holding it does not reopen or repeat.
                 if ps_press.update(buttons.get('guide',False)) and self.return_handler:
