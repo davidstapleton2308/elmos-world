@@ -1,0 +1,156 @@
+/* GeForce NOW cinematic parity with Elmos World's main library.
+   Keep the same stage/tray proportions and centered poster-deck formula. */
+#gfnView{
+ height:calc(100dvh - var(--elmo-nav,76px))!important;
+ max-height:calc(100dvh - var(--elmo-nav,76px))!important;
+ min-height:0!important;
+ display:flex;flex-direction:column;overflow:hidden;
+ background:#070b0c;
+}
+#gfnView>.gfn-hero{
+ flex:1 1 auto!important;min-height:0!important;
+ background-color:#101b18;background-size:cover!important;
+ background-position:center center!important;background-repeat:no-repeat!important;
+ border:0!important;isolation:isolate;overflow:hidden;
+ display:flex;align-items:flex-end;
+ padding:0 clamp(23px,5vw,84px) clamp(44px,7vh,92px)!important;
+}
+#gfnView .gfn-shade{
+ background:linear-gradient(0deg,rgba(6,9,10,.86) 0%,rgba(6,9,10,.26) 32%,transparent 69%)!important;
+}
+#gfnView .gfn-hero-content{
+ position:relative;z-index:3;
+ max-width:min(720px,68vw)!important;
+}
+#gfnHeroTitle{
+ max-width:24ch!important;
+ font-size:clamp(37px,min(5.9vw,9.2vh),90px)!important;
+ letter-spacing:-.065em;line-height:1.05;
+ margin:11px 0 12px;
+ text-shadow:0 8px 42px rgba(0,0,0,.56);
+}
+#gfnHeroText{font-size:clamp(12px,1.3vw,15px);line-height:1.45;max-width:520px}
+#gfnView .gfn-actions{gap:9px;align-items:center}
+#gfnView .gfn-actions>button{min-height:40px;max-width:100%;padding:10px 15px;white-space:normal}
+#gfnView>.gfn-bottom{
+ position:relative;flex:0 0 clamp(275px,40dvh,440px)!important;
+ height:clamp(275px,40dvh,440px)!important;min-height:0!important;
+ margin-top:-15px!important;
+ padding:14px clamp(22px,4vw,64px) 14px!important;
+ border:0!important;overflow:hidden;
+ background:linear-gradient(180deg,rgba(7,10,11,.88),#0a1012 24%,#090e10 63%,#06090a 100%)!important;
+}
+#gfnView>.gfn-bottom::before{
+ content:"";position:absolute;inset:0;pointer-events:none;
+ background:var(--mesh),radial-gradient(ellipse at 50% 105%,rgba(var(--ember-rgb),.082),transparent 39%);
+}
+#gfnView .gfn-shelf-head{
+ position:relative;z-index:2;flex:0 0 42px;min-height:42px;
+ align-items:center;gap:12px;
+}
+#gfnView .gfn-shelf-head h2{font-size:clamp(17px,1.85vw,25px)}
+#gfnView .gfn-shelf-controls button{
+ height:30px;width:30px;display:inline-flex;align-items:center;justify-content:center;
+ border-radius:50%;border:1px solid rgba(235,242,237,.12);
+ background:linear-gradient(180deg,rgba(37,46,46,.84),rgba(16,22,23,.87));
+ box-shadow:0 4px 12px rgba(0,0,0,.22);
+}
+#gfnView #gfnCards.gfn-cards{
+ position:relative;z-index:2;
+ flex:1 1 auto!important;min-height:0!important;
+ width:100%;height:0;display:flex;align-items:center;
+ gap:clamp(12px,1.8vw,25px);
+ padding:22px max(12px,calc((100% - var(--deck-width,180px))/2)) 12px!important;
+ scroll-snap-type:x mandatory;scroll-padding-inline:50%;scroll-behavior:smooth;
+ overscroll-behavior-x:contain;overflow-x:auto;overflow-y:hidden;
+ scrollbar-width:none;-ms-overflow-style:none;
+}
+#gfnView #gfnCards::-webkit-scrollbar{display:none}
+#gfnView #gfnCards .gfn-card{
+ flex:0 0 var(--deck-width,180px)!important;
+ width:var(--deck-width,180px);height:calc(100% - 10px)!important;
+ min-width:0;min-height:0;align-self:center;display:flex;flex-direction:column;
+ align-items:center;justify-content:center;text-align:center;
+ padding:0;margin:0;border:0!important;outline:0!important;
+ background:transparent!important;box-shadow:none!important;
+ scroll-snap-align:center;scroll-snap-stop:normal;
+ opacity:.48;filter:brightness(.76) saturate(.73);transform:scale(.936);
+ transition:opacity .22s ease,filter .22s ease,transform .22s cubic-bezier(.2,.8,.25,1);
+}
+#gfnView #gfnCards .gfn-card.active,
+#gfnView #gfnCards .gfn-card.selected,
+#gfnView #gfnCards .gfn-card:focus-visible{
+ transform:translateY(-5px) scale(1.068)!important;
+ opacity:1!important;filter:brightness(1.06) saturate(1.07)!important;z-index:5;
+}
+#gfnView #gfnCards .gfn-card:hover:not(.active){opacity:.76;filter:brightness(.9) saturate(.9)}
+#gfnView #gfnCards .gfn-card .gfn-poster{
+ position:relative;display:block;flex:0 1 auto!important;
+ width:100%!important;height:auto!important;
+ aspect-ratio:2/3!important;max-height:calc(100% - 39px)!important;
+ min-height:0;border-radius:15px!important;
+ border:0!important;outline:0!important;
+ background:linear-gradient(155deg,#141b1d,#080c0e)!important;
+ overflow:hidden!important;
+ box-shadow:0 14px 34px rgba(0,0,0,.34)!important;
+}
+#gfnView #gfnCards .gfn-card.active .gfn-poster,
+#gfnView #gfnCards .gfn-card.selected .gfn-poster,
+#gfnView #gfnCards .gfn-card:focus-visible .gfn-poster{
+ box-shadow:0 18px 42px rgba(0,0,0,.53),0 16px 32px rgba(168,95,44,.07)!important;
+}
+#gfnView #gfnCards .gfn-poster img{
+ position:absolute!important;inset:0;width:100%!important;height:100%!important;
+ display:block;object-fit:cover!important;object-position:center!important;
+ background:transparent!important;border:0!important;
+ z-index:2;
+}
+#gfnView #gfnCards .gfn-poster img[hidden]{display:none!important}
+#gfnView #gfnCards .gfn-monogram{
+ position:absolute;inset:0;display:flex;justify-content:center;align-items:center;
+ width:100%;height:100%;font-size:clamp(35px,4vw,60px);
+ font-weight:900;color:#e1f0e6;
+ background:radial-gradient(ellipse at 55% 35%,rgba(91,142,111,.25),transparent 70%);
+}
+#gfnView #gfnCards .gfn-card>strong{
+ display:block;width:100%;max-width:100%;
+ font-size:clamp(11px,.97vw,14px);letter-spacing:-.01em;
+ margin:8px 0 0;line-height:1.2;min-height:15px;
+ white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+ color:#e6ece8;
+}
+#gfnView #gfnCards .gfn-card>small{
+ display:block;width:100%;max-width:100%;
+ font-size:10px;line-height:1.2;color:#8d9e96;
+ white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+ margin-top:3px;
+}
+#gfnView .gfn-foot{
+ position:relative;z-index:2;flex:0 0 31px;min-height:31px;
+ overflow:hidden;align-items:center;
+}
+#gfnView .gfn-foot span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media(max-height:770px){
+ #gfnView>.gfn-bottom{flex-basis:clamp(266px,42dvh,339px)!important;height:clamp(266px,42dvh,339px)!important}
+ #gfnView .gfn-hero-content{max-width:min(720px,74vw)!important}
+ #gfnHeroTitle{font-size:clamp(32px,min(4.7vw,8.5vh),67px)!important}
+ #gfnView #gfnCards.gfn-cards{padding-top:16px!important;padding-bottom:9px!important}
+}
+@media(max-width:950px){
+ #gfnView .gfn-hero-content{max-width:83vw!important}
+ #gfnView>.gfn-hero{padding-left:24px!important;padding-right:24px!important}
+ #gfnView #gfnCards.gfn-cards{padding-left:max(12px,calc((100% - var(--deck-width,160px))/2))!important;padding-right:max(12px,calc((100% - var(--deck-width,160px))/2))!important}
+}
+@media(max-width:720px){
+ #gfnView>.gfn-bottom{flex-basis:clamp(260px,43dvh,360px)!important;height:clamp(260px,43dvh,360px)!important;padding:12px 12px 10px!important}
+ #gfnView>.gfn-hero{padding:0 20px 38px!important}
+ #gfnView .gfn-hero-content{max-width:92vw!important}
+ #gfnHeroTitle{font-size:clamp(30px,6.5vw,50px)!important}
+ #gfnView .gfn-actions>button{font-size:10px;padding:8px 10px;min-height:34px}
+ #gfnView .gfn-shelf-head h2{font-size:18px}
+ #gfnView .gfn-foot{font-size:9px}
+}
+@media(prefers-reduced-motion:reduce){
+ #gfnView #gfnCards .gfn-card{transition:none!important}
+ #gfnView #gfnCards.gfn-cards{scroll-behavior:auto!important}
+}
