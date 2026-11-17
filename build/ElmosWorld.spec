@@ -14,7 +14,7 @@ ASSETS = [
 datas = [(str(APP / f), '.') for f in ASSETS]
 binaries = []
 hiddenimports = [
-    'server', 'update_center', 'backend', 'gfn_cache_sync', 'game_media', 'game_descriptions', 'game_discovery',
+    'server', 'update_center', 'backend', 'gfn_cache_sync', 'ds4_companion', 'game_media', 'game_descriptions', 'game_discovery',
     'game_uninstall', 'geforce_library', 'gfn_artwork', 'steam_core', 'provider_adapters',
     'controller_input', 'native_game_menu', 'smart_discovery', 'game_metadata', 'tkinter', 'tkinter.filedialog',
     'webview.platforms.winforms', 'webview.platforms.edgechromium',
