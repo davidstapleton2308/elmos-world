@@ -49,7 +49,16 @@ try {
   $code = [int]$process.ExitCode
   Write-UpdateLog ("Installer finished with exit code $code")
   if ($code -ne 0) { throw "Installer failed ($code). See $installLog" }
-  Set-UpdateState 'complete' 'Update installed and app restarted'
+  # Installer exit code 0 is not enough: verify the installed executable
+  # before reporting success or attempting to restart it.
+  if (-not (Test-Path -LiteralPath $AppExe -PathType Leaf)) {
+    throw "Installer exited successfully but the expected Elmos executable is missing: $AppExe"
+  }
+  $test = Start-Process -FilePath $AppExe -ArgumentList '--self-test' -PassThru -Wait
+  if ([int]$test.ExitCode -ne 0) {
+    throw "Installed Elmos World failed its startup self-test (exit $($test.ExitCode))."
+  }
+  Set-UpdateState 'complete' 'Installed update verified; restarting Elmos World'
   Restart-InstalledApp
   Write-UpdateLog 'Update worker finished normally'
   exit 0
