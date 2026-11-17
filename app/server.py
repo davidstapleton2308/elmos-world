@@ -179,6 +179,7 @@ class Handler(BaseHTTPRequestHandler):
    elif action=='/api/compatibility':out=engine.set_compatibility_mode(body['id'],body['enabled'])
    elif action=='/api/remove-library':out=engine.remove_game_from_library(body['id'])
    elif action=='/api/hidden-delete':out=engine.delete_hidden_selected(body.get('ids',[]))
+   elif action=='/api/gfn-sync':out=engine.gfn_sync_cache()
    elif action=='/api/gfn-import':out=engine.gfn_import(body.get('path',''),body.get('title'))
    elif action=='/api/gfn-rename':out=engine.gfn_rename(body.get('id',''),body.get('title',''))
    elif action=='/api/gfn-remove':out=engine.gfn_remove(body.get('id',''))
