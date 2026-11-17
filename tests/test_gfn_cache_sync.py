@@ -143,10 +143,22 @@ class GfnCachedLibraryTests(unittest.TestCase):
         self.assertIn("u.path=='/premium_32.css'", server)
         self.assertIn('var(--deck-width', css)
         self.assertIn('scroll-snap-align:center', css)
-        self.assertIn('object-fit:contain!important', css)
+        self.assertIn('object-fit:cover!important', css)
+        self.assertIn('background-size:cover,cover,cover!important',css)
         self.assertIn('background-image:var(--gfn-cover,none)', css)
         self.assertIn('#gfnView>.gfn-hero', css)
         self.assertIn('#gfnView>.gfn-bottom', css)
+
+    def test_geforce_art_prioritizes_portrait_over_landscape_tile(self):
+        js=(ROOT/'app'/'app.js').read_text(encoding='utf-8')
+        begin=js.index('function gfnArtFor(g,slot){')
+        end=js.index('function gfnSelectedItem()',begin)
+        block=js[begin:end]
+        self.assertIn("if(slot==='portrait')",block)
+        self.assertLess(block.index("art(local,'portrait')"),block.index('cached.portrait||cached.hero'))
+        self.assertIn('library_600x900.jpg',block)
+        self.assertIn('library_hero.jpg',block)
+        self.assertNotIn("cached.portrait)return cached.portrait; if(slot!=='portrait'",block)
 
     def test_geforce_wheel_and_controller_navigation_match_main_deck(self):
         script=(ROOT/'app'/'app.js').read_text(encoding='utf-8')
