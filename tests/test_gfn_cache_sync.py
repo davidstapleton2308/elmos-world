@@ -84,6 +84,55 @@ class GfnCachedLibraryTests(unittest.TestCase):
         self.assertEqual(response['total'],1)
         engine.save_local.assert_not_called()
 
+    def test_cache_preserves_short_name_for_direct_game_launch(self):
+        games = gfn_cache_sync.extract_cached_games(fake_game())
+        self.assertEqual(games['12345']['shortName'], 'Portal 2')
+
+    def test_direct_launch_argument_contains_exact_game_variant_and_parent(self):
+        from geforce_library import direct_route
+        route = direct_route('102303511', 'my_game', '12345678-1234-1234-1234-123456789012')
+        self.assertEqual(route, '--url-route=#?cmsId=102303511&launchSource=External'
+                         '&shortName=my_game&parentGameId=12345678-1234-1234-1234-123456789012')
+
+    def test_direct_launch_rejects_arbitrary_arguments(self):
+        from geforce_library import direct_route
+        for variant, short in [('1 --flag', 'safe'), ('123', '--url-route=evil'),
+                               ('123', 'game\nmalicious')]:
+            with self.subTest(variant=variant, short=short):
+                with self.assertRaises(ValueError):
+                    direct_route(variant, short)
+
+    def test_sync_stores_direct_route_metadata_and_merges_by_variant(self):
+        from backend import Engine
+        engine = Engine.__new__(Engine)
+        engine.lock = threading.RLock()
+        engine.local = {'gfnGames': {}}
+        engine.save_local = MagicMock()
+        scanned = {'games':list(gfn_cache_sync.extract_cached_games(fake_game()).values()),
+                   'scanned':1, 'message':'one game'}
+        with patch.object(gfn_cache_sync,'scan_cache',return_value=scanned):
+            first=engine.gfn_sync_cache()
+            second=engine.gfn_sync_cache()
+        self.assertEqual(first['added'],1)
+        self.assertEqual(second['added'],0)
+        self.assertEqual(second['total'],1)
+        entry=next(iter(engine.local['gfnGames'].values()))
+        self.assertEqual(entry['variantId'],'12345')
+        self.assertEqual(entry['shortName'],'Portal 2')
+
+    def test_native_direct_launch_is_used_for_synced_entries(self):
+        from backend import Engine
+        import geforce_library
+        engine=Engine.__new__(Engine)
+        engine.lock=threading.RLock()
+        engine.local={'gfnGames':{'gfn-sync:12345':{'name':'Portal 2',
+                      'shortcut':'', 'variantId':'12345', 'shortName':'Portal 2'}}}
+        with patch.object(geforce_library,'launch_selected_game',
+                          return_value={'ok':True,'directLaunch':True}) as launch:
+            result=engine.gfn_launch('gfn-sync:12345')
+        self.assertTrue(result['directLaunch'])
+        launch.assert_called_once()
+
     def test_frontend_exposes_explicit_sync_without_api_signin(self):
         html=(ROOT/'app'/'index.html').read_text(encoding='utf-8')
         js=(ROOT/'app'/'app.js').read_text(encoding='utf-8')
