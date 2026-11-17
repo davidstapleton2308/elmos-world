@@ -90,7 +90,10 @@ def release_single_instance():
     """Close only the handle owned by this process; Windows owns mutex cleanup."""
     global _mutex_handle
     if _mutex_handle and os.name == 'nt':
-        ctypes.WinDLL('kernel32', use_last_error=True).CloseHandle(_mutex_handle)
+        kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+        kernel.CloseHandle.argtypes = (ctypes.c_void_p,)
+        kernel.CloseHandle.restype = ctypes.c_int
+        kernel.CloseHandle(_mutex_handle)
         _mutex_handle = None
 
 
@@ -135,6 +138,7 @@ def start():
                     'To recover, open Task Manager > Details, find ElmosWorld.exe, '
                     'and End task for that exact process. Then open Elmos World again.\n\n'
                     'Your games and settings will not be deleted.')
+        release_single_instance()
         return 0
 
     path = log_path()
