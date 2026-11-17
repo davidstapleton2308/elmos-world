@@ -110,3 +110,30 @@
  #gfnView>.gfn-hero .gfn-shade{background:linear-gradient(90deg,#080d0e 0%,rgba(8,13,14,.92) 45%,rgba(8,13,14,.23) 100%)!important}
  #gfnView #gfnHeroTitle{font-size:clamp(31px,6vw,48px)!important}
 }
+
+/* Small native-feeling Quit action in the permanent top hub and Settings.
+   Keep it visible in the 76px desktop navbar without disturbing game tabs. */
+.rail-bottom .quit-elmos{
+ display:inline-flex;align-items:center;justify-content:center;gap:7px;
+ min-width:66px;min-height:32px;padding:6px 10px;margin-right:9px;
+ border:1px solid rgba(235,178,153,.24);border-radius:9px;
+ color:#e6c3af;background:rgba(117,53,39,.13);
+ font-size:11px;font-weight:700;letter-spacing:.02em;white-space:nowrap;
+ transition:background .15s,color .15s,border-color .15s;
+}
+.rail-bottom .quit-elmos:hover,
+.rail-bottom .quit-elmos:focus-visible{
+ background:rgba(155,61,43,.28);border-color:rgba(250,181,153,.55);
+ color:#ffe2d4;outline-offset:2px;
+}
+.quit-elmos-settings{white-space:nowrap;flex-shrink:0}
+@media(max-width:1110px){
+ .rail-bottom{display:flex!important}
+ .rail-bottom .controller-line{display:none!important}
+ .rail-bottom .quit-elmos{margin-right:0;min-width:40px}
+ .rail-bottom .quit-elmos span{display:none}
+}
+@media(max-width:790px){
+ .rail-bottom .quit-elmos{padding:6px;margin:0;min-width:32px}
+ .rail-bottom{width:auto!important;flex-shrink:0}
+}
