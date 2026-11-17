@@ -1196,6 +1196,21 @@ function setupControllerEditor(){syncNativeMenuButtons();const options=Array.fro
  $('controllerRefresh').onclick=()=>pollController();
 }
 function applyVisualPreferences(){document.documentElement.dataset.theme=elmoTheme;document.documentElement.dataset.motion=elmoMotion;applyAtmosphere();$('themeChoice').value=elmoTheme;$('motionChoice').value=elmoMotion}
+async function quitElmosWorld(){
+ const controls=[$('quitElmos'),$('quitElmosSettings')].filter(Boolean);
+ if(controls.some(b=>b.disabled))return;
+ controls.forEach(b=>b.disabled=true);
+ try{
+  const result=await api('/api/quit',{});
+  if(!result?.quitting)throw new Error('The launcher did not acknowledge the exit request.');
+  // Native process is ending. Leave this button disabled to avoid duplicate requests.
+ }catch(e){
+  controls.forEach(b=>b.disabled=false);
+  notify('Could not quit Elmos World: '+e.message,true);
+ }
+}
+$('quitElmos').onclick=quitElmosWorld;
+$('quitElmosSettings').onclick=quitElmosWorld;
 function fullscreenToggle(){if(window.pywebview?.api?.toggle_fullscreen)window.pywebview.api.toggle_fullscreen().catch(()=>{});else if(document.fullscreenElement)document.exitFullscreen?.();else document.documentElement.requestFullscreen?.().catch(()=>{});}
 $('deleteHiddenButton').onclick=deleteHiddenDialog;
 $('gfnSync').onclick=gfnSync;$('gfnImport').onclick=gfnImport;$('gfnDiscover').onclick=gfnDiscover;$('gfnManage').onclick=gfnManage;$('gfnPrev').onclick=()=>gfnMove(-1);$('gfnNext').onclick=()=>gfnMove(1);
