@@ -63,7 +63,7 @@ def extract_cached_games(data):
             elif key.upper() in ('BOX_ART', 'KEY_ART', 'STORE_IMAGE', 'TILE', 'SMALL_IMAGE'):
                 art.setdefault('portrait', value)
         for match in VARIANT.finditer(part[vstart:]):
-            variant, _, raw_store, selected = match.groups()
+            variant, raw_short, raw_store, selected = match.groups()
             if selected != 'true':
                 continue
             store = _plain(raw_store).upper()
@@ -71,6 +71,7 @@ def extract_cached_games(data):
                 continue
             games[variant] = {'name':name,'store':STORE.get(store,store.title()),
                               'variantId':variant,
+                              'shortName':_plain(raw_short)[:140],
                               'parentGameId':uuid_match.group(1) if uuid_match else '',
                               'images':art}
     return games
