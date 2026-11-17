@@ -28,6 +28,14 @@ DisableDirPage=yes
 DisableWelcomePage=no
 ArchitecturesAllowed=x64compatible
 
+; Smart App Control requires a CA-trusted Authenticode signature on both the
+; outer setup EXE and its temporary extracted installer/uninstaller helpers.
+; Configure the Inno SignTool named "elmos" at compile time. Never embed keys.
+#ifdef ELMOS_SIGNED
+SignTool=elmos
+SignedUninstaller=yes
+#endif
+
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
