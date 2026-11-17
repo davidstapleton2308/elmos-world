@@ -16,7 +16,7 @@ There is **no DS4Windows executable, profile manager or download** in this code 
 - Virtual Xbox target is destroyed when the physical Sony pad disconnects.
 - Physical controller is still visible to Windows unless configured separately
   with a suitable controller-hiding solution; games can see double input.
-- No driver installation or HidHide changes occur automatically.
+- If ViGEmBus is missing, Elmos Input downloads the checksum-verified signed installer and requests normal Windows UAC approval once. HidHide settings are never changed automatically.
 - Xbox 360 rumble pass-through and motion/touchpad mapping are not yet implemented.
 - Only SDL-mapped Sony controllers are supported in the initial native feeder.
 - Games need Windows hardware testing before the feeder is considered a DS4 replacement.
