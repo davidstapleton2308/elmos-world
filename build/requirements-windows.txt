@@ -7,6 +7,6 @@ pythonnet>=3.0,<4
 Pillow>=11,<13
 
 # ViGEmClient feeder; Elmos owns mapping and the virtual Xbox 360 target.
-vgamepad>=0.1.0,<1
-# Install vgamepad with VGAMEPAD_SKIP_VIGEMBUS_INSTALL=true;
-# Elmos owns explicit signed-driver setup after its own installed-driver check.
+vgamepad==0.2.0
+# vgamepad 0.2.0 separates the API from implicit bus driver installation;
+# Elmos installs a separately verified ViGEmBus version only when required.
