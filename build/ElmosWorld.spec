@@ -28,6 +28,15 @@ for package in ('webview', 'pygame', 'pythonnet', 'clr_loader'):
     binaries += pkg_binaries
     hiddenimports += pkg_hidden
 
+# Stage the independently versioned controller compatibility runtime as app data.
+# It remains a managed helper, not Python code or an installed service. The
+# Windows installer carries this payload, so startup does not fetch it.
+vendor = ROOT / 'build' / 'vendor' / 'ElmosInput'
+if vendor.is_dir():
+    datas.append((str(vendor), 'ElmosInput'))
+elif __import__('os').environ.get('ELMOS_REQUIRE_INPUT_BUNDLE') == '1':
+    raise RuntimeError('Required Elmos Input runtime is missing. Run build/prepare_elmos_input.ps1')
+
 analysis = Analysis(
     [str(APP / 'launcher_entry.py')],
     pathex=[str(APP)],
