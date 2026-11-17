@@ -42,11 +42,12 @@ class DriverSafetyTests(unittest.TestCase):
         self.assertNotIn('ConsentPromptBehaviorAdmin',s)
         self.assertNotIn('EnableLUA',s)
 
-    def test_known_ds4_archive_source_and_checksum(self):
-        import ds4_companion as c
-        self.assertIn('github.com/ds4windowsapp/DS4Windows/releases/download/',c.ARCHIVE_URL)
-        self.assertIn('ryochan7/ds4windows-3-3-3.zip',c.ARCHIVE_URL)
-        self.assertEqual(c.ARCHIVE_SHA256,'cf5619bcb51b82e4e1765276e9f67fb1e2d23dff968a653657acf35bafff8bf4')
+    def test_no_legacy_driver_installer_in_release_build(self):
+        spec=(ROOT/'build'/'ElmosWorld.spec').read_text(encoding='utf-8')
+        self.assertNotIn("'elmos_input_driver'",spec)
+        companion=(ROOT/'app'/'ds4_companion.py').read_text(encoding='utf-8')
+        self.assertNotIn('install_if_missing(',companion)
+        self.assertNotIn('install_missing_user_component(',companion)
 
 if __name__=='__main__':
     unittest.main()
