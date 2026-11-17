@@ -464,3 +464,6 @@ if __name__=='__main__':
    except Exception:pass
    try:global_native_menu.stop()
    except Exception:pass
+  # Once the desktop GUI has returned, never leave an invisible process
+  # or mutex behind because a third-party native worker is still alive.
+  os._exit(0)
