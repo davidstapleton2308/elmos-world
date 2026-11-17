@@ -361,7 +361,7 @@ function gfnManage(){
  });
 }
 function gfnMove(delta){const games=gfnItems();if(!games.length)return;const i=Math.max(0,games.findIndex(x=>x.id===gfnSelected));const g=games[Math.max(0,Math.min(games.length-1,i+delta))];gfnSelect(g.id,true);const c=[...$('gfnCards').querySelectorAll('.gfn-card')].find(x=>x.dataset.gfn===g.id);c?.focus({preventScroll:true});}
-function renderEmulators(){const em=Object.entries(state.emulators||{});$('emulatorCards').innerHTML=em.length?em.map(([id,v])=>`<div class="list-row"><div><strong>${esc(v.name)}</strong><small>${esc(v.platform)} · ${esc(v.exe)}</small></div>${/xenia/i.test(v.exe)?`<button class="add-btn" data-xenia="${esc(id)}" title="Enable SDL input for PlayStation controllers">PS4 Controller</button>`:'<span class="tag">CONNECTED</span>'}</div>`).join(''):'<div class="setting-note">No emulators yet. Connect Xenia Canary for your SSX ISO.</div>';document.querySelectorAll('[data-xenia]').forEach(b=>b.onclick=async()=>{if(!confirm('Enable Xenia SDL controller support? Grove will back up the config first. Close Xenia before continuing.'))return;const r=await safe(()=>api('/api/xenia-sdl',{emulator:b.dataset.xenia}));if(r)notify(r.message)});$('romCards').innerHTML=state.games.filter(g=>g.type==='rom'&&!g.hidden).map(g=>`<div class="list-row"><div><strong>${esc(g.name)}</strong><small>${esc(g.gamefile)}</small></div><button class="add-btn" data-rom="${esc(g.id)}">View game →</button></div>`).join('')||'<div class="setting-note">No ISO or ROM entries yet. Add one above to launch through your configured emulator.</div>';document.querySelectorAll('[data-rom]').forEach(e=>e.onclick=()=>details(e.dataset.rom))}
+function renderEmulators(){const em=Object.entries(state.emulators||{});$('emulatorCards').innerHTML=em.length?em.map(([id,v])=>`<div class="list-row"><div><strong>${esc(v.name)}</strong><small>${esc(v.platform)} · ${esc(v.exe)}</small></div><span class="tag">CONNECTED</span></div>`).join(''):'<div class="setting-note">No emulators yet. Connect Xenia Canary for your SSX ISO.</div>';$('romCards').innerHTML=state.games.filter(g=>g.type==='rom'&&!g.hidden).map(g=>`<div class="list-row"><div><strong>${esc(g.name)}</strong><small>${esc(g.gamefile)}</small></div><button class="add-btn" data-rom="${esc(g.id)}">View game →</button></div>`).join('')||'<div class="setting-note">No ISO or ROM entries yet. Add one above to launch through your configured emulator.</div>';document.querySelectorAll('[data-rom]').forEach(e=>e.onclick=()=>details(e.dataset.rom))}
 function open(name){
  const previous=screen;
  if(previous!==name)menuSound();
@@ -1091,53 +1091,6 @@ $('updateInstall').onclick=async()=>{if(!updateReady)return;
  catch(e){notify(e.message,true);$('updateStatus').textContent=e.message;}
  b.disabled=false;b.textContent='Update & Restart';
 };
-
-let smartScanBusy=false;
-async function smartRefresh(show=true){
- if(smartScanBusy)return;
- smartScanBusy=true;
- try{
-  if(show)$('smartStatus').textContent='Scanning Downloads safely…';
-  const data=await api('/api/smart-preview');
-  $('smartAuto').checked=!!data.autoEnabled;
-  $('smartUndo').hidden=!data.lastMove;
-  const icons={game:'🎮',emulator:'🕹️',rom:'💿',archive:'📦',installer:'⚠️'};
-  const rows=(data.items||[]).filter(x=>x.kind!=='other').slice(0,80);
-  $('smartResults').innerHTML=rows.map(x=>'<div class="smart-row"><strong>'+icons[x.kind]+' '+esc(x.title)+'</strong><span>'+esc(x.kind.toUpperCase())+' · '+x.confidence+'/100 · '+esc(x.action.toUpperCase())+'</span><small>'+esc(x.reason)+' — '+esc(x.path)+'</small></div>').join('')||'<p class="muted">No game-related folders or archives in Downloads.</p>';
-  $('smartStatus').textContent=data.counts.ready+' verified folder(s) ready; '+data.counts.review+' need review. Automatic sorting: '+(data.autoEnabled?'ON':'OFF')+'.';
- }catch(e){$('smartStatus').textContent=e.message;}
- finally{smartScanBusy=false;}
-}
-$('smartScan').onclick=()=>smartRefresh(true);
-$('smartAuto').onchange=async()=>{
- const enabled=$('smartAuto').checked;
- if(enabled&&!confirm('Allow automatic sorting of verified, completed game and emulator folders? Uncertain folders and loose executable files remain untouched.')){$('smartAuto').checked=false;return;}
- const result=await safe(()=>api('/api/smart-mode',{enabled}));
- if(!result){$('smartAuto').checked=!enabled;return;}
- notify(result.autoEnabled?'Safe auto-organization enabled.':'Auto-organization disabled.');
- smartRefresh(false);
-};
-$('smartUndo').onclick=async()=>{
- if(!confirm('Undo the most recent automatically organized folder? This moves the folder back into Downloads without deleting files.'))return;
- const response=await safe(()=>api('/api/smart-undo',{}));
- if(!response)return;
- notify('Moved '+response.undone.name+' back to Downloads.');
- await reload(true);await smartRefresh(true);
-};
-$('smartOrganize').onclick=async()=>{
- if(!confirm('Organize only high-confidence, completed game and emulator folders? Existing destination folders will never be overwritten.'))return;
- const result=await safe(()=>api('/api/smart-organize',{}));
- if(!result)return;
- notify(result.message);await reload(true);smartRefresh(true);
-};
-setTimeout(()=>smartRefresh(false),6000);
-setInterval(async()=>{
- if(!$('smartAuto').checked||smartScanBusy)return;
- try{
-  const result=await api('/api/smart-auto',{});
-  if(result.moved?.length){notify('Organized '+result.moved.length+' verified new folders.');await reload(true);smartRefresh(false);}
- }catch(e){console.warn('Smart Discovery:',e.message);}
-},60000);
 
 setTimeout(checkElmosUpdate,2600);
 $('saveSettings').onclick=async()=>{const changes={games_folder:$('gamesRoot').value};if($('artKey').value.trim())changes.api_key=$('artKey').value.trim();const r=await safe(()=>api('/api/settings',changes));if(r){$('artKey').value='';await reload();notify('Settings saved.')}};
