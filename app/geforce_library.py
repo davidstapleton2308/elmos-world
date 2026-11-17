@@ -97,3 +97,45 @@ ConvertTo-Json -InputObject @($found) -Compress -Depth 3
                 for x in raw if isinstance(x,dict) and x.get('path')][:100]
     except (OSError, ValueError, subprocess.SubprocessError, KeyError):
         return []
+
+
+def direct_route(variant_id, short_name, parent_game_id=''):
+    """NVIDIA client game route, all components checked before process launch."""
+    from urllib.parse import quote
+    if not re.fullmatch(r'[0-9]{1,18}', str(variant_id or '')):
+        raise ValueError('Missing or invalid GeForce NOW CMS game ID.')
+    if not re.fullmatch(r'[A-Za-z0-9_.-]{1,140}', str(short_name or '')):
+        raise ValueError('Missing or invalid NVIDIA shortName. Refresh My Library.')
+    parent = str(parent_game_id or '')
+    if parent and not re.fullmatch(r'[a-fA-F0-9-]{36}', parent):
+        raise ValueError('Invalid NVIDIA parent game ID.')
+    return ('--url-route=#?cmsId=' + str(variant_id) +
+            '&launchSource=External&shortName=' + quote(str(short_name), safe='_-.' ) +
+            '&parentGameId=' + parent)
+
+
+def launch_selected_game(record):
+    """Open the requested stream using the installed official NVIDIA Windows client.
+
+    This launches the native GeForce NOW client directly to the chosen title;
+    it does not bypass NVIDIA streaming services or authorization.
+    """
+    import subprocess
+    from provider_adapters import discover
+    route = direct_route(record.get('variantId'), record.get('shortName'),
+                         record.get('parentGameId'))
+    provider = next((p for p in discover()
+                     if p.get('name') == 'GeForce NOW' and p.get('installed')), None)
+    if not provider:
+        raise RuntimeError('The GeForce NOW Windows client was not found.')
+    root = Path(provider['launcherPath']).parent
+    # Streamer is NVIDIA's native direct-game entrypoint when installed.
+    candidates = [root / 'GeForceNOWStreamer.exe', root / 'GeForceNOW.exe']
+    target = next((p for p in candidates if p.is_file()), None)
+    if not target:
+        raise RuntimeError('Could not find GeForce NOW streaming executable.')
+    if sys.platform != 'win32':
+        return {'ok': True, 'dryRun': True, 'name': record['name'],
+                'directLaunch': True, 'route': route}
+    subprocess.Popen([str(target), route], cwd=str(root), close_fds=True)
+    return {'ok': True, 'name': record['name'], 'directLaunch': True}
