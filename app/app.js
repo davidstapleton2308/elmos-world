@@ -416,17 +416,16 @@ async function gfnOpenApp(){
  if(provider){const r=await safe(()=>api('/api/open-platform',{name:'GeForce NOW'}));if(r)notify('Opening GeForce NOW…')}
  else notify('GeForce NOW was not detected at a standard installation path. Open its app and create per-game desktop shortcuts.',true);
 }
-async function gfnSync(){
+async function gfnSync({silent=false}={}){
  const b=$('gfnSync');if(!b||b.disabled)return;
- b.disabled=true;b.textContent='Syncing My Library…';
- $('gfnStatus').textContent='Reading GeForce NOW My Library cache…';
+ b.disabled=true;
+ if(!silent){b.textContent='Syncing My Library…';$('gfnStatus').textContent='Reading GeForce NOW My Library cache…';}
  try{
   const r=await api('/api/gfn-sync',{});
   if(!r?.ok)throw new Error(r?.message||'Sync failed');
   await reload(false);open('gfn');
-  $('gfnStatus').textContent=r.message+' '+r.added+' added; '+r.updated+' refreshed. NVIDIA files unchanged.';
-  notify(r.added?('Synced '+r.added+' new cloud games'):r.message);
- }catch(e){$('gfnStatus').textContent='Sync failed: '+e.message;notify(e.message,true)}
+  if(!silent){$('gfnStatus').textContent=r.message+' '+r.added+' added; '+r.updated+' refreshed. NVIDIA files unchanged.';notify(r.added?('Synced '+r.added+' new cloud games'):r.message);}
+ }catch(e){if(!silent){$('gfnStatus').textContent='Sync failed: '+e.message;notify(e.message,true)}else console.warn('Background GeForce NOW sync failed:',e.message)}
  finally{b.disabled=false;b.textContent='↻ Sync My Library'}
 }
 async function gfnLaunch(g){
@@ -503,7 +502,7 @@ function open(name){
   // Restore deck position after the library becomes visible; never reset to item one.
   requestAnimationFrame(()=>syncSelectedCard(true));
  }
- if(name==='gfn'){requestAnimationFrame(()=>gfnSelect(gfnSelected,true));if(!gfnAutoSyncAttempted){gfnAutoSyncAttempted=true;gfnSync();}}
+ if(name==='gfn'){requestAnimationFrame(()=>gfnSelect(gfnSelected,true));if(!gfnAutoSyncAttempted){gfnAutoSyncAttempted=true;gfnSync({silent:true});}}
  if(name==='settings')refreshElmosInput();
  syncBrowsePreviewVisibility();if(name==='activity'){renderActivity();refreshLaunchTimeline();}
 }
