@@ -43,7 +43,7 @@ def neutralize_stick_drift(values, deadzone=0.18):
             result.extend([0.0, 0.0])
         else:
             scaled = min(1.0, (magnitude - deadzone) / (1.0 - deadzone))
-            result.extend([clamp(x / magnitude * scaled), clamp(y / magnitude * scaled)])
+            result.extend([clamp(x / magnitude * scaled, -1, 1), clamp(y / magnitude * scaled, -1, 1)])
     return result
 
 
