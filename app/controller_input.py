@@ -98,7 +98,7 @@ class ControllerMonitor:
                     self._publish(available=True,connected=False,mode='none',name='',buttons={},rawButtons=[],rawAxes=[],hats=[],axes=[0,0,0,0],triggers=[0,0],devices=[],error='No joystick detected by SDL. Check Windows joy.cpl or try USB.')
                     time.sleep(.14);continue
                 # Prefer the physical PlayStation controller over virtual Xbox devices.
-                preferred=next((i for i in range(count) if any(x in pygame.joystick.Joystick(i).get_name().lower() for x in ('wireless controller','dualshock','sony','dualsense'))),None)
+                preferred=next((i for i in range(count) if any(x in pygame.joystick.Joystick(i).get_name().lower() for x in ('wireless controller','ps4 controller','dualshock','sony','dualsense'))),None)
                 chosen=preferred if preferred is not None else next((i for i in range(count) if controller.is_controller(i)),0)
                 if chosen!=device_id or current is None:
                     try:
