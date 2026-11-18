@@ -154,3 +154,39 @@
 .hub-exit-actions button{min-width:165px;min-height:50px}
 .hub-exit-panel small{display:block;margin-top:24px;color:#7f948a;font-size:11px}
 .hub-exit-actions button:focus-visible{outline:2px solid #b4f5be;outline-offset:4px}
+
+
+/* Uniform GeForce NOW cover fit. Never crop source logos or wide NVIDIA
+   thumbnails into unreadable 2:3 posters. The blurred continuation fills
+   the frame behind a fully visible, centered source. */
+#gfnView #gfnCards .gfn-card .gfn-poster{
+  flex-shrink:0!important;
+  width:100%!important;
+  aspect-ratio:2/3!important;
+  max-height:calc(100% - 48px)!important;
+  background:#0b1214!important;
+}
+#gfnView #gfnCards .gfn-card .gfn-poster img,
+#gfnView #gfnCards .gfn-card .gfn-poster.is-landscape img{
+  position:absolute!important;
+  inset:0!important;
+  width:100%!important;height:100%!important;
+  max-height:none!important;
+  object-fit:contain!important;
+  object-position:center!important;
+  padding:5px!important;
+  -webkit-mask-image:none!important;mask-image:none!important;
+}
+#gfnView #gfnCards .gfn-card .gfn-poster.is-landscape::after{
+  background:linear-gradient(0deg,rgba(3,7,9,.68),transparent 33%)!important;
+  opacity:1!important;
+}
+#gfnView #gfnCards .gfn-card .gfn-poster.is-landscape .gfn-art-label{
+  display:block!important;font-size:clamp(11px,1vw,15px)!important;
+  bottom:7px!important;left:9px!important;right:9px!important;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+#gfnView #gfnCards .gfn-card>strong{
+  width:100%!important;max-width:100%!important;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
