@@ -3,7 +3,7 @@ const token=new URLSearchParams(location.hash.slice(1)).get('token')||'';
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let previewTimer=null,artPreloaded=new Map(),libraryLayout='carousel';
-let elmoTheme=localStorage.getItem('elmo-theme')||'forest';let elmoMotion=localStorage.getItem('elmo-motion')||'normal';const controllerMapDefault={a:0,b:1,start:9,lb:4,rb:5,guide:10};let controllerMap=Object.assign({},controllerMapDefault,JSON.parse(localStorage.getItem('elmo-controller-map')||'{}'));let latestNative=null;let diagLast=0;
+let elmoTheme=localStorage.getItem('elmo-theme')||'forest';let elmoMotion=localStorage.getItem('elmo-motion')||'normal';const controllerMapDefault={a:0,b:1,start:9,lb:4,rb:5,guide:12};let controllerMap=Object.assign({},controllerMapDefault,JSON.parse(localStorage.getItem('elmo-controller-map')||'{}'));let latestNative=null;let diagLast=0;
 
 let state={games:[],gfnGames:[],emulators:{},counts:{all:0,review:0}},selected=localStorage.getItem('elmo-deck-selected')||null,sort='all',screen='library',modal=false,toastTimer,controllerTimestamp=0,buttonDown=false,lastDpad=null,metadataCache={};
 let initialRecentFocusDone=false;let menuAudio=null;
@@ -1206,7 +1206,7 @@ function syncNativeMenuButtons(){api('/api/controller-map',{buttons:{a:controlle
 function setupControllerEditor(){syncNativeMenuButtons();const options=Array.from({length:24},(_,i)=>`<option value="${i}">${i}</option>`).join('');
  for(const [key,id] of Object.entries({a:'mapA',b:'mapB',start:'mapStart',lb:'mapLb',rb:'mapRb',guide:'mapGuide'})){$(id).innerHTML=options;$(id).value=String(controllerMap[key]??controllerMapDefault[key]);}
  $('saveControllerMap').onclick=()=>{for(const [key,id] of Object.entries({a:'mapA',b:'mapB',start:'mapStart',lb:'mapLb',rb:'mapRb',guide:'mapGuide'}))controllerMap[key]=Number($(id).value);localStorage.setItem('elmo-controller-map',JSON.stringify(controllerMap));syncNativeMenuButtons();api('/api/guide-index',{index:controllerMap.guide}).then(()=>notify('Controller mapping saved. PS button will open the game menu.')).catch(e=>notify('PS mapping could not be saved: '+e.message,true));};
- $('resetControllerMap').onclick=()=>{controllerMap={...controllerMapDefault};localStorage.removeItem('elmo-controller-map');setupControllerEditor();api('/api/guide-index',{index:10}).then(()=>notify('PS4 button mapping restored.')).catch(e=>notify(e.message,true));};
+ $('resetControllerMap').onclick=()=>{controllerMap={...controllerMapDefault};localStorage.removeItem('elmo-controller-map');setupControllerEditor();api('/api/guide-index',{index:12}).then(()=>notify('PS4 button mapping restored.')).catch(e=>notify(e.message,true));};
  $('controllerRefresh').onclick=()=>pollController();
  $('inputRefresh').onclick=refreshElmosInput;
  $('inputStart').onclick=async()=>{
