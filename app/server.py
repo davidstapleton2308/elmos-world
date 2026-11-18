@@ -443,8 +443,13 @@ if __name__=='__main__':
  monitor.return_handler=show_game_menu
  monitor.menu_input_handler=global_native_menu.gamepad
  monitor.start()
- # Start Elmos's built-in Sony -> Xbox 360 engine. Never start DS4Windows.
- native_input.start()
+ # In explicitly opted-in AppProbe runs, never create a second idle virtual
+ # Xbox device that can take priority over the test controller in SDL.
+ # Normal user launches continue to start the native Sony -> Xbox bridge.
+ if os.environ.get('ELMOS_APPPROBE_TEST') == '1':
+  print('[Elmos Input] AppProbe test mode: internal virtual Xbox bridge disabled',flush=True)
+ else:
+  native_input.start()
  try:
   import webview
  except ImportError:
