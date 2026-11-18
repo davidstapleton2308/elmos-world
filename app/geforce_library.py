@@ -91,7 +91,8 @@ ConvertTo-Json -InputObject @($found) -Compress -Depth 3
     try:
         encoded = base64.b64encode(script.encode('utf-16le')).decode('ascii')
         output = subprocess.run(['powershell.exe','-NoProfile','-NonInteractive','-EncodedCommand',encoded],
-                                capture_output=True, text=True, timeout=12, check=True)
+                                capture_output=True, text=True, timeout=12, check=True,
+                                creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         raw=json.loads(output.stdout.strip() or '[]')
         return [{'path':str(x['path']), 'name':clean_shortcut_title(x['name'])}
                 for x in raw if isinstance(x,dict) and x.get('path')][:100]
