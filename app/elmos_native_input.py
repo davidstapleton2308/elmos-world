@@ -29,6 +29,24 @@ def clamp(value, low, high):
     except (ValueError, TypeError):
         return 0.0
 
+def neutralize_stick_drift(values, deadzone=0.18):
+    """Radial deadzone for game-facing Xbox sticks; preserve full travel."""
+    from math import hypot
+    a = [clamp(v, -1, 1) for v in list(values)[:4]]
+    if len(a) < 4:
+        return [0.0, 0.0, 0.0, 0.0]
+    result = []
+    for i in (0, 2):
+        x, y = a[i], a[i + 1]
+        magnitude = hypot(x, y)
+        if magnitude <= deadzone:
+            result.extend([0.0, 0.0])
+        else:
+            scaled = min(1.0, (magnitude - deadzone) / (1.0 - deadzone))
+            result.extend([clamp(x / magnitude * scaled), clamp(y / magnitude * scaled)])
+    return result
+
+
 def _sony_device(snapshot):
     """Reject ViGEm/VIIPER/Xbox virtual outputs to prevent feedback loops."""
     name = str(snapshot.get('name') or '').casefold()
@@ -72,7 +90,7 @@ def _raw_ds4_frame(snapshot):
             triggers.append(1.0 if button(digital) else 0.0)
     return {
         'buttons': [value for key, value in BUTTONS.items() if buttons.get(key)],
-        'axes': [clamp(value, -1, 1) for value in axes[:4]],
+        'axes': neutralize_stick_drift(axes[:4]),
         'triggers': triggers,
         'name': str(snapshot.get('name') or '')[:90],
     }
@@ -100,7 +118,7 @@ def frame_from_snapshot(snapshot):
         triggers = [0, 0]
     return {
         'buttons': [value for key, value in BUTTONS.items() if buttons.get(key)],
-        'axes': [clamp(v, -1, 1) for v in axes[:4]],
+        'axes': neutralize_stick_drift(axes[:4]),
         'triggers': [clamp(v, 0, 1) for v in triggers],
         'name': str(snapshot.get('name') or '')[:90],
     }
