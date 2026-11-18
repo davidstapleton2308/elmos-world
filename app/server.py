@@ -432,6 +432,52 @@ class WindowBridge:
    return True
   except Exception:return False
 
+def _appprobe_control_loop():
+ """Opt-in test-launch-only bridge toggles, used for 10-second A/B comparisons.
+
+ Not enabled during normal launches. The launching AppProbe process supplies a
+ random secret and a private control directory through environment variables.
+ Only stop/start/status are accepted; no arbitrary commands or file access.
+ """
+ root_text=os.environ.get('ELMOS_APPPROBE_CONTROL_DIR','')
+ key=os.environ.get('ELMOS_APPPROBE_CONTROL_KEY','')
+ if os.environ.get('ELMOS_APPPROBE_TEST')!='1' or not root_text or len(key)<24:
+  return
+ root=Path(root_text)
+ if not root.is_dir():return
+ request=root/'request.json'
+ reply=root/'reply.json'
+ print('[Elmos Input] AppProbe A/B bridge control enabled',flush=True)
+ while True:
+  try:
+   if not request.exists():
+    time.sleep(0.07);continue
+   # Consume command only once. No network listener or shell commands.
+   command=json.loads(request.read_text(encoding='utf-8'))
+   request.unlink(missing_ok=True)
+   if command.get('secret')!=key:
+    result={'ok':False,'error':'unauthorized'}
+   else:
+    action=command.get('action')
+    if action=='start':
+     native_input.start()
+     result={'ok':True,'action':'start','state':native_input.status()}
+    elif action=='stop':
+     native_input.stop()
+     result={'ok':True,'action':'stop','state':native_input.status()}
+    elif action=='status':
+     result={'ok':True,'action':'status','state':native_input.status()}
+    else:
+     result={'ok':False,'error':'unsupported action'}
+   result['request_id']=command.get('request_id')
+   temp=reply.with_suffix('.tmp')
+   temp.write_text(json.dumps(result),encoding='utf-8')
+   os.replace(temp,reply)
+  except Exception as exc:
+   print('[Elmos Input] AppProbe control error: '+repr(exc),flush=True)
+   time.sleep(0.2)
+
+
 if __name__=='__main__':
  if sys.platform!='win32':print('The launcher is designed for Windows; demo browser mode will still start.')
  server=ThreadingHTTPServer(('127.0.0.1',0),Handler)
@@ -448,6 +494,7 @@ if __name__=='__main__':
  # Normal user launches continue to start the native Sony -> Xbox bridge.
  if os.environ.get('ELMOS_APPPROBE_TEST') == '1':
   print('[Elmos Input] AppProbe test mode: internal virtual Xbox bridge disabled',flush=True)
+  threading.Thread(target=_appprobe_control_loop,name='AppProbe bridge A/B control',daemon=True).start()
  else:
   native_input.start()
  try:
