@@ -432,6 +432,41 @@ class WindowBridge:
    return True
   except Exception:return False
 
+class _AppProbeReplaySource:
+ """In-process test-only physical-controller snapshot provider.
+
+ It runs the *real* Elmos Input conversion and ViGEm writer without relying on
+ repeated physical button presses. Only exists in explicitly opted-in sessions.
+ """
+ def __init__(self):
+  self._lock=threading.RLock()
+  self._frame={'buttons':{},'axes':[0,0,0,0],'triggers':[0,0]}
+ def set_frame(self,frame):
+  if not isinstance(frame,dict):raise ValueError('Frame must be an object')
+  buttons=frame.get('buttons') or {}
+  if not isinstance(buttons,dict):raise ValueError('Invalid buttons')
+  allowed={'a','b','x','y','lb','rb','up','down','left','right','start','back','guide','l3','r3'}
+  axes=frame.get('axes') or [0,0,0,0]
+  triggers=frame.get('triggers') or [0,0]
+  if len(axes)!=4 or len(triggers)!=2:raise ValueError('Invalid axes/triggers')
+  def unit(v,lo,hi):
+   v=float(v)
+   if not (lo<=v<=hi):raise ValueError('Input out of range')
+   return v
+  next_frame={'buttons':{k:bool(v) for k,v in buttons.items() if k in allowed},
+              'axes':[unit(x,-1.,1.) for x in axes],
+              'triggers':[unit(x,0.,1.) for x in triggers]}
+  with self._lock:self._frame=next_frame
+ def snapshot(self):
+  with self._lock:frame={'buttons':dict(self._frame['buttons']),
+                         'axes':list(self._frame['axes']),
+                         'triggers':list(self._frame['triggers'])}
+  return dict(frame,connected=True,name='PS4 Controller',
+              mode='mapped SDL',error='')
+ def queue_rumble(self,large,small):
+  pass
+
+
 def _appprobe_control_loop():
  """Opt-in test-launch-only bridge toggles, used for 10-second A/B comparisons.
 
@@ -447,6 +482,8 @@ def _appprobe_control_loop():
  if not root.is_dir():return
  request=root/'request.json'
  reply=root/'reply.json'
+ source=_AppProbeReplaySource()
+ original_source=native_input.source
  print('[Elmos Input] AppProbe A/B bridge control enabled',flush=True)
  while True:
   try:
@@ -460,10 +497,17 @@ def _appprobe_control_loop():
    else:
     action=command.get('action')
     if action=='start':
+     source.set_frame({'axes':[0,0,0,0],'buttons':{},'triggers':[0,0]})
+     native_input.source=source
      native_input.start()
      result={'ok':True,'action':'start','state':native_input.status()}
+    elif action=='frame':
+     source.set_frame(command.get('frame') or {})
+     result={'ok':True,'action':'frame','state':native_input.status()}
     elif action=='stop':
+     source.set_frame({'axes':[0,0,0,0],'buttons':{},'triggers':[0,0]})
      native_input.stop()
+     native_input.source=original_source
      result={'ok':True,'action':'stop','state':native_input.status()}
     elif action=='status':
      result={'ok':True,'action':'status','state':native_input.status()}
