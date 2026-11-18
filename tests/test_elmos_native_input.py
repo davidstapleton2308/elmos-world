@@ -16,8 +16,8 @@ class NativeInputTests(unittest.TestCase):
         pad=MagicMock()
         n.apply_frame(pad,vg,frame)
         pad.reset.assert_called_once_with()
-        pad.left_joystick_float.assert_called_once_with(x_value_float=0.5,y_value_float=0.25)
-        pad.right_joystick_float.assert_called_once_with(x_value_float=-0.3,y_value_float=-0.9)
+        pad.left_joystick_float.assert_called_once_with(x_value_float=frame['axes'][0],y_value_float=-frame['axes'][1])
+        pad.right_joystick_float.assert_called_once_with(x_value_float=frame['axes'][2],y_value_float=-frame['axes'][3])
         pad.update.assert_called_once_with()
     def test_windows_ps4_controller_name_bridges_mapped_sdl(self):
         frame=n.frame_from_snapshot(dict(
@@ -29,7 +29,7 @@ class NativeInputTests(unittest.TestCase):
         self.assertIn('XUSB_GAMEPAD_A', frame['buttons'])
         self.assertIn('XUSB_GAMEPAD_B', frame['buttons'])
         self.assertIn('XUSB_GAMEPAD_GUIDE', frame['buttons'])
-        self.assertEqual(frame['axes'], [.25,-.5,-.75,.5])
+        self.assertEqual(frame['axes'], n.neutralize_stick_drift([.25,-.5,-.75,.5]))
         self.assertEqual(frame['triggers'], [0.,1.])
 
     def test_ps4_like_virtual_device_names_are_rejected(self):
@@ -119,9 +119,9 @@ class NativeInputTests(unittest.TestCase):
         # that a virtual device was created and then left idle.
         self.assertGreaterEqual(pad.left_joystick_float.call_count,1)
         pad.left_joystick_float.assert_any_call(
-            x_value_float=.4,y_value_float=.1)
+            x_value_float=n.neutralize_stick_drift([.4,-.1,.6,.25])[0],y_value_float=-n.neutralize_stick_drift([.4,-.1,.6,.25])[1])
         pad.right_joystick_float.assert_any_call(
-            x_value_float=.6,y_value_float=-.25)
+            x_value_float=n.neutralize_stick_drift([.4,-.1,.6,.25])[2],y_value_float=-n.neutralize_stick_drift([.4,-.1,.6,.25])[3])
         pad.left_trigger_float.assert_any_call(value_float=0.)
         pad.right_trigger_float.assert_any_call(value_float=1.)
         self.assertGreaterEqual(pad.press_button.call_count,3)
@@ -152,8 +152,13 @@ class NativeInputTests(unittest.TestCase):
             self.assertIn(code,frame['buttons'])
         self.assertNotIn('XUSB_GAMEPAD_B',frame['buttons'])
         self.assertNotIn('XUSB_GAMEPAD_RIGHT_THUMB',frame['buttons'])
-        self.assertEqual(frame['axes'],[.5,-.25,-.4,.8])
+        self.assertEqual(frame['axes'],n.neutralize_stick_drift([.5,-.25,-.4,.8]))
         self.assertEqual(frame['triggers'],[0.,1.])
+
+    def test_idle_stick_drift_is_neutralized(self):
+        self.assertEqual(n.neutralize_stick_drift([.10,.06,-.10,.02]),[0.,0.,0.,0.])
+        self.assertEqual(n.neutralize_stick_drift([0.,0.,0.,0.]),[0.,0.,0.,0.])
+        self.assertEqual(n.neutralize_stick_drift([1.,0.,0.,-1.]),[1.,0.,0.,-1.])
 
     def test_raw_ds4_digital_trigger_fallback(self):
         buttons=[False]*14
