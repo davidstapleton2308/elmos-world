@@ -24,11 +24,12 @@ class ControllerMonitor:
         self.menu_input_handler=None  # foreground-independent native game-menu navigation
         self.navigation_map={'a':0,'b':1}
         self.guide_file=Path(os.environ.get('LOCALAPPDATA', str(Path.home()))) / 'ElmosWorld' / 'controller.json'
-        self.guide_index=10
+        self.guide_index=12  # Standard DS4 raw PS button; 10 can be a stick/shoulder on mapped devices
         try:
             cfg=json.loads(self.guide_file.read_text(encoding='utf-8'))
             if type(cfg.get('guide_index')) is int and 0 <= cfg['guide_index'] <= 39:
-                self.guide_index=cfg['guide_index']
+                # Legacy default 10 caused false Guide reports on some SDL PS4 devices.
+                self.guide_index=12 if cfg['guide_index']==10 else cfg['guide_index']
         except (OSError,ValueError,TypeError): pass
     def queue_rumble(self, large, small):
         """Queue motor updates without touching SDL from the ViGEm callback thread."""
