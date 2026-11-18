@@ -498,12 +498,15 @@ def _appprobe_control_loop():
     action=command.get('action')
     if action=='start':
      source.set_frame({'axes':[0,0,0,0],'buttons':{},'triggers':[0,0]})
-     native_input.source=source
+     native_input.source=source if command.get('source')=='replay' else original_source
      native_input.start()
      result={'ok':True,'action':'start','state':native_input.status()}
     elif action=='frame':
-     source.set_frame(command.get('frame') or {})
-     result={'ok':True,'action':'frame','state':native_input.status()}
+     if native_input.source is not source:
+      result={'ok':False,'error':'replay source not selected'}
+     else:
+      source.set_frame(command.get('frame') or {})
+      result={'ok':True,'action':'frame','state':native_input.status()}
     elif action=='stop':
      source.set_frame({'axes':[0,0,0,0],'buttons':{},'triggers':[0,0]})
      native_input.stop()
