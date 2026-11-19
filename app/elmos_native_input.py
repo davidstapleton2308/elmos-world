@@ -47,6 +47,68 @@ def neutralize_stick_drift(values, deadzone=0.18):
     return result
 
 
+class StickCenterCalibration:
+    """Safe, per-device neutral calibration; never learns full-deflection as center.
+
+    Gather stable, unpressed readings only near the physical origin. Both
+    sticks calibrate independently; gameplay can start immediately with the
+    existing radial deadzone when calibration is not yet possible.
+    """
+    def __init__(self, samples=30, max_center=0.14, max_jitter=0.045):
+        self.samples = samples
+        self.max_center = max_center
+        self.max_jitter = max_jitter
+        self.device = None
+        self.buffers = [[], []]
+        self.centers = [[0.0, 0.0], [0.0, 0.0]]
+        self.ready = [False, False]
+
+    def reset(self, device=None):
+        self.device = device
+        self.buffers = [[], []]
+        self.centers = [[0.0, 0.0], [0.0, 0.0]]
+        self.ready = [False, False]
+
+    def apply(self, values, buttons=None, triggers=None, device=None):
+        from math import hypot
+        if device != self.device:
+            self.reset(device)
+        values = [clamp(v, -1, 1) for v in list(values)[:4]]
+        if len(values) != 4:
+            return [0.0] * 4
+        no_actions = not any(bool(v) for v in (buttons or {}).values())
+        no_triggers = all(float(v) < 0.12 for v in (triggers or [0, 0]))
+        output = []
+        for stick in range(2):
+            x, y = values[stick * 2:stick * 2 + 2]
+            if not self.ready[stick] and no_actions and no_triggers:
+                if hypot(x, y) <= self.max_center:
+                    buffer = self.buffers[stick]
+                    buffer.append((x, y))
+                    if len(buffer) >= self.samples:
+                        if (max(p[0] for p in buffer) - min(p[0] for p in buffer) <= self.max_jitter and
+                            max(p[1] for p in buffer) - min(p[1] for p in buffer) <= self.max_jitter):
+                            self.centers[stick] = [
+                                sorted(p[a] for p in buffer)[len(buffer) // 2] for a in (0, 1)
+                            ]
+                            self.ready[stick] = True
+                        else:
+                            # Prevent accumulating drifting samples across a moving stick.
+                            self.buffers[stick] = buffer[-5:]
+                else:
+                    self.buffers[stick].clear()
+            cx, cy = self.centers[stick]
+            # Preserve full travel after subtracting the measured center offset.
+            output.extend([clamp((x - cx) / (1 - abs(cx)), -1, 1),
+                           clamp((y - cy) / (1 - abs(cy)), -1, 1)])
+        return output
+
+    def diagnostics(self):
+        return {'ready': list(self.ready),
+                'centers': [list(c) for c in self.centers],
+                'samples': [len(b) for b in self.buffers]}
+
+
 def _sony_device(snapshot):
     """Reject ViGEm/VIIPER/Xbox virtual outputs to prevent feedback loops."""
     name = str(snapshot.get('name') or '').casefold()
@@ -54,7 +116,7 @@ def _sony_device(snapshot):
         key in name for key in ('xbox', 'viiper', 'vigem'))
 
 
-def _raw_ds4_frame(snapshot):
+def _raw_ds4_frame(snapshot, calibration=None):
     """Decode standard Windows SDL raw DirectInput DualShock 4 joystick layout.
 
     Classic DS4Windows parses physical Cross/Circle/Square/Triangle into
@@ -90,13 +152,13 @@ def _raw_ds4_frame(snapshot):
             triggers.append(1.0 if button(digital) else 0.0)
     return {
         'buttons': [value for key, value in BUTTONS.items() if buttons.get(key)],
-        'axes': neutralize_stick_drift(axes[:4]),
+        'axes': neutralize_stick_drift(calibration.apply(axes[:4], buttons, triggers, snapshot.get('name')) if calibration else axes[:4]),
         'triggers': triggers,
         'name': str(snapshot.get('name') or '')[:90],
     }
 
 
-def frame_from_snapshot(snapshot):
+def frame_from_snapshot(snapshot, calibration=None):
     """Convert a physical Sony snapshot into a ViGEm Xbox 360 report.
 
     Accept SDL GameController mappings *and* the standard Windows raw DS4
@@ -106,7 +168,7 @@ def frame_from_snapshot(snapshot):
     if not snapshot.get('connected') or not _sony_device(snapshot):
         return None
     if snapshot.get('mode') == 'raw SDL joystick':
-        return _raw_ds4_frame(snapshot)
+        return _raw_ds4_frame(snapshot, calibration)
     if snapshot.get('mode') != 'mapped SDL':
         return None
     axes = snapshot.get('axes') or [0, 0, 0, 0]
@@ -118,7 +180,7 @@ def frame_from_snapshot(snapshot):
         triggers = [0, 0]
     return {
         'buttons': [value for key, value in BUTTONS.items() if buttons.get(key)],
-        'axes': neutralize_stick_drift(axes[:4]),
+        'axes': neutralize_stick_drift(calibration.apply(axes[:4], buttons, triggers, snapshot.get('name')) if calibration else axes[:4]),
         'triggers': [clamp(v, 0, 1) for v in triggers],
         'name': str(snapshot.get('name') or '')[:90],
     }
@@ -281,9 +343,10 @@ class NativeInput:
                 # the virtual Xbox controller disappear from Windows.
                 print('[Elmos Input] Optional rumble registration failed: ' + repr(exc), flush=True)
             last_neutral = True
+            calibration = StickCenterCalibration()
             while not self._stop.is_set():
                 source = self.source.snapshot()
-                frame = frame_from_snapshot(source)
+                frame = frame_from_snapshot(source, calibration)
                 detected = bool(source.get('connected'))
                 mode = str(source.get('mode') or 'none')
                 reader_error = str(source.get('error') or '')[:220]
@@ -312,6 +375,7 @@ class NativeInput:
                 self._publish(stage='forwarding-input', connected=True, running=True, virtualConnected=True,
                               controllerDetected=True, controllerMode=mode,
                               readerError=reader_error,
+                              stickCalibration=calibration.diagnostics(),
                               message='Elmos Input is sending Xbox 360 controller reports',
                               device=frame['name'])
                 self._stop.wait(0.01)
