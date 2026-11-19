@@ -160,6 +160,55 @@ class NativeInputTests(unittest.TestCase):
         self.assertEqual(n.neutralize_stick_drift([0.,0.,0.,0.]),[0.,0.,0.,0.])
         self.assertEqual(n.neutralize_stick_drift([1.,0.,0.,-1.]),[1.,0.,0.,-1.])
 
+    def test_stick_auto_calibrates_stable_neutral_independently(self):
+        calibrator = n.StickCenterCalibration(samples=5)
+        for i in range(6):
+            result = calibrator.apply([.09 + (i % 2) * .002, -.04, -.07, .035],
+                                      {}, [0, 0], 'PS4 Controller')
+        self.assertEqual(calibrator.ready, [True, True])
+        self.assertAlmostEqual(result[0], 0, places=2)
+        self.assertAlmostEqual(result[1], 0, places=2)
+        self.assertAlmostEqual(result[2], 0, places=2)
+        self.assertAlmostEqual(result[3], 0, places=2)
+        self.assertEqual(calibrator.apply([1, 0, 0, -1], {}, [0, 0],
+                                          'PS4 Controller')[0], 1)
+
+    def test_calibration_never_learns_held_stick_as_center(self):
+        calibrator = n.StickCenterCalibration(samples=4)
+        for _ in range(50):
+            calibrator.apply([0, 0, 0, 1], {}, [0, 0], 'PS4 Controller')
+        self.assertEqual(calibrator.ready, [True, False])
+        self.assertEqual(calibrator.centers[1], [0, 0])
+        self.assertEqual(calibrator.apply([0, 0, 0, 0], {}, [0, 0],
+                                          'PS4 Controller')[3], 0)
+
+    def test_calibration_rejects_inputs_during_button_hold(self):
+        calibrator = n.StickCenterCalibration(samples=4)
+        for _ in range(10):
+            calibrator.apply([.08, 0, 0, 0], {'a': True}, [0, 0], 'PS4 Controller')
+        self.assertEqual(calibrator.ready, [False, False])
+        self.assertEqual(calibrator.centers[0], [0, 0])
+
+    def test_calibration_resets_on_device_change(self):
+        calibrator = n.StickCenterCalibration(samples=4)
+        for _ in range(6):
+            calibrator.apply([.08, 0, 0, 0], {}, [0, 0], 'PS4 Controller')
+        self.assertEqual(calibrator.ready, [True, True])
+        calibrator.apply([0, 0, 0, 0], {}, [0, 0], 'Wireless Controller')
+        self.assertEqual(calibrator.ready, [False, False])
+
+    def test_mapped_ps4_frame_uses_calibrated_center(self):
+        calibrator = n.StickCenterCalibration(samples=4)
+        base = dict(connected=True, mode='mapped SDL', name='PS4 Controller',
+                    buttons={}, triggers=[0, 0], axes=[.08, -.06, -.09, .05])
+        for _ in range(5):
+            frame = n.frame_from_snapshot(base, calibrator)
+        self.assertEqual(frame['axes'], [0.0, 0.0, 0.0, 0.0])
+        base['axes'] = [0, 0, 0.75, 0]
+        frame = n.frame_from_snapshot(base, calibrator)
+        self.assertGreater(frame['axes'][2], .5)
+        self.assertEqual(frame['axes'][3], 0)
+
     def test_raw_ds4_digital_trigger_fallback(self):
         buttons=[False]*14
         buttons[6]=True
