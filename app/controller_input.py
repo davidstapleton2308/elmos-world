@@ -141,7 +141,7 @@ class ControllerMonitor:
                 if not mapped:
                     b=lambda n:raw_buttons[n] if n<len(raw_buttons) else False
                     hat=hats[0] if hats else [0,0]
-                    sony=any(k in current.get_name().lower() for k in ('wireless controller','dualshock','dualsense','sony'))
+                    sony=any(k in current.get_name().lower() for k in ('wireless controller','ps4 controller','dualshock','dualsense','sony'))
                     if sony:
                         # Physical DS4 DirectInput raw button indices differ
                         # from Xbox: Cross=1, Circle=2, Square=0, Triangle=3,
